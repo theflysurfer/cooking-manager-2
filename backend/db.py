@@ -77,6 +77,52 @@ CREATE INDEX IF NOT EXISTS idx_recipe_family ON recipe(family);
 CREATE INDEX IF NOT EXISTS idx_recipe_tags ON recipe USING GIN(tags);
 CREATE INDEX IF NOT EXISTS idx_execution_recipe ON recipe_execution(recipe_id);
 CREATE INDEX IF NOT EXISTS idx_execution_date ON recipe_execution(date DESC);
+
+CREATE TABLE IF NOT EXISTS shopping_session (
+    id          SERIAL PRIMARY KEY,
+    date        DATE NOT NULL,
+    store       TEXT NOT NULL,
+    cart_id     TEXT,
+    covers      INTEGER,
+    people      TEXT[] DEFAULT '{}',
+    total       REAL,
+    items_count INTEGER,
+    notes       TEXT,
+    created_at  TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS shopping_product (
+    id              SERIAL PRIMARY KEY,
+    session_id      INTEGER NOT NULL REFERENCES shopping_session(id) ON DELETE CASCADE,
+    item_requested  TEXT NOT NULL,
+    product_name    TEXT NOT NULL,
+    brand           TEXT,
+    product_id      TEXT,
+    price_unit      REAL,
+    quantity_bought  INTEGER DEFAULT 1,
+    total_price     REAL,
+    status          TEXT DEFAULT 'added',
+    rationale       TEXT NOT NULL,
+    quantity_rationale TEXT,
+    alternatives    JSONB DEFAULT '[]',
+    lesson_learned  TEXT,
+    created_at      TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS shopping_preference (
+    id          SERIAL PRIMARY KEY,
+    pref_type   TEXT NOT NULL,
+    key         TEXT NOT NULL,
+    value       TEXT NOT NULL,
+    reason      TEXT,
+    active      BOOLEAN DEFAULT TRUE,
+    created_at  TIMESTAMPTZ DEFAULT NOW(),
+    updated_at  TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(pref_type, key)
+);
+
+CREATE INDEX IF NOT EXISTS idx_shopping_product_session ON shopping_product(session_id);
+CREATE INDEX IF NOT EXISTS idx_shopping_preference_type ON shopping_preference(pref_type);
 """
 
 MIGRATIONS_SQL = """

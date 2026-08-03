@@ -1,0 +1,341 @@
+{
+  "meta": {
+    "date": "2026-08-03",
+    "store": "Auchan Drive Aubagne",
+    "cart_id": "df5298af-0ece-49fa-97be-24d96487ccbd",
+    "covers": 4,
+    "people": ["Julien", "Clémence", "Léa", "Titouan"],
+    "total": 87.64,
+    "items_count": 23,
+    "notes": "Pain de mie JACQUET à RETIRER manuellement (pas de fonction delete dans l'API). Julien déteste le pain de mie et préfère acheter le pain en boulangerie."
+  },
+  "preferences": {
+    "exclusions": [
+      {
+        "product_type": "pain de mie",
+        "reason": "Julien déteste le pain de mie",
+        "alternative": "Pain en boulangerie"
+      }
+    ],
+    "buy_elsewhere": [
+      {
+        "product_type": "pain",
+        "where": "boulangerie",
+        "reason": "Préférence qualité/goût, jamais en grande surface"
+      }
+    ]
+  },
+  "selection_criteria": {
+    "general_rules": [
+      "Prix/kg le plus bas à qualité comparable",
+      "Format le plus proche de la quantité demandée (éviter le gaspillage)",
+      "Origine France privilégiée quand disponible",
+      "Sans sucres ajoutés pour les produits laitiers et compotes",
+      "Marque distributeur (AUCHAN) par défaut sauf quand la marque fait une vraie différence"
+    ]
+  },
+  "products": [
+    {
+      "item_requested": "Lait 1L",
+      "product_chosen": {
+        "name": "Lait demi-écrémé vitamine D",
+        "brand": "LACTEL",
+        "product_id": "89ca3fff-fd76-4f6b-9cda-f2f1dc55055c",
+        "price": 10.00,
+        "quantity_bought": 1
+      },
+      "rationale": "Déjà dans le panier (pré-existant). LACTEL demi-écrémé, référence standard.",
+      "note": "Prix anormalement élevé (10€) — probablement un lot ou une erreur d'affichage à vérifier."
+    },
+    {
+      "item_requested": "Crevettes décortiquées surgelées 800g",
+      "product_chosen": {
+        "name": "Crevettes décortiquées crues et déveinées 250g",
+        "brand": "SEAFOOD PREMIUM",
+        "price_unit": 5.90,
+        "quantity_bought": 3,
+        "total": 17.70,
+        "product_id": "6456a1fc-fcea-4acb-8289-5b5dcdd23efb"
+      },
+      "alternatives_considered": [
+        "Crevettes cuites (rejetées : moins polyvalentes en cuisine, texture caoutchouteuse si re-cuites)",
+        "Crevettes entières (rejetées : gain de poids trompeur, temps de décorticage)"
+      ],
+      "rationale": "Crues et déveinées = maximale flexibilité en cuisine (sautées, grillées, poêlées). 3×250g=750g, le plus proche de 800g sans gaspillage. SEAFOOD PREMIUM est la marque qualité Auchan pour le surgelé mer.",
+      "quantity_rationale": "3 sachets de 250g = 750g (pas de sachet 800g disponible, 4×250g=1kg serait trop)"
+    },
+    {
+      "item_requested": "Skyr nature 3 pots (850g)",
+      "product_chosen": {
+        "name": "Skyr nature 850g",
+        "brand": "AUCHAN",
+        "price": 3.03,
+        "quantity_bought": 1,
+        "product_id": "840432ad-2e33-48e0-a3fb-4d96e534b49c"
+      },
+      "alternatives_considered": [
+        "ISEY SKYR 450g à 6,89€/kg (rejeté : 2× plus cher/kg, format insuffisant)",
+        "SKYR LIDL non disponible sur Auchan"
+      ],
+      "rationale": "Format exact 850g, meilleur prix/kg (3,56€/kg vs 6,89€/kg ISEY). Marque distributeur, composition identique (lait écrémé + ferments)."
+    },
+    {
+      "item_requested": "Fromage blanc entier 500g",
+      "product_chosen": {
+        "name": "Fromage blanc 3.1% 500g",
+        "brand": "AUCHAN",
+        "price": 1.34,
+        "quantity_bought": 1,
+        "product_id": "95b0cda9-fcbd-44a9-8e27-7490510dff67"
+      },
+      "rationale": "Format exact 500g, prix imbattable (2,68€/kg). 3.1% MG = « entier » standard. Marque distributeur suffisante pour un fromage blanc nature."
+    },
+    {
+      "item_requested": "Ricotta 250g",
+      "product_chosen": {
+        "name": "Ricotta 250g",
+        "brand": "AUCHAN",
+        "price": 1.38,
+        "quantity_bought": 1,
+        "product_id": "e3e650d7-77f7-4b3b-a821-afa1f5c12111"
+      },
+      "rationale": "Format exact, prix le plus bas. La ricotta MDD est identique aux marques italiennes pour un usage cuisine (garniture wraps, pâtes)."
+    },
+    {
+      "item_requested": "Feta 200g",
+      "product_chosen": {
+        "name": "Feta grecque AOP 200g",
+        "brand": "AUCHAN",
+        "price": 2.83,
+        "quantity_bought": 1,
+        "product_id": "0347af52-3b35-4fc0-86ae-afa95025c0d1"
+      },
+      "alternatives_considered": [
+        "SALAKIS 200g (rejetée : plus chère, pas toujours AOP)",
+        "Feta danoise/non-AOP (rejetée : goût et texture inférieurs)"
+      ],
+      "rationale": "AOP = garantie d'origine grecque (lait de brebis/chèvre), format exact 200g, meilleur rapport qualité/prix."
+    },
+    {
+      "item_requested": "Mozzarella râpée 200g",
+      "product_chosen": {
+        "name": "Mozzarella râpée 150g",
+        "brand": "GALBANI",
+        "price": 3.07,
+        "quantity_bought": 1,
+        "product_id": "91fd483e-38f9-4633-a59b-cb81ab41adf5"
+      },
+      "rationale": "GALBANI = référence mozzarella, filant supérieur aux MDD. 150g au lieu de 200g demandés mais c'est le format disponible le plus proche. Pour gratins/pizzas, la qualité du filant justifie le surcoût.",
+      "quantity_rationale": "150g au lieu de 200g — pas de format 200g râpé disponible, 150g suffisant pour 1-2 utilisations dans la semaine"
+    },
+    {
+      "item_requested": "Thon boîte 3 boîtes",
+      "product_chosen": {
+        "name": "Thon listao entier au naturel 140g",
+        "brand": "AUCHAN CULTIVONS LE BON",
+        "price_unit": 2.05,
+        "quantity_bought": 3,
+        "total": 6.15,
+        "product_id": "b0c8dbf1-f0b2-42b0-9f70-99a63b61f6f2"
+      },
+      "alternatives_considered": [
+        "PETIT NAVIRE (rejeté : 2-3× plus cher, même listao)",
+        "Thon albacore (rejeté : plus cher, pas nécessaire pour salades/wraps)",
+        "Thon à l'huile (rejeté : au naturel = moins calorique, plus polyvalent)"
+      ],
+      "rationale": "Au naturel (pas à l'huile) = moins gras et plus polyvalent. Listao entier (pas émietté) = meilleure tenue en salade. CULTIVONS LE BON = gamme qualité Auchan, pêche responsable. Meilleur prix/boîte."
+    },
+    {
+      "item_requested": "Saumon fumé 150g",
+      "product_chosen": {
+        "name": "Saumon fumé de Norvège 130g",
+        "brand": "AUCHAN CULTIVONS LE BON",
+        "price": 5.98,
+        "quantity_bought": 1,
+        "product_id": "1845aa58-3202-44c3-8b51-f9b916f7dffc"
+      },
+      "rationale": "CULTIVONS LE BON = gamme premium Auchan, saumon Norvège (élevage contrôlé). 130g au lieu de 150g demandés mais format le plus proche sans passer au lot de 200g+ inutilement cher.",
+      "quantity_rationale": "130g vs 150g demandés — différence de 20g négligeable, évite de monter au format 200g qui coûte beaucoup plus"
+    },
+    {
+      "item_requested": "Cream cheese 1 pot",
+      "product_chosen": {
+        "name": "Cream cheese pasteurisée 150g",
+        "brand": "PHILADELPHIA",
+        "price": 1.92,
+        "quantity_bought": 1,
+        "product_id": "fb15331f-f1f0-4ec0-930e-72a62f4ab97d"
+      },
+      "rationale": "PHILADELPHIA = LA référence cream cheese, texture et goût incomparables aux MDD. Indispensable pour les cheesecakes ou tartinades. Prix raisonnable pour 150g."
+    },
+    {
+      "item_requested": "Tortillas grandes 8",
+      "product_chosen": {
+        "name": "Tortillas de blé 320g 8pcs",
+        "brand": "AUCHAN",
+        "price": 1.81,
+        "quantity_bought": 1,
+        "product_id": "ccc067ff-d124-47d9-a81e-509deaa69918"
+      },
+      "alternatives_considered": [
+        "OLD EL PASO (rejetées : 2-3× plus chères, même produit de base)",
+        "Recherche initiale 'tortillas grandes' retournait des chips Doritos — corrigé en 'wraps blé'"
+      ],
+      "rationale": "Format exact (8 pièces), prix imbattable (5,66€/kg vs 10+€/kg marques). Tortillas de blé = base neutre, la marque ne fait pas de différence gustative significative."
+    },
+    {
+      "item_requested": "Bananes 6",
+      "product_chosen": {
+        "name": "Bananes Antilles françaises 5pcs",
+        "brand": "SANS MARQUE",
+        "price": 2.45,
+        "quantity_bought": 1,
+        "product_id": "56de8bbc-0046-42ad-8446-b359ff260f96"
+      },
+      "rationale": "Origine Antilles françaises = production locale (DOM), soutien filière française. 5 pièces au lieu de 6 demandées — c'est le lot standard disponible.",
+      "quantity_rationale": "5 au lieu de 6 — pas de lot de 6, prendre 2 lots de 5 serait trop (10 bananes pour 4 personnes sur 1 semaine = gaspillage)"
+    },
+    {
+      "item_requested": "Myrtilles 250g",
+      "product_chosen": {
+        "name": "Myrtilles 125g",
+        "brand": "SANS MARQUE",
+        "price_unit": 2.99,
+        "quantity_bought": 2,
+        "total": 5.98,
+        "product_id": "8dcbaa7c-392a-44f7-8bf1-82ff4df3b86c"
+      },
+      "rationale": "Pas de barquette 250g disponible. 2×125g = 250g exact. Fruits frais en rayon, pas de marque sur les myrtilles (produit brut)."
+    },
+    {
+      "item_requested": "Fruits frais (pêches, nectarines) 1kg",
+      "product_chosen": {
+        "name": "Nectarines jaunes ou blanches prix bas 1kg",
+        "brand": "SANS MARQUE",
+        "price": 2.99,
+        "quantity_bought": 1,
+        "product_id": "616f8a63-2247-4992-96ec-e735d3cdfad6"
+      },
+      "rationale": "Nectarines = plus pratiques que pêches (pas besoin de peler, moins salissant pour les enfants). 'Prix bas' = gamme économique, parfait pour des fruits à croquer. 1kg exact."
+    },
+    {
+      "item_requested": "Tomates 500g",
+      "product_chosen": {
+        "name": "Tomates rondes en grappes bio 500g",
+        "brand": "SANS MARQUE",
+        "price": 3.49,
+        "quantity_bought": 1,
+        "product_id": "aeb86ef5-956e-4d2c-835e-8bd12d8c9566"
+      },
+      "alternatives_considered": [
+        "Tomates conventionnelles (disponibles mais bio préféré pour manger cru en salade)",
+        "Tomates cerises (rejetées : pas le même usage, plus chères/kg)"
+      ],
+      "rationale": "Bio = important pour des tomates mangées crues en salade (résidus pesticides). Grappes = meilleures saveur que les tomates rondes en vrac. Format exact 500g."
+    },
+    {
+      "item_requested": "Salade (laitue/roquette) 2 sachets",
+      "product_chosen": {
+        "name": "Roquette 125g",
+        "brand": "AUCHAN",
+        "price_unit": 1.83,
+        "quantity_bought": 2,
+        "total": 3.66,
+        "product_id": "d19655df-95cc-4786-a737-3dcc06b7cb3d"
+      },
+      "rationale": "Roquette plutôt que laitue — goût plus prononcé, se marie mieux avec les wraps, salades de thon et plats méditerranéens du menu. 2 sachets comme demandé."
+    },
+    {
+      "item_requested": "Concombre 1",
+      "product_chosen": {
+        "name": "Concombre 1pce",
+        "brand": "SANS MARQUE",
+        "price": 1.99,
+        "quantity_bought": 1,
+        "product_id": "da2e2db9-8b71-46d0-be33-1fa6b8d70d94"
+      },
+      "rationale": "Produit brut, pas de choix de marque. 1 pièce comme demandé."
+    },
+    {
+      "item_requested": "Carottes 500g",
+      "product_chosen": {
+        "name": "Carottes 1kg",
+        "brand": "SANS MARQUE",
+        "price": 1.69,
+        "quantity_bought": 1,
+        "product_id": "0e257278-5fac-4e4b-b2d5-351eaa401e41"
+      },
+      "rationale": "Pas de format 500g disponible. 1kg à 1,69€ — le surcoût vs 500g hypothétique est négligeable et les carottes se conservent bien toute la semaine.",
+      "quantity_rationale": "1kg au lieu de 500g — pas de petit format, bonne conservation, pas de risque de gaspillage"
+    },
+    {
+      "item_requested": "Avocat 2",
+      "product_chosen": {
+        "name": "Avocats 2pcs",
+        "brand": "SANS MARQUE",
+        "price": 2.99,
+        "quantity_bought": 1,
+        "product_id": "42edc5c6-0b7e-4632-9588-e93e75150116"
+      },
+      "rationale": "Lot de 2 = format exact demandé. Produit brut sans marque."
+    },
+    {
+      "item_requested": "Citrons 3",
+      "product_chosen": {
+        "name": "Citrons jaunes 500g",
+        "brand": "SANS MARQUE",
+        "price": 1.29,
+        "quantity_bought": 1,
+        "product_id": "f3effb20-d13f-45a6-9423-79667dc59d8f"
+      },
+      "rationale": "500g ≈ 3-4 citrons selon calibre. Format le plus proche de 3 citrons sans acheter à l'unité (plus cher)."
+    },
+    {
+      "item_requested": "Yaourt grec 2 pots",
+      "product_chosen": {
+        "name": "Yaourt à la grecque nature 4×150g",
+        "brand": "AUCHAN",
+        "price": 1.40,
+        "quantity_bought": 1,
+        "product_id": "df330f94-85d2-4e52-8dad-2145159d05bd"
+      },
+      "alternatives_considered": [
+        "AUCHAN grecque 4×125g à 2,38€/kg (rejeté : format plus petit, prix/kg quasi identique)",
+        "YAOS 4×300g à 3,58€/kg (rejeté : 50% plus cher)",
+        "LYNOS grec 500g à 5,22€/kg (rejeté : 2× plus cher)"
+      ],
+      "rationale": "Meilleur prix/kg (2,33€/kg). 4 pots au lieu de 2 demandés mais c'est le conditionnement minimum — pas de vente au pot individuel.",
+      "quantity_rationale": "4 pots pour 2 demandés — minimum vendable, les 2 pots supplémentaires se consommeront facilement dans la semaine"
+    },
+    {
+      "item_requested": "Pain complet 1 paquet tranché",
+      "product_chosen": {
+        "name": "Pain de mie complet grandes tranches sans sucres ajoutés 550g",
+        "brand": "JACQUET",
+        "price": 1.76,
+        "quantity_bought": 1,
+        "product_id": "a0263af5-c5bd-418c-b9cd-3b742101529b"
+      },
+      "status": "TO_REMOVE",
+      "rationale": "ERREUR — Julien déteste le pain de mie et achète son pain en boulangerie. À retirer manuellement du panier (pas de fonction delete dans l'API).",
+      "lesson_learned": "Ne jamais acheter de pain en grande surface pour Julien. Le pain est un achat boulangerie exclusivement."
+    },
+    {
+      "item_requested": "Compote 4 gourdes",
+      "product_chosen": {
+        "name": "Gourdes compote pomme banane sans sucres ajoutés 4×90g",
+        "brand": "POM'POTES",
+        "price": 2.74,
+        "quantity_bought": 1,
+        "product_id": "0748108b-4ec5-4570-8418-23b45c477fc4"
+      },
+      "alternatives_considered": [
+        "POM'POTES pomme poire vanille 4×90g à 7,36€/kg (rejeté : goût moins universel enfants)",
+        "POM'POTES pomme framboise 4×90g à 7,89€/kg (rejeté : plus cher)",
+        "POM'POTES pomme châtaigne 4×90g à 7,94€/kg (rejeté : goût plus clivant)",
+        "Gros packs 12 ou 20 gourdes (rejetés : 4 demandées, éviter le gaspillage)"
+      ],
+      "rationale": "Pomme banane = goût universellement apprécié des enfants (Léa + Titouan). Sans sucres ajoutés. Format exact 4 gourdes. POM'POTES = marque de référence compotes gourdes enfants."
+    }
+  ]
+}

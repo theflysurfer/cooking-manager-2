@@ -145,6 +145,34 @@ async def list_menus():
     return {"menus": menus}
 
 
+class MenuCreate(BaseModel):
+    title: str
+    week_start: date | None = None
+    week_end: date | None = None
+    configuration: str | None = None
+    status: str = "proposed"
+    linked_recipes: list[str] = []
+    meals: list[dict] | None = None
+    body: str | None = None
+
+
+@app.post("/api/menus")
+async def create_menu(menu: MenuCreate):
+    pool = await get_pool(DATABASE_DSN)
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """INSERT INTO menu (title, week_start, week_end, configuration, status,
+                                linked_recipes, meals, body, created, updated)
+               VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, CURRENT_DATE, CURRENT_DATE)
+               RETURNING id, title""",
+            menu.title, menu.week_start, menu.week_end, menu.configuration,
+            menu.status, menu.linked_recipes,
+            json.dumps(menu.meals) if menu.meals else None,
+            menu.body,
+        )
+    return {"id": row["id"], "title": row["title"], "created": True}
+
+
 @app.post("/api/ingest")
 async def trigger_ingest():
     result = await ingest(Path(VAULT_ROOT), DATABASE_DSN)
@@ -287,6 +315,124 @@ async def seed_history():
             seeded += 1
 
     return {"seeded": seeded, "total_entries": len(history)}
+
+
+# ── Shopping ───────────────────────────────────────────────────────
+
+@app.post("/api/shopping/import")
+async def import_shopping_session():
+    """Import shopping session from local JSON into PostgreSQL."""
+    data_dir = Path(__file__).parent.parent / "data"
+    files = sorted(data_dir.glob("shopping_choices_*.json"), reverse=True)
+    if not files:
+        raise HTTPException(404, "No shopping JSON found in data/")
+
+    raw = json.loads(files[0].read_text(encoding="utf-8"))
+    meta = raw["meta"]
+    products = raw["products"]
+
+    pool = await get_pool(DATABASE_DSN)
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """INSERT INTO shopping_session (date, store, cart_id, covers, people, total, items_count, notes)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+               RETURNING id""",
+            date.fromisoformat(meta["date"]), meta["store"], meta.get("cart_id"),
+            meta.get("covers"), meta.get("people", []), meta.get("total"),
+            meta.get("items_count"), meta.get("notes"),
+        )
+        session_id = row["id"]
+
+        for p in products:
+            chosen = p.get("product_chosen", {})
+            alts = p.get("alternatives_considered", [])
+            await conn.execute(
+                """INSERT INTO shopping_product
+                   (session_id, item_requested, product_name, brand, product_id,
+                    price_unit, quantity_bought, total_price, status,
+                    rationale, quantity_rationale, alternatives, lesson_learned)
+                   VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)""",
+                session_id, p["item_requested"],
+                chosen.get("name", ""), chosen.get("brand"),
+                chosen.get("product_id"), chosen.get("price_unit") or chosen.get("price"),
+                chosen.get("quantity_bought", 1),
+                chosen.get("total") or chosen.get("price"),
+                p.get("status", "added"),
+                p.get("rationale", ""),
+                p.get("quantity_rationale"),
+                json.dumps(alts) if alts else "[]",
+                p.get("lesson_learned"),
+            )
+
+        prefs = raw.get("preferences", {})
+        for exc in prefs.get("exclusions", []):
+            await conn.execute(
+                """INSERT INTO shopping_preference (pref_type, key, value, reason)
+                   VALUES ('exclusion', $1, $2, $3)
+                   ON CONFLICT (pref_type, key) DO UPDATE SET value=$2, reason=$3, updated_at=NOW()""",
+                exc["product_type"], exc.get("alternative", ""), exc.get("reason"),
+            )
+        for buy in prefs.get("buy_elsewhere", []):
+            await conn.execute(
+                """INSERT INTO shopping_preference (pref_type, key, value, reason)
+                   VALUES ('buy_elsewhere', $1, $2, $3)
+                   ON CONFLICT (pref_type, key) DO UPDATE SET value=$2, reason=$3, updated_at=NOW()""",
+                buy["product_type"], buy.get("where", ""), buy.get("reason"),
+            )
+
+    return {"imported": session_id, "products": len(products), "file": files[0].name}
+
+
+@app.get("/api/shopping/preferences")
+async def list_shopping_preferences():
+    pool = await get_pool(DATABASE_DSN)
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT * FROM shopping_preference WHERE active = TRUE ORDER BY pref_type, key"
+        )
+    return {"preferences": [dict(r) for r in rows]}
+
+
+@app.get("/api/shopping/sessions")
+async def list_shopping_sessions():
+    pool = await get_pool(DATABASE_DSN)
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT * FROM shopping_session ORDER BY date DESC LIMIT 20"
+        )
+    sessions = []
+    for r in rows:
+        d = dict(r)
+        _serialize_dates(d, ("date", "created_at"))
+        sessions.append(d)
+    return {"sessions": sessions}
+
+
+# ── Auchan Drive ───────────────────────────────────────────────────
+
+class AuchanRemove(BaseModel):
+    product_id: str
+    token: str
+    cart_id: str
+
+
+@app.get("/api/auchan/product/{auchan_id}")
+async def auchan_product_detail(auchan_id: str):
+    from .auchan import scrape_product_detail
+    from dataclasses import asdict
+    url = f"https://www.auchan.fr/p/pr-{auchan_id}"
+    detail = await scrape_product_detail(url)
+    return asdict(detail)
+
+
+@app.post("/api/auchan/remove")
+async def auchan_remove_from_cart(body: AuchanRemove):
+    from .auchan import AuchanClient
+    client = AuchanClient(token=body.token, cart_id=body.cart_id)
+    result = await client.remove_from_cart(body.product_id)
+    if "error" in result:
+        raise HTTPException(404, result["error"])
+    return {"removed": body.product_id, "cart": result}
 
 
 @app.get("/health")

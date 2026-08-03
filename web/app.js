@@ -371,7 +371,9 @@ async function loadMenus() {
         <span>${formatLabel(m.status)}</span>
         ${m.configuration ? `<span>${formatLabel(m.configuration)}</span>` : ''}
       </div>`;
-    if (m.body) {
+    if (m.meals && m.meals.length) {
+      html += renderMealGrid(m.meals);
+    } else if (m.body) {
       html += `<div class="menu-body">${renderMarkdown(m.body)}</div>`;
     }
     if (m.linked_recipes && m.linked_recipes.length) {
@@ -413,6 +415,42 @@ function renderMarkdown(md) {
   html = html.replace(/<p>\s*<(h[34]|ul|ol|hr|blockquote)/g, '<$1');
   html = html.replace(/<\/(h[34]|ul|ol|hr|blockquote)>\s*<\/p>/g, '</$1>');
   html = html.replace(/<p>\s*<\/p>/g, '');
+  return html;
+}
+
+// ── Meal grid renderer ─────────────────────────────────────
+
+function renderMealGrid(meals) {
+  const slots = [
+    { key: 'breakfast', label: 'Petit-déj' },
+    { key: 'lunch', label: 'Déjeuner' },
+    { key: 'dinner', label: 'Dîner' },
+    { key: 'snack', label: 'Goûter' },
+  ];
+  let html = '<div class="meal-grid-wrap"><table class="meal-grid"><thead><tr><th></th>';
+  for (const s of slots) html += `<th>${s.label}</th>`;
+  html += '</tr></thead><tbody>';
+  for (const day of meals) {
+    html += `<tr><td class="meal-day">${esc(day.day)}</td>`;
+    for (const s of slots) {
+      const val = day[s.key] || '';
+      html += `<td class="meal-cell">${esc(val)}</td>`;
+    }
+    html += '</tr>';
+  }
+  html += '</tbody></table></div>';
+
+  html += '<div class="meal-cards">';
+  for (const day of meals) {
+    html += `<div class="meal-day-card"><div class="meal-day-card-title">${esc(day.day)}</div>`;
+    for (const s of slots) {
+      const val = day[s.key];
+      if (val) html += `<div class="meal-slot"><span class="meal-slot-label">${s.label}</span><span class="meal-slot-value">${esc(val)}</span></div>`;
+    }
+    html += '</div>';
+  }
+  html += '</div>';
+
   return html;
 }
 

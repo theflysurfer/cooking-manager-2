@@ -14,7 +14,10 @@ Web app pour parcourir et filtrer les recettes familiales depuis le vault Obsidi
 ```
 cooking_manager/   # Pipeline vault → normalize → compile (CLI: build)
 backend/           # FastAPI app + DB schema + ingest
+  auchan.py        # Auchan Drive API client (reverse-engineered: cart, search, scraping)
+  auchan_mcp.py    # FastMCP server (7 tools, stdio transport)
 web/               # Frontend (index.html + style.css + app.js)
+data/              # Shopping session JSON (rationale per product)
 deploy/            # systemd unit + nginx conf + install script
 ```
 
@@ -34,6 +37,17 @@ ssh srv759970 'cd /opt/cooking-manager-2 && bash deploy/install.sh'
 ## Vault source
 
 Le vault Obsidian `Noyau/Cuisine/` est dans Dropbox, monté en lecture sur le VPS via rclone (`/mnt/dropbox-full/JULIEN/Obsidian/vault/Noyau/Cuisine`). L'ingestion est déclenchée via `POST /api/ingest`.
+
+## Auchan Drive API
+
+Client reverse-engineered (`backend/auchan.py`). Auth : Bearer JWT Keycloak + `x-gravitee-api-key`. Catalogue : SSR scraping (pas d'API produit). Cart : `POST api.auchan.fr/checkout/v1/carts/{cartId}/items` (add/update/remove via `desiredQuantity`). Remove nécessite l'`id` interne (GET cart d'abord). MCP local : `python -m backend.auchan_mcp` (stdio).
+
+## Gotchas
+
+- Le token Auchan expire fréquemment — refresh via navigateur uniquement
+- `consentId` requis comme query param sur tous les appels cart
+- La recherche SSR nécessite le cookie `auchan_store_reference=874` (Aubagne)
+- Remove cart : l'`id` interne (UUID) ≠ `productId` — toujours GET cart d'abord
 
 ## Lint gate
 
