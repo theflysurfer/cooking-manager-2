@@ -1,6 +1,5 @@
 """Orchestrate the build pipeline: read → normalize → compile → write."""
 
-import json
 from pathlib import Path
 
 from .vault import read_recipes, read_menus, read_convives

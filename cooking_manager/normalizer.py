@@ -172,7 +172,7 @@ def _ensure_dates(data: dict) -> None:
     # Normalize date objects to strings
     for key in ("created", "updated"):
         val = data.get(key)
-        if hasattr(val, "isoformat"):
+        if val is not None and hasattr(val, "isoformat"):
             data[key] = val.isoformat()
 
 
