@@ -1,0 +1,509 @@
+{
+  "meta": {
+    "app": "Jow",
+    "url": "https://jow.fr",
+    "date": "2026-08-04",
+    "store_connected": "Auchan Drive Aubagne-en-Provence",
+    "account": "Julien",
+    "purpose": "Reverse-engineer UX for Cooking Manager 2 inspiration"
+  },
+  "screens": [
+    {
+      "id": "home-logged-in",
+      "url": "https://jow.fr/",
+      "title": "Accueil connecté",
+      "description": "Page d'accueil après connexion Auchan Drive",
+      "elements": {
+        "header": {
+          "left": "Hamburger menu",
+          "center": "Logo Jow",
+          "right": "Nom utilisateur (Julien)"
+        },
+        "store_banner": {
+          "icon": "Logo Auchan",
+          "text": "Drive Aubagne-En-Provence, route de gémenos 13400 aubagne",
+          "slot": "1er créneau : mardi à 08h00"
+        },
+        "greeting": "Bonsoir Julien !",
+        "question": "Que voulez-vous faire ?",
+        "actions": [
+          {
+            "label": "Créer un menu",
+            "icon": "Photos de plats",
+            "arrow": true,
+            "description": "Entrée principale du flux recettes → courses"
+          },
+          {
+            "label": "Aller aux rayons",
+            "icon": "Icône magasin",
+            "arrow": true,
+            "description": "Parcourir le catalogue Auchan par rayon"
+          }
+        ],
+        "budget_cta": {
+          "text": "Votre menu en fonction de votre budget",
+          "button": "Démarrer"
+        },
+        "recent_recipes": {
+          "title": "Qu'est-ce qu'on mange ce soir ?",
+          "subtitle": "Vos dernières recettes",
+          "link": "Voir tout →",
+          "cards": "Carrousel horizontal de cartes recettes"
+        }
+      }
+    },
+    {
+      "id": "menu-builder",
+      "url": "https://jow.fr/grocery/menu",
+      "title": "Création de menu",
+      "description": "Sélection de recettes pour la semaine",
+      "elements": {
+        "header": {
+          "back": "← Retour",
+          "progress_bar": "Barre rouge en haut (progression dans le flux)"
+        },
+        "recipe_count": {
+          "text": "Voici {N} recettes que nous avons sélectionnées pour vous",
+          "adjustable": true,
+          "description": "Le chiffre N est cliquable pour ajuster le nombre de recettes"
+        },
+        "cta": {
+          "label": "🛒 Continuer",
+          "style": "Gros bouton orange sticky en bas",
+          "behavior": "Transforme les recettes en liste de courses"
+        },
+        "add_recipe": {
+          "label": "+ Ajouter une recette",
+          "position": "En haut à droite du carrousel"
+        },
+        "toolbar": {
+          "position": "Bottom bar sous le CTA",
+          "items": [
+            {"icon": "↕ 4 👤", "label": "Portions/convives", "adjustable": true},
+            {"icon": "⏱ (badge rouge)", "label": "Durée totale", "alert": "Badge rouge si trop long"},
+            {"icon": "⊘", "label": "Filtres alimentaires"},
+            {"icon": "📋 (badge)", "label": "Planning/calendrier"}
+          ]
+        },
+        "recipe_cards": {
+          "layout": "Carrousel horizontal, 2 cartes visibles",
+          "card": {
+            "photo": "Ronde, grande, vue plongeante du plat",
+            "title": "Nom de la recette (ex: Burger houmous, feta & aubergine)",
+            "badges": ["Express", "Coup de ❤️"],
+            "rating": "⭐ 4.7",
+            "duration": "⏱ 20 min",
+            "actions_bottom": [
+              {"icon": "↕", "label": "Portions ajustables"},
+              {"icon": "🍴", "label": "Nombre de couverts"},
+              {"icon": "🗑", "label": "Supprimer du menu"}
+            ],
+            "replace_button": {
+              "label": "Remplacer",
+              "description": "Swapper cette recette par une autre"
+            }
+          }
+        }
+      },
+      "ux_patterns": [
+        "Auto-suggestion de N recettes (personnalisé selon l'historique)",
+        "Possibilité d'ajuster le nombre avant de continuer",
+        "Sticky CTA en bas pour la progression",
+        "Chaque carte est remplaçable individuellement"
+      ]
+    },
+    {
+      "id": "recipe-detail",
+      "url": "https://jow.fr/cooking/recipe/{slug}",
+      "title": "Fiche recette détaillée",
+      "description": "Page complète d'une recette (accessible depuis le menu builder)",
+      "elements": {
+        "hero": {
+          "photo": "Grande photo du plat, fond à damier coloré (vert, bleu, etc.)",
+          "timer_icon": "Chronomètre en haut à droite"
+        },
+        "meta": {
+          "author": "Avatar + nom (ex: Camille C.)",
+          "title": "Nom complet de la recette",
+          "rating": "⭐⭐⭐⭐⭐"
+        },
+        "badges_row": [
+          {"icon": "€", "label": "Prix relatif (€, €€, €€€)"},
+          {"icon": "📊", "label": "Difficulté (Très facile / Facile / Moyen)"},
+          {"icon": "Nutri-Score", "label": "Note A-E avec code couleur"},
+          {"icon": "B", "label": "Badge bio/qualité"}
+        ],
+        "actions": [
+          {"label": "Retirer du menu", "style": "Bouton vert"},
+          {"icon": "↗️", "label": "Partager"},
+          {"icon": "🖨", "label": "Imprimer"},
+          {"icon": "❤️ 43.1k", "label": "Likes"}
+        ],
+        "stats_banner": {
+          "style": "Bandeau vert foncé pleine largeur",
+          "items": [
+            {"icon": "✏️", "value": "13 minutes", "label": "Préparation"},
+            {"icon": "🍳", "value": "7 minutes", "label": "Cuisson"},
+            {"icon": "🔥", "value": "483 kcal", "label": "Par portion"}
+          ]
+        },
+        "ingredients": {
+          "layout": "Bandeau horizontal scrollable de bulles",
+          "items": ["Pain burger (brasserie)", "Houmous", "Aubergine", "Tomates séchées", "Feta", "Salade (roquette)"],
+          "description": "Les ingrédients principaux = ce qui va au panier"
+        },
+        "pantry_items": {
+          "title": "Assurez-vous d'avoir...",
+          "items": [{"name": "Huile d'olive", "quantity": "4 càs", "info_icon": true}],
+          "description": "Les basiques du garde-manger, PAS ajoutés au panier"
+        },
+        "utensils": {
+          "title": "Ustensiles",
+          "text": "Plaques de cuisson et poêle."
+        },
+        "steps": {
+          "layout": "Liste numérotée avec emoji d'ingrédient à gauche de chaque étape",
+          "example": "Étape 3: Gardez la même poêle, ajoutez un filet d'huile d'olive..."
+        }
+      },
+      "ux_patterns": [
+        "Séparation ingrédients (à acheter) vs basiques (garde-manger)",
+        "Nutri-Score + kcal/portion = nutrition intégrée",
+        "Difficulté + temps prép/cuisson séparés",
+        "Emojis ingrédients dans les étapes = repère visuel",
+        "Likes sociaux (43k) = preuve sociale"
+      ]
+    },
+    {
+      "id": "pantry-check",
+      "url": "https://jow.fr/grocery/cart (étape intermédiaire)",
+      "title": "Vérification du garde-manger",
+      "description": "Écran intermédiaire entre menu et panier — les basiques à confirmer/retirer",
+      "elements": {
+        "title": "Vous avez peut-être déjà...",
+        "subtitle": "Pas de petites économies avec Jow, enlevez les basiques que vous avez déjà chez vous !",
+        "count": "4 ingrédients",
+        "bulk_action": {
+          "label": "Tout retirer 🗑",
+          "position": "En face du count"
+        },
+        "items": [
+          {
+            "photo": "Illustration de l'ingrédient (miel, ail, oignon...)",
+            "quantity": "4 càs",
+            "name": "Miel (liquide)",
+            "action": "Retirer 🗑"
+          }
+        ],
+        "cta": {
+          "label": "Confirmer",
+          "style": "Bouton orange",
+          "behavior": "Passe au panier en retirant les items cochés"
+        }
+      },
+      "ux_patterns": [
+        "Étape dédiée pour le garde-manger — pas mélangé avec le panier",
+        "Inversion UX : au lieu de 'cocher ce que j'ai', c'est 'retirer ce que j'ai'",
+        "Bulk action 'Tout retirer' pour aller vite",
+        "Ton léger et positif ('pas de petites économies')"
+      ]
+    },
+    {
+      "id": "shopping-cart",
+      "url": "https://jow.fr/grocery/cart",
+      "title": "Mon panier / Mes courses",
+      "description": "Liste de courses groupée par recette avec produits Auchan concrets",
+      "elements": {
+        "header": {
+          "left": "← Retour au menu",
+          "center": "Logo Jow",
+          "right": "🛒 83,11 € (total panier)"
+        },
+        "search": {
+          "title": "Compléter mon panier",
+          "placeholder": "Lessive, lait, gel douche...",
+          "tags": ["Mayonnaise", "Poireau", "Potatoes", "Œufs", "Chocolat pâtissier", "Fromage blanc", "Tomate", "Salade verte", "Saint Moret"],
+          "description": "Suggestions personnalisées basées sur l'historique"
+        },
+        "habitual_products": {
+          "title": "Mes produits habituels",
+          "layout": "Carrousel horizontal de cartes produit",
+          "description": "Produits non-alimentaires fréquents (vaisselle, essuie-tout...)"
+        },
+        "recipe_groups": {
+          "description": "Chaque recette est une section avec ses produits en dessous",
+          "recipe_header": {
+            "photo": "Photo ronde miniature de la recette",
+            "title": "Nom de la recette",
+            "ingredient_count": "N ingrédients",
+            "portions": "4 🍴"
+          },
+          "product_card": {
+            "photo": "Photo produit miniature",
+            "name": "Nom complet (ex: Pain burger géant nature)",
+            "brand": "Marque (ex: JACQUET)",
+            "weight": "Poids/volume (ex: 4 pièces 250g)",
+            "price_per_unit": "Prix/kg ou prix/l (ex: 6.12€/kg)",
+            "promo": "Badge promo (ex: -50% sur le 2ème, 10% Jour W! cagnottés)",
+            "price": "Prix unitaire (ex: 1,14 €)",
+            "actions": [
+              {"icon": "N ∨", "label": "Quantité ajustable (dropdown)"},
+              {"icon": "🔄 Changer", "label": "Swapper par un produit alternatif"},
+              {"icon": "❤️", "label": "Ajouter aux favoris"},
+              {"icon": "🗑 J'ai déjà", "label": "Retirer car déjà en stock"}
+            ]
+          },
+          "cross_recipe_indicator": {
+            "text": "Utilisé dans plusieurs recettes",
+            "style": "Orange, sous le produit",
+            "description": "Signale qu'un produit (ex: courgettes) est partagé entre recettes et la quantité est agrégée"
+          }
+        },
+        "footer": {
+          "add_products": {
+            "label": "🏪 Ajouter des produits",
+            "style": "Bouton gris/noir pleine largeur"
+          },
+          "checkout": {
+            "label": "Finaliser la commande",
+            "total": "83,11 €",
+            "style": "Bouton vert pleine largeur"
+          }
+        }
+      },
+      "ux_patterns": [
+        "Groupement par recette (pas par rayon) = on sait POURQUOI on achète",
+        "'Utilisé dans plusieurs recettes' = transparence sur l'agrégation",
+        "'J'ai déjà' inline = garde-manger contextuel par produit",
+        "'Changer' = substitution sans quitter le flux",
+        "Suggestions personnalisées (tags + produits habituels)",
+        "Total toujours visible (header sticky)",
+        "Séparation 'Ajouter des produits' (libre) vs 'Finaliser' (checkout)"
+      ]
+    },
+    {
+      "id": "cooking-search",
+      "url": "https://jow.fr/cooking",
+      "title": "Passer en cuisine — catalogue",
+      "description": "Moteur de recherche de recettes indépendant du flux courses",
+      "elements": {
+        "title": "Passer en cuisine",
+        "subtitle": "Retrouvez toutes nos recettes ici !",
+        "search": {
+          "placeholder": "Rechercher une recette",
+          "filter_icon": "Icône filtres à droite du champ"
+        },
+        "recent": {
+          "title": "Dernières recherches",
+          "tags": ["Lasagne", "Ramen", "Mafe", "Saumon bbq", "Burger"]
+        },
+        "suggestions": {
+          "title": "Suggestions",
+          "tags": ["Jambon", "Salade", "Burger", "Quiche", "Croque-monsieur"]
+        },
+        "results": {
+          "layout": "Grille 2 colonnes de cartes recettes",
+          "card": {
+            "photo": "Ronde, grande",
+            "title": "Nom",
+            "badges": ["Coup de ❤️"],
+            "rating": "⭐ 4.8",
+            "duration": "⏱ 22 min",
+            "portions": "🍴 4",
+            "done_checkbox": "C'est fait ! ☐",
+            "favorite": "❤️"
+          }
+        },
+        "load_more": "Voir plus de recettes ∨"
+      }
+    },
+    {
+      "id": "recover-menu",
+      "url": "https://jow.fr/ (modal)",
+      "title": "Récupération de menu",
+      "description": "Modal proposant de reprendre un menu commencé",
+      "elements": {
+        "greeting": "Bonsoir Julien !",
+        "question": "Voulez-vous récupérer vos recettes mises de côté ?",
+        "preview": "Carrousel miniature de photos de recettes + '5 recettes'",
+        "cta": {
+          "label": "Récupérer",
+          "style": "Bouton orange"
+        }
+      },
+      "ux_patterns": [
+        "Persistance du menu en cours (pas perdu si on quitte)",
+        "Preview visuel des recettes sauvegardées",
+        "Un seul clic pour reprendre"
+      ]
+    }
+  ],
+  "user_flow": {
+    "happy_path": [
+      "1. Accueil → 'Créer un menu'",
+      "2. Jow propose N recettes auto-sélectionnées",
+      "3. Ajuster: remplacer/supprimer/ajouter des recettes, changer les portions",
+      "4. 'Continuer' → écran 'Vous avez peut-être déjà' (basiques/garde-manger)",
+      "5. Retirer les basiques qu'on a déjà → 'Confirmer'",
+      "6. Page 'Mes courses': produits Auchan groupés par recette",
+      "7. Ajuster: changer un produit, modifier quantité, 'J'ai déjà', ajouter hors recettes",
+      "8. 'Finaliser la commande' → redirect vers checkout Auchan Drive"
+    ],
+    "alternative_paths": [
+      "'Aller aux rayons' → parcours libre dans le catalogue Auchan",
+      "'Votre menu en fonction de votre budget' → menu contraint par budget",
+      "'Passer en cuisine' → catalogue de recettes (sans lien panier)"
+    ]
+  },
+  "data_model": {
+    "entities": [
+      {
+        "name": "Recipe",
+        "attributes": ["title", "slug", "photo", "author", "rating", "likes", "duration_prep", "duration_cook", "difficulty", "nutri_score", "kcal_per_portion", "price_level", "badges", "portions_base"],
+        "relations": ["has_many Ingredient", "has_many Step", "has_many Utensil"]
+      },
+      {
+        "name": "Ingredient",
+        "attributes": ["name", "quantity", "unit", "photo", "is_pantry_basic"],
+        "relations": ["belongs_to Recipe", "maps_to Product"]
+      },
+      {
+        "name": "Product",
+        "attributes": ["name", "brand", "photo", "weight", "price", "price_per_unit", "promo", "auchan_id"],
+        "relations": ["mapped_from Ingredient", "belongs_to Store"]
+      },
+      {
+        "name": "Menu",
+        "attributes": ["recipe_count", "portions_per_recipe", "total_price"],
+        "relations": ["has_many Recipe"]
+      },
+      {
+        "name": "Cart",
+        "attributes": ["total_price", "store"],
+        "relations": ["has_many CartItem (Product + quantity + source_recipe)"]
+      }
+    ],
+    "key_relationships": [
+      "Recipe → Ingredient (1:N) — chaque recette a ses ingrédients",
+      "Ingredient → Product (1:1) — chaque ingrédient est mappé à un produit concret du magasin",
+      "Ingredient.is_pantry_basic — sépare ce qui va au panier de ce qu'on a déjà",
+      "CartItem.source_recipe — traçabilité produit → recette d'origine",
+      "Product cross-recipe aggregation — courgettes×3 = 'utilisé dans plusieurs recettes'"
+    ]
+  },
+  "patterns_to_copy": [
+    {
+      "id": "recipe-to-cart",
+      "name": "Recettes → Panier automatique",
+      "description": "Sélectionner des recettes → les ingrédients deviennent des produits concrets du magasin",
+      "effort": "L",
+      "priority": "P0",
+      "our_status": "Fait manuellement (skill pipeline), pas dans l'UI"
+    },
+    {
+      "id": "pantry-check-step",
+      "name": "Étape garde-manger avant le panier",
+      "description": "Écran dédié 'Vous avez peut-être déjà' pour retirer les basiques",
+      "effort": "M",
+      "priority": "P1",
+      "our_status": "On a le fichier Garde-manger.md mais pas d'UI"
+    },
+    {
+      "id": "grouped-by-recipe",
+      "name": "Panier groupé par recette",
+      "description": "Chaque recette est une section avec ses produits — on sait POURQUOI on achète",
+      "effort": "M",
+      "priority": "P0",
+      "our_status": "Notre JSON a le rationale mais l'UI n'existe pas"
+    },
+    {
+      "id": "cross-recipe-badge",
+      "name": "'Utilisé dans plusieurs recettes'",
+      "description": "Badge orange quand un produit est partagé entre recettes, quantité agrégée",
+      "effort": "S",
+      "priority": "P1",
+      "our_status": "Absent"
+    },
+    {
+      "id": "inline-pantry",
+      "name": "'J'ai déjà' par produit",
+      "description": "Bouton inline pour retirer un produit qu'on a déjà chez soi",
+      "effort": "S",
+      "priority": "P1",
+      "our_status": "Absent"
+    },
+    {
+      "id": "product-swap",
+      "name": "'Changer' un produit",
+      "description": "Swapper un produit par un alternatif sans quitter le flux",
+      "effort": "M",
+      "priority": "P2",
+      "our_status": "Absent"
+    },
+    {
+      "id": "ingredients-vs-basics",
+      "name": "Séparation ingrédients / basiques dans la recette",
+      "description": "La fiche recette sépare 'ingrédients' (à acheter) de 'assurez-vous d'avoir' (garde-manger)",
+      "effort": "S",
+      "priority": "P1",
+      "our_status": "Nos recettes vault n'ont pas cette distinction"
+    },
+    {
+      "id": "recipe-card-rich",
+      "name": "Cartes recettes riches",
+      "description": "Photo ronde, badges (Express, Coup de ❤️), note, durée, portions ajustables, remplacer, supprimer",
+      "effort": "M",
+      "priority": "P1",
+      "our_status": "On a des cartes basiques dans l'app"
+    },
+    {
+      "id": "nutrition-inline",
+      "name": "Nutrition intégrée (kcal, Nutri-Score, difficulté)",
+      "description": "Bandeau vert avec prép/cuisson/kcal par portion, Nutri-Score sur la fiche",
+      "effort": "S",
+      "priority": "P2",
+      "our_status": "On a les macros dans le vault mais pas dans l'UI"
+    },
+    {
+      "id": "menu-persistence",
+      "name": "Persistance du menu en cours",
+      "description": "Si on quitte, le menu est sauvé et reproposé au retour ('Récupérer')",
+      "effort": "S",
+      "priority": "P2",
+      "our_status": "Nos menus sont en DB, mais pas de prompt de récupération"
+    },
+    {
+      "id": "habitual-products",
+      "name": "Produits habituels",
+      "description": "Carrousel de produits non-alimentaires fréquents à ajouter en un clic",
+      "effort": "M",
+      "priority": "P3",
+      "our_status": "Absent — nécessite un historique d'achats"
+    },
+    {
+      "id": "personal-search-tags",
+      "name": "Suggestions de recherche personnalisées",
+      "description": "Tags basés sur l'historique (dernières recherches + suggestions)",
+      "effort": "S",
+      "priority": "P3",
+      "our_status": "Absent"
+    }
+  ],
+  "anti_patterns": [
+    {
+      "observation": "Redirect vers AliExpress lors du clic 'Continuer'",
+      "analysis": "Probablement un ad-injector ou une extension navigateur, pas Jow lui-même",
+      "lesson": "Attention aux redirects dans le flux d'achat"
+    },
+    {
+      "observation": "Pas de vue calendrier dans le menu builder",
+      "analysis": "On ne sait pas quel jour on mange quoi — c'est un 'pool' de recettes, pas un planning",
+      "lesson": "Notre app a déjà un menu par jour (lun-ven) — garder cette structure, ne pas régresser"
+    },
+    {
+      "observation": "Photos rondes partout — joli mais perd du contexte visuel",
+      "analysis": "Les coins du plat sont masqués, certaines garnitions invisibles",
+      "lesson": "Préférer des photos rectangulaires avec coins arrondis"
+    }
+  ]
+}
