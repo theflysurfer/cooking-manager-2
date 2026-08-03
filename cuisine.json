@@ -1,0 +1,446 @@
+{
+  "schema": "cuisine/1",
+  "generated_at": "2026-08-03T17:21:37",
+  "recipes": [
+    {
+      "title": "Cookies whey-avoine",
+      "slug": "cookies-whey-avoine",
+      "status": "draft",
+      "family": "petit-dej-proteine",
+      "servings": 8,
+      "total_time_min": 25,
+      "tags": [
+        "rapide-30min",
+        "enfants-ok",
+        "IG-bas",
+        "chocolat",
+        "batch",
+        "pesce",
+        "vege"
+      ],
+      "compatible_constraints": [
+        "clemence-pescetarienne",
+        "lea-oeufs-limites",
+        "titouan-no-choux-capres"
+      ],
+      "created": "2026-05-12",
+      "updated": "2026-05-12",
+      "sources": [
+        "https://broadwhey.com/blogs/complements-nutrition-sportive/cookie-proteine-la-recette-ultime",
+        "https://www.lespetitsgateaux.fr/cookies-proteines-flocons-davoine/",
+        "https://www.nutrimuscle.com/blogs/actualites/recette-maxi-cookies-proteines"
+      ]
+    },
+    {
+      "title": "Fondant choco pois chiches",
+      "slug": "fondant-choco-pois-chiches",
+      "status": "draft",
+      "family": "collation-proteinee",
+      "servings": 8,
+      "total_time_min": 50,
+      "tags": [
+        "enfants-ok",
+        "chocolat",
+        "IG-bas",
+        "batch",
+        "pesce",
+        "vege"
+      ],
+      "compatible_constraints": [
+        "clemence-pescetarienne",
+        "lea-oeufs-limites",
+        "titouan-no-choux-capres",
+        "guillaume-no-oignon-ail"
+      ],
+      "created": "2026-05-12",
+      "updated": "2026-05-12",
+      "sources": [
+        "https://mailofaitmaison.com/recette/gateau-cacao-pois-chiche/",
+        "http://madebysarah.fr/fondant-au-chocolat-aux-pois-chiches/",
+        "https://lalignegourmande.fr/ultra-fondant-proteine-aux-pois-chiche-et-chocolat/",
+        "https://www.healthyjulia.com/2020/07/moelleux-au-chocolat-pois-chiches-et.html"
+      ]
+    },
+    {
+      "title": "Gratin de courge spaghetti, pois chiches et feta",
+      "slug": "gratin-courge-spaghetti-pois-chiches-feta",
+      "recipe_type": "recette",
+      "status": "validated",
+      "family": "gratin-legume-appareil",
+      "servings": 4,
+      "total_time_min": 60,
+      "compatible_constraints": [
+        "sans-ail",
+        "sans-oignon"
+      ],
+      "execution_count": 1,
+      "tags": [
+        "gratin",
+        "courge-spaghetti",
+        "pois-chiches",
+        "feta",
+        "pesco-vegetarien",
+        "sans-ail-sans-oignon"
+      ],
+      "created": "2026-07-28",
+      "updated": "2026-07-28"
+    },
+    {
+      "title": "Ninja Creami — Frozen yogurt abricots",
+      "slug": "ninja-creami-abricots-fromage-blanc",
+      "status": "to_test",
+      "family": "dessert-glace",
+      "servings": 4,
+      "total_time_min": 10,
+      "tags": [
+        "rapide-30min",
+        "enfants-ok",
+        "ninja-creami",
+        "fruits-congeles",
+        "low-sugar",
+        "vege"
+      ],
+      "created": "2026-07-07",
+      "updated": "2026-07-07"
+    },
+    {
+      "title": "Ninja Creami — Sorbet fruit du dragon & fruits rouges",
+      "slug": "ninja-creami-fruit-dragon-fruits-rouges",
+      "status": "to_test",
+      "family": "dessert-glace",
+      "servings": 4,
+      "total_time_min": 10,
+      "tags": [
+        "rapide-30min",
+        "enfants-ok",
+        "ninja-creami",
+        "fruits-congeles",
+        "low-sugar",
+        "vege"
+      ],
+      "created": "2026-07-07",
+      "updated": "2026-07-07"
+    },
+    {
+      "title": "Ninja Creami — Sorbet fruit de la passion",
+      "slug": "ninja-creami-fruit-passion-sorbet",
+      "status": "to_test",
+      "family": "dessert-glace",
+      "servings": 4,
+      "total_time_min": 15,
+      "tags": [
+        "rapide-30min",
+        "enfants-ok",
+        "ninja-creami",
+        "fruits-congeles",
+        "low-sugar",
+        "vege",
+        "sans-lait"
+      ],
+      "created": "2026-07-07",
+      "updated": "2026-07-07"
+    },
+    {
+      "title": "Ninja Creami — Frozen yogurt fruits rouges",
+      "slug": "ninja-creami-fruits-rouges-fromage-blanc",
+      "status": "to_test",
+      "family": "dessert-glace",
+      "servings": 4,
+      "total_time_min": 10,
+      "tags": [
+        "rapide-30min",
+        "enfants-ok",
+        "ninja-creami",
+        "fruits-congeles",
+        "low-sugar",
+        "vege"
+      ],
+      "created": "2026-07-07",
+      "updated": "2026-07-07"
+    },
+    {
+      "title": "Ninja Creami — Journal des pots",
+      "slug": "ninja-creami-journal-pots",
+      "status": "active",
+      "family": "dessert-glace",
+      "tags": [
+        "ninja-creami",
+        "journal",
+        "low-sugar"
+      ],
+      "created": "2026-07-08",
+      "updated": "2026-07-09"
+    },
+    {
+      "title": "Ninja Creami — Journal des pots",
+      "slug": "ninja-creami-journal-pots",
+      "status": "active",
+      "family": "dessert-glace",
+      "tags": [
+        "ninja-creami",
+        "journal",
+        "low-sugar"
+      ],
+      "created": "2026-07-08",
+      "updated": "2026-07-08"
+    },
+    {
+      "title": "Ninja Creami — Frozen yogurt myrtilles",
+      "slug": "ninja-creami-myrtilles-fromage-blanc",
+      "status": "to_test",
+      "family": "dessert-glace",
+      "servings": 4,
+      "total_time_min": 10,
+      "tags": [
+        "rapide-30min",
+        "enfants-ok",
+        "ninja-creami",
+        "fruits-congeles",
+        "low-sugar",
+        "vege"
+      ],
+      "created": "2026-07-07",
+      "updated": "2026-07-07"
+    },
+    {
+      "title": "Ninja Creami — Protein ice cream (shake RTD)",
+      "slug": "ninja-creami-protein-shake-rtd",
+      "status": "to_test",
+      "family": "dessert-glace",
+      "servings": 1,
+      "total_time_min": 5,
+      "tags": [
+        "rapide-30min",
+        "ninja-creami",
+        "high-protein",
+        "low-sugar"
+      ],
+      "created": "2026-07-09",
+      "updated": "2026-07-09"
+    },
+    {
+      "title": "Ninja Creami — Protein ice cream (yaourt grec + whey)",
+      "slug": "ninja-creami-protein-yaourt-grec-whey",
+      "status": "to_test",
+      "family": "dessert-glace",
+      "servings": 2,
+      "total_time_min": 10,
+      "tags": [
+        "rapide-30min",
+        "ninja-creami",
+        "high-protein",
+        "low-sugar"
+      ],
+      "created": "2026-07-09",
+      "updated": "2026-07-09"
+    },
+    {
+      "title": "Pancakes banane-avoine",
+      "slug": "pancakes-banane-avoine",
+      "status": "validated",
+      "family": "petit-dej-proteine",
+      "servings": 4,
+      "total_time_min": 15,
+      "tags": [
+        "rapide-30min",
+        "enfants-ok",
+        "IG-bas",
+        "batch",
+        "pesce",
+        "vege",
+        "sans-ble",
+        "petit-dej",
+        "famille-validee"
+      ],
+      "macros": {
+        "kcal": 360,
+        "protein": 14,
+        "carbs": 56,
+        "fat": 11
+      },
+      "mediterranean_criteria": [
+        2,
+        4
+      ],
+      "compatible_constraints": [
+        "clemence-pescetarienne",
+        "lea-oeufs-limites",
+        "titouan-no-choux-capres"
+      ],
+      "applied_substitutions": [],
+      "created": "2026-05-26",
+      "updated": "2026-05-26",
+      "protein_density": 0.039
+    },
+    {
+      "title": "Pistes à développer — bases sans blé",
+      "slug": "pistes-bases-sans-ble",
+      "status": "draft",
+      "family": "wrap-sans-ble",
+      "servings": 4,
+      "total_time_min": 30,
+      "tags": [
+        "IG-bas",
+        "enfants-ok"
+      ],
+      "created": "2026-05-12",
+      "updated": "2026-05-12"
+    },
+    {
+      "title": "Salade de lentilles froides, oignon rouge & graines de courge",
+      "slug": "salade-lentilles-froides-graines-courge",
+      "status": "validated",
+      "construction_regime": "R2",
+      "family": "salades-legumineuses",
+      "servings": 5,
+      "total_time_min": 10,
+      "tags": [
+        "rapide-30min",
+        "sans-cuisson",
+        "IG-bas",
+        "batch",
+        "pesce",
+        "vege",
+        "sans-ble",
+        "anti-gaspi",
+        "invites-validee",
+        "sans-ail"
+      ],
+      "appreciated_by": [
+        "Guillaume",
+        "Virginie",
+        "Clémence",
+        "Julien"
+      ],
+      "macros": {
+        "kcal": 232,
+        "protein": 12,
+        "carbs": 22,
+        "fat": 11
+      },
+      "mediterranean_criteria": [
+        3,
+        6,
+        8
+      ],
+      "compatible_constraints": [
+        "clemence-pescetarienne",
+        "guillaume-sans-ail-sans-oignon-blanc",
+        "beatrice-sans-epices-fortes",
+        "lea-sans-betterave",
+        "titouan-no-choux-capres"
+      ],
+      "applied_substitutions": [
+        "ail → gingembre frais râpé (Guillaume)",
+        "oignon blanc → oignon rouge (Guillaume)",
+        "tomates séchées → retirées (Guillaume)"
+      ],
+      "lieu_execution": "chez Guillaume & Virginie",
+      "created": "2026-07-30",
+      "updated": "2026-07-30",
+      "protein_density": 0.052
+    },
+    {
+      "title": "Tartine cacahuète-confiture",
+      "slug": "tartine-cacahuete-confiture",
+      "status": "draft",
+      "family": "petit-dej-proteine",
+      "servings": 4,
+      "total_time_min": 5,
+      "tags": [
+        "rapide-30min",
+        "enfants-ok",
+        "batch",
+        "pesce",
+        "vege",
+        "sans-cuisson",
+        "petit-dej",
+        "gouter"
+      ],
+      "macros": {
+        "kcal": 580,
+        "protein": 18,
+        "carbs": 74,
+        "fat": 22
+      },
+      "mediterranean_criteria": [
+        2,
+        4
+      ],
+      "compatible_constraints": [
+        "clemence-pescetarienne",
+        "lea-oeufs-limites",
+        "titouan-no-choux-capres"
+      ],
+      "applied_substitutions": [],
+      "created": "2026-05-26",
+      "updated": "2026-05-26",
+      "protein_density": 0.031
+    },
+    {
+      "title": "Wrap pâte lentilles corail",
+      "slug": "wrap-lentilles-corail",
+      "status": "draft",
+      "family": "wrap-sans-ble",
+      "servings": 4,
+      "total_time_min": 25,
+      "tags": [
+        "rapide-30min",
+        "enfants-ok",
+        "IG-bas",
+        "batch",
+        "pesce",
+        "vege",
+        "one-pot"
+      ],
+      "compatible_constraints": [
+        "clemence-pescetarienne",
+        "lea-oeufs-limites",
+        "titouan-no-choux-capres",
+        "philippe-no-fenouil-cuit",
+        "beatrice-no-epices-fortes",
+        "guillaume-no-oignon-ail"
+      ],
+      "created": "2026-05-12",
+      "updated": "2026-05-12",
+      "sources": [
+        "https://cuisinerigbas.com/wraps-lentilles-corail/",
+        "https://www.freecocotte.com/blog/wrap-sans-gluten-super-faciles/",
+        "https://bloomingnolwenn.com/vegan-red-lentil-flatbread/"
+      ]
+    }
+  ],
+  "menus": [
+    {
+      "title": "Menu semaine du 2026-05-25",
+      "week_start": "2026-05-25",
+      "week_end": "2026-05-31",
+      "configuration": "avec-enfants",
+      "pattern_sport": "tout-repos-par-defaut",
+      "status": "proposed",
+      "linked_recipes": [
+        "cookies-whey-avoine"
+      ],
+      "created": "2026-05-20",
+      "updated": "2026-05-22"
+    }
+  ],
+  "convives": {
+    "title": "Convives",
+    "domain": "cuisine",
+    "maintainer": "[[Cooking Coach]]",
+    "created": "2026-05-12",
+    "updated": "2026-07-30",
+    "source": "theflysurfer/cooking-manager/docs/metier/contraintes-alimentaires.md (11 fév 2026) + planning-repas-travaux.md + Profil maître.md (10 mai 2026) + ajouts conversation Julien 2026-05-12 à 2026-05-20",
+    "tags": [
+      "cuisine",
+      "convives",
+      "famille"
+    ]
+  },
+  "counts": {
+    "recipes": 17,
+    "menus": 1
+  },
+  "warnings": []
+}
