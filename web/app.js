@@ -19,7 +19,7 @@ async function init() {
   state.filters = filtersData;
   renderFilters(filtersData);
   renderStats(statsData);
-  await loadRecipes();
+  await Promise.all([loadRecipes(), loadMenus()]);
 }
 
 // ── Filters ─────────────────────────────────────────────────
@@ -105,7 +105,12 @@ function renderRecipes(recipes, total) {
       `<span class="card-tag">${formatLabel(t)}</span>`
     ).join('');
 
+    const photoHTML = r.photo_url
+      ? `<div class="card-photo"><img src="${esc(r.photo_url)}" alt="${esc(r.title)}" loading="lazy"></div>`
+      : '';
+
     card.innerHTML = `
+      ${photoHTML}
       <div class="card-title">${esc(r.title)}</div>
       <div class="card-meta">
         <span class="status-dot" data-status="${r.status}" title="${formatLabel(r.status)}"></span>
@@ -131,7 +136,11 @@ async function openDetail(slug) {
   const dialog = document.getElementById('detail');
   const content = document.getElementById('detail-content');
 
-  let html = `<h2 class="detail-title">${esc(r.title)}</h2>`;
+  let html = '';
+  if (r.photo_url) {
+    html += `<div class="detail-photo"><img src="${esc(r.photo_url)}" alt="${esc(r.title)}"></div>`;
+  }
+  html += `<h2 class="detail-title">${esc(r.title)}</h2>`;
 
   // Stats row
   const stats = [];
@@ -188,6 +197,11 @@ async function openDetail(slug) {
     }</ul></div>`;
   }
 
+  // Body (ingredients, steps, notes)
+  if (r.body) {
+    html += `<div class="detail-section detail-body">${renderMarkdown(r.body)}</div>`;
+  }
+
   // Meta
   const meta = [];
   if (r.family) meta.push(`Famille : ${formatLabel(r.family)}`);
@@ -203,8 +217,56 @@ async function openDetail(slug) {
     }</ul></div>`;
   }
 
+  // Execution history
+  html += `<div class="detail-section">
+    <h3>Historique</h3>
+    <div id="exec-list" class="exec-list"><em>Chargement…</em></div>
+    <details class="exec-form-wrap">
+      <summary>Ajouter une exécution</summary>
+      <form id="exec-form" class="exec-form">
+        <div class="exec-row">
+          <label>Date <input type="date" name="date" required value="${new Date().toISOString().slice(0,10)}"></label>
+          <label>Par <input type="text" name="cooked_by" placeholder="Julien"></label>
+        </div>
+        <div class="exec-row">
+          <label>Note (1-5) <input type="number" name="rating" min="1" max="5"></label>
+          <label>Apprécié par <input type="text" name="appreciated_by" placeholder="Léa, Titouan"></label>
+          <label>Date appréciation <input type="date" name="appreciation_date"></label>
+        </div>
+        <label>Commentaire <textarea name="notes" rows="2" placeholder="Retour, ajustements…"></textarea></label>
+        <button type="submit" class="btn-exec">Enregistrer</button>
+      </form>
+    </details>
+  </div>`;
+
   content.innerHTML = html;
   dialog.showModal();
+
+  // Load executions
+  loadExecutions(slug);
+
+  // Bind form
+  document.getElementById('exec-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const payload = {
+      date: fd.get('date'),
+      cooked_by: fd.get('cooked_by') || null,
+      rating: fd.get('rating') ? parseInt(fd.get('rating')) : null,
+      appreciated_by: fd.get('appreciated_by') ? fd.get('appreciated_by').split(',').map(s => s.trim()).filter(Boolean) : [],
+      appreciation_date: fd.get('appreciation_date') || null,
+      notes: fd.get('notes') || null,
+    };
+    await fetch(`${API}/recipes/${slug}/executions`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload),
+    });
+    e.target.reset();
+    e.target.querySelector('[name=date]').value = new Date().toISOString().slice(0,10);
+    loadExecutions(slug);
+    loadRecipes();
+  });
 }
 
 // ── Stats ───────────────────────────────────────────────────
@@ -265,6 +327,95 @@ document.getElementById('detail').addEventListener('click', function(e) {
 document.getElementById('btn-toggle').addEventListener('click', () => {
   document.getElementById('sidebar').classList.toggle('open');
 });
+
+// ── Executions ─────────────────────────────────────────────
+
+async function loadExecutions(slug) {
+  const el = document.getElementById('exec-list');
+  try {
+    const data = await fetchJSON(`${API}/recipes/${slug}/executions`);
+    if (!data.executions.length) {
+      el.innerHTML = '<p class="empty">Jamais cuisinée.</p>';
+      return;
+    }
+    el.innerHTML = data.executions.map(ex => {
+      const stars = ex.rating ? '★'.repeat(ex.rating) + '☆'.repeat(5 - ex.rating) : '';
+      const who = ex.cooked_by ? `par ${esc(ex.cooked_by)}` : '';
+      const liked = ex.appreciated_by && ex.appreciated_by.length
+        ? `<span class="exec-liked">❤ ${ex.appreciated_by.join(', ')}${ex.appreciation_date && ex.appreciation_date !== ex.date ? ` (le ${ex.appreciation_date})` : ''}</span>` : '';
+      return `<div class="exec-entry">
+        <div class="exec-date">${ex.date} ${who} ${stars ? `<span class="exec-stars">${stars}</span>` : ''}</div>
+        ${liked}
+        ${ex.notes ? `<div class="exec-notes">${esc(ex.notes)}</div>` : ''}
+      </div>`;
+    }).join('');
+  } catch {
+    el.innerHTML = '<p class="empty">Erreur de chargement.</p>';
+  }
+}
+
+// ── Menus ──────────────────────────────────────────────────
+
+async function loadMenus() {
+  const data = await fetchJSON(`${API}/menus`);
+  const container = document.getElementById('menus');
+  if (!container) return;
+  if (!data.menus || !data.menus.length) {
+    container.innerHTML = '<p class="empty">Aucun menu disponible.</p>';
+    return;
+  }
+  container.innerHTML = data.menus.map(m => {
+    let html = `<article class="menu-card">
+      <div class="card-title">${esc(m.title)}</div>
+      <div class="card-meta">
+        <span>${m.week_start || ''} → ${m.week_end || ''}</span>
+        <span>${formatLabel(m.status)}</span>
+        ${m.configuration ? `<span>${formatLabel(m.configuration)}</span>` : ''}
+      </div>`;
+    if (m.body) {
+      html += `<div class="menu-body">${renderMarkdown(m.body)}</div>`;
+    }
+    if (m.linked_recipes && m.linked_recipes.length) {
+      html += `<div class="menu-recipes"><strong>Recettes liées :</strong> ${m.linked_recipes.map(s => formatLabel(s)).join(', ')}</div>`;
+    }
+    html += '</article>';
+    return html;
+  }).join('');
+}
+
+// ── Markdown renderer ──────────────────────────────────────
+
+function renderMarkdown(md) {
+  if (!md) return '';
+  let html = esc(md);
+  // headings
+  html = html.replace(/^### (.+)$/gm, '<h4>$1</h4>');
+  html = html.replace(/^## (.+)$/gm, '<h3>$1</h3>');
+  html = html.replace(/^# (.+)$/gm, '<h3>$1</h3>');
+  // bold / italic
+  html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
+  // hr
+  html = html.replace(/^---$/gm, '<hr>');
+  // blockquote
+  html = html.replace(/^&gt; (.+)$/gm, '<blockquote>$1</blockquote>');
+  // unordered list items
+  html = html.replace(/^- (.+)$/gm, '<li>$1</li>');
+  html = html.replace(/((?:<li>.*<\/li>\n?)+)/g, '<ul>$1</ul>');
+  // ordered list items
+  html = html.replace(/^\d+\. (.+)$/gm, '<li>$1</li>');
+  html = html.replace(/((?:<li>.*<\/li>\n?)+)/g, (match) => {
+    if (!match.includes('<ul>')) return `<ol>${match}</ol>`;
+    return match;
+  });
+  // paragraphs
+  html = html.replace(/\n\n/g, '</p><p>');
+  html = `<p>${html}</p>`;
+  html = html.replace(/<p>\s*<(h[34]|ul|ol|hr|blockquote)/g, '<$1');
+  html = html.replace(/<\/(h[34]|ul|ol|hr|blockquote)>\s*<\/p>/g, '</$1>');
+  html = html.replace(/<p>\s*<\/p>/g, '');
+  return html;
+}
 
 // ── Helpers ─────────────────────────────────────────────────
 

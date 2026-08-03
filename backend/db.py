@@ -29,6 +29,7 @@ CREATE TABLE IF NOT EXISTS recipe (
     macros_fat    REAL,
     protein_density REAL,
     photo_url   TEXT,
+    body        TEXT,
     created     DATE,
     updated     DATE,
     ingested_at TIMESTAMPTZ DEFAULT NOW()
@@ -43,6 +44,8 @@ CREATE TABLE IF NOT EXISTS menu (
     pattern_sport TEXT,
     status      TEXT NOT NULL DEFAULT 'proposed',
     linked_recipes TEXT[] DEFAULT '{}',
+    meals       JSONB,
+    body        TEXT,
     created     DATE,
     updated     DATE,
     ingested_at TIMESTAMPTZ DEFAULT NOW()
@@ -56,10 +59,31 @@ CREATE TABLE IF NOT EXISTS convive (
     ingested_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS recipe_execution (
+    id          SERIAL PRIMARY KEY,
+    recipe_id   INTEGER NOT NULL REFERENCES recipe(id) ON DELETE CASCADE,
+    date        DATE NOT NULL,
+    cooked_by   TEXT,
+    rating      INTEGER CHECK (rating >= 1 AND rating <= 5),
+    appreciated_by TEXT[] DEFAULT '{}',
+    appreciation_date DATE,
+    notes       TEXT,
+    created_at  TIMESTAMPTZ DEFAULT NOW()
+);
+
 CREATE INDEX IF NOT EXISTS idx_recipe_slug ON recipe(slug);
 CREATE INDEX IF NOT EXISTS idx_recipe_status ON recipe(status);
 CREATE INDEX IF NOT EXISTS idx_recipe_family ON recipe(family);
 CREATE INDEX IF NOT EXISTS idx_recipe_tags ON recipe USING GIN(tags);
+CREATE INDEX IF NOT EXISTS idx_execution_recipe ON recipe_execution(recipe_id);
+CREATE INDEX IF NOT EXISTS idx_execution_date ON recipe_execution(date DESC);
+"""
+
+MIGRATIONS_SQL = """
+ALTER TABLE recipe ADD COLUMN IF NOT EXISTS body TEXT;
+ALTER TABLE menu ADD COLUMN IF NOT EXISTS meals JSONB;
+ALTER TABLE menu ADD COLUMN IF NOT EXISTS body TEXT;
+ALTER TABLE recipe_execution ADD COLUMN IF NOT EXISTS appreciation_date DATE;
 """
 
 _pool: asyncpg.Pool | None = None
@@ -76,6 +100,7 @@ async def init_schema(dsn: str) -> None:
     pool = await get_pool(dsn)
     async with pool.acquire() as conn:
         await conn.execute(SCHEMA_SQL)
+        await conn.execute(MIGRATIONS_SQL)
 
 
 async def close_pool() -> None:
