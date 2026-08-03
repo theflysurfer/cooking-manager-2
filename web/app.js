@@ -3,8 +3,8 @@
 const API = '/api';
 const state = { recipes: [], filters: {}, active: { status: null, family: null, tag: null }, q: '' };
 
-async function fetchJSON(url) {
-  const r = await fetch(url);
+async function fetchJSON(url, opts) {
+  const r = await fetch(url, opts);
   if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
   return r.json();
 }
@@ -257,7 +257,7 @@ async function openDetail(slug) {
       appreciation_date: fd.get('appreciation_date') || null,
       notes: fd.get('notes') || null,
     };
-    await fetch(`${API}/recipes/${slug}/executions`, {
+    await fetchJSON(`${API}/recipes/${slug}/executions`, {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify(payload),
@@ -265,7 +265,6 @@ async function openDetail(slug) {
     e.target.reset();
     e.target.querySelector('[name=date]').value = new Date().toISOString().slice(0,10);
     loadExecutions(slug);
-    loadRecipes();
   });
 }
 
@@ -286,7 +285,7 @@ document.getElementById('btn-ingest').addEventListener('click', async function()
   this.classList.add('syncing');
   this.textContent = '↻ Sync…';
   try {
-    const result = await fetch(`${API}/ingest`, { method: 'POST' }).then(r => r.json());
+    const result = await fetchJSON(`${API}/ingest`, { method: 'POST' });
     this.textContent = `✓ ${result.recipes_ingested} recettes`;
     await Promise.all([
       loadRecipes(),

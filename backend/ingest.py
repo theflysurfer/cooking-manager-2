@@ -1,8 +1,11 @@
 """Ingest recipes and menus from Obsidian vault into PostgreSQL."""
 
+import asyncio
+import json
 import re
 import logging
 from pathlib import Path
+from urllib.parse import urlparse
 from urllib.request import urlopen, Request
 from urllib.error import URLError
 
@@ -45,17 +48,18 @@ ON CONFLICT ON CONSTRAINT menu_pkey DO NOTHING
 
 
 _IMAGE_META_PATTERNS = [
-    # og:image (both attribute orders)
-    (r'<meta[^>]+property=["\']og:image["\'][^>]+content=["\']([^"\']+)["\']', re.IGNORECASE),
-    (r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+property=["\']og:image["\']', re.IGNORECASE),
-    # twitter:image
-    (r'<meta[^>]+name=["\']twitter:image["\'][^>]+content=["\']([^"\']+)["\']', re.IGNORECASE),
-    (r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+name=["\']twitter:image["\']', re.IGNORECASE),
-    # schema.org Recipe image (JSON-LD)
-    (r'"@type"\s*:\s*"Recipe"[^}]*"image"\s*:\s*"([^"]+)"', 0),
-    (r'"@type"\s*:\s*"Recipe"[^}]*"image"\s*:\s*\[\s*"([^"]+)"', 0),
+    re.compile(r'<meta[^>]+property=["\']og:image["\'][^>]+content=["\']([^"\']+)["\']', re.IGNORECASE),
+    re.compile(r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+property=["\']og:image["\']', re.IGNORECASE),
+    re.compile(r'<meta[^>]+name=["\']twitter:image["\'][^>]+content=["\']([^"\']+)["\']', re.IGNORECASE),
+    re.compile(r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+name=["\']twitter:image["\']', re.IGNORECASE),
+    re.compile(r'"@type"\s*:\s*"Recipe"[^}]*"image"\s*:\s*"([^"]+)"'),
+    re.compile(r'"@type"\s*:\s*"Recipe"[^}]*"image"\s*:\s*\[\s*"([^"]+)"'),
 ]
 
+_RE_IMG_TAG = re.compile(r'<img[^>]+src=["\']([^"\']+)["\'][^>]*>', re.IGNORECASE)
+_RE_WIDTH = re.compile(r'width=["\']?(\d+)')
+_RE_HEIGHT = re.compile(r'height=["\']?(\d+)')
+_SKIP_KEYWORDS = ("logo", "icon", "avatar", "sprite", "pixel", "1x1", "data:image/svg", "placeholder")
 _MIN_IMG_SIZE = 200
 
 
@@ -67,29 +71,25 @@ def _scrape_photo(urls: list[str]) -> str | None:
             with urlopen(req, timeout=8) as resp:
                 html = resp.read(200_000).decode("utf-8", errors="ignore")
 
-            for pattern, flags in _IMAGE_META_PATTERNS:
-                m = re.search(pattern, html, flags)
+            for pat in _IMAGE_META_PATTERNS:
+                m = pat.search(html)
                 if m:
                     img_url = m.group(1)
                     if "placeholder" not in img_url.lower():
                         return img_url
 
-            for m in re.finditer(
-                r'<img[^>]+src=["\']([^"\']+)["\'][^>]*>',
-                html, re.IGNORECASE,
-            ):
+            for m in _RE_IMG_TAG.finditer(html):
                 tag = m.group(0).lower()
                 src = m.group(1)
-                if any(skip in src.lower() for skip in ("logo", "icon", "avatar", "sprite", "pixel", "1x1", "data:image/svg", "placeholder")):
+                if any(skip in src.lower() for skip in _SKIP_KEYWORDS):
                     continue
-                w_match = re.search(r'width=["\']?(\d+)', tag)
-                h_match = re.search(r'height=["\']?(\d+)', tag)
+                w_match = _RE_WIDTH.search(tag)
+                h_match = _RE_HEIGHT.search(tag)
                 if w_match and int(w_match.group(1)) < _MIN_IMG_SIZE:
                     continue
                 if h_match and int(h_match.group(1)) < _MIN_IMG_SIZE:
                     continue
                 if src.startswith("/"):
-                    from urllib.parse import urlparse
                     parsed = urlparse(url)
                     src = f"{parsed.scheme}://{parsed.netloc}{src}"
                 if src.startswith("http"):
@@ -145,7 +145,6 @@ def _recipe_row(r: dict) -> tuple:
 
 
 def _menu_row(m: dict) -> tuple:
-    import json
     meals = m.get("meals") or m.get("repas")
     return (
         m.get("title", ""),
@@ -182,9 +181,12 @@ async def ingest(vault_root: Path, dsn: str) -> dict:
         warnings.extend(warns)
         menus.append(normalized)
 
-    for r in recipes:
-        if not r.get("photo_url") and r.get("sources"):
-            photo = _scrape_photo(r["sources"])
+    need_photo = [r for r in recipes if not r.get("photo_url") and r.get("sources")]
+    if need_photo:
+        results = await asyncio.gather(
+            *(asyncio.to_thread(_scrape_photo, r["sources"]) for r in need_photo)
+        )
+        for r, photo in zip(need_photo, results, strict=True):
             if photo:
                 r["photo_url"] = photo
                 log.info("Scraped photo for %s: %s", r.get("slug"), photo)

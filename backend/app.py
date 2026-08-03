@@ -1,9 +1,9 @@
 """FastAPI application — recipe browser + ingest trigger."""
 
+import json
 from contextlib import asynccontextmanager
-from pathlib import Path
-
 from datetime import date
+from pathlib import Path
 
 from fastapi import FastAPI, Query, HTTPException
 from fastapi.responses import FileResponse
@@ -13,6 +13,19 @@ from pydantic import BaseModel
 from .config import DATABASE_DSN, VAULT_ROOT
 from .db import get_pool, init_schema, close_pool
 from .ingest import ingest
+
+
+async def _get_recipe_id(conn, slug: str) -> int:
+    row = await conn.fetchrow("SELECT id FROM recipe WHERE slug = $1", slug)
+    if not row:
+        raise HTTPException(404, "Recipe not found")
+    return row["id"]
+
+
+def _serialize_dates(d: dict, keys: tuple[str, ...]) -> None:
+    for key in keys:
+        if d.get(key) and hasattr(d[key], "isoformat"):
+            d[key] = d[key].isoformat()
 
 
 @asynccontextmanager
@@ -119,7 +132,6 @@ async def get_filters():
 
 @app.get("/api/menus")
 async def list_menus():
-    import json as _json
     pool = await get_pool(DATABASE_DSN)
     async with pool.acquire() as conn:
         rows = await conn.fetch("SELECT * FROM menu ORDER BY week_start DESC")
@@ -127,10 +139,8 @@ async def list_menus():
     for r in rows:
         d = dict(r)
         if isinstance(d.get("meals"), str):
-            d["meals"] = _json.loads(d["meals"])
-        for key in ("created", "updated", "week_start", "week_end"):
-            if d.get(key) and hasattr(d[key], "isoformat"):
-                d[key] = d[key].isoformat()
+            d["meals"] = json.loads(d["meals"])
+        _serialize_dates(d, ("created", "updated", "week_start", "week_end"))
         menus.append(d)
     return {"menus": menus}
 
@@ -172,79 +182,81 @@ class ExecutionCreate(BaseModel):
 async def list_executions(slug: str):
     pool = await get_pool(DATABASE_DSN)
     async with pool.acquire() as conn:
-        recipe = await conn.fetchrow("SELECT id FROM recipe WHERE slug = $1", slug)
-        if not recipe:
-            raise HTTPException(404, "Recipe not found")
+        recipe_id = await _get_recipe_id(conn, slug)
         rows = await conn.fetch(
             """SELECT id, date, cooked_by, rating, appreciated_by, appreciation_date, notes, created_at
                FROM recipe_execution WHERE recipe_id = $1 ORDER BY date DESC""",
-            recipe["id"],
+            recipe_id,
         )
-    return {"executions": [dict(r) for r in rows]}
+    result = []
+    for r in rows:
+        d = dict(r)
+        _serialize_dates(d, ("date", "appreciation_date", "created_at"))
+        result.append(d)
+    return {"executions": result}
 
 
 @app.post("/api/recipes/{slug}/executions")
 async def add_execution(slug: str, body: ExecutionCreate):
     pool = await get_pool(DATABASE_DSN)
     async with pool.acquire() as conn:
-        recipe = await conn.fetchrow("SELECT id FROM recipe WHERE slug = $1", slug)
-        if not recipe:
-            raise HTTPException(404, "Recipe not found")
+        recipe_id = await _get_recipe_id(conn, slug)
         row = await conn.fetchrow(
             """INSERT INTO recipe_execution (recipe_id, date, cooked_by, rating, appreciated_by, appreciation_date, notes)
                VALUES ($1, $2, $3, $4, $5, $6, $7)
                RETURNING id, date, cooked_by, rating, appreciated_by, appreciation_date, notes, created_at""",
-            recipe["id"], body.date, body.cooked_by, body.rating,
+            recipe_id, body.date, body.cooked_by, body.rating,
             body.appreciated_by, body.appreciation_date, body.notes,
         )
         await conn.execute(
             "UPDATE recipe SET execution_count = execution_count + 1 WHERE id = $1",
-            recipe["id"],
+            recipe_id,
         )
-    return dict(row)
+    d = dict(row)
+    _serialize_dates(d, ("date", "appreciation_date", "created_at"))
+    return d
 
 
 @app.post("/api/seed-history")
 async def seed_history():
     """Seed execution history from vault frontmatter and known data."""
-    from datetime import date as D
     pool = await get_pool(DATABASE_DSN)
 
     history = [
         {
             "slug": "gratin-courge-spaghetti-pois-chiches-feta",
-            "date": D(2026, 7, 28),
+            "date": date(2026, 7, 28),
             "cooked_by": "Julien",
             "rating": 5,
             "appreciated_by": ["Julien", "Clémence", "Guillaume", "Virginie"],
-            "appreciation_date": D(2026, 7, 28),
+            "appreciation_date": date(2026, 7, 28),
             "notes": "Unanimité 4/4. Premier plat validé par les beaux-parents. Lieu : Normandie.",
         },
         {
             "slug": "pancakes-banane-avoine",
-            "date": D(2026, 5, 26),
+            "date": date(2026, 5, 26),
             "cooked_by": "Julien",
             "rating": 5,
             "appreciated_by": ["Julien", "Clémence", "Léa", "Titouan"],
-            "appreciation_date": D(2026, 5, 26),
+            "appreciation_date": date(2026, 5, 26),
             "notes": "Validée famille au premier test. Adoptée par les 4.",
         },
         {
             "slug": "salade-lentilles-froides-graines-courge",
-            "date": D(2026, 7, 28),
+            "date": date(2026, 7, 28),
             "cooked_by": "Julien",
             "rating": 5,
             "appreciated_by": ["Guillaume", "Virginie", "Clémence", "Julien"],
-            "appreciation_date": D(2026, 7, 28),
+            "appreciation_date": date(2026, 7, 28),
             "notes": "Invités-validée. Substitutions : ail→gingembre, oignon blanc→rouge (Guillaume).",
         },
         {
             "slug": "ninja-creami-myrtilles-fromage-blanc",
-            "date": D(2026, 7, 8),
+            "date": date(2026, 7, 8),
             "cooked_by": "Julien",
             "rating": 5,
             "appreciated_by": ["Julien", "Clémence", "Léa", "Titouan"],
-            "appreciation_date": D(2026, 7, 9),
+            "appreciation_date": date(2026, 7, 9),
             "notes": "Pot 1 journal Creami. Parfait après re-spin. Tout le monde adore.",
         },
     ]
@@ -252,24 +264,25 @@ async def seed_history():
     seeded = 0
     async with pool.acquire() as conn:
         for h in history:
-            recipe = await conn.fetchrow("SELECT id FROM recipe WHERE slug = $1", h["slug"])
-            if not recipe:
+            row = await conn.fetchrow("SELECT id FROM recipe WHERE slug = $1", h["slug"])
+            if not row:
                 continue
+            recipe_id = row["id"]
             exists = await conn.fetchval(
                 "SELECT 1 FROM recipe_execution WHERE recipe_id = $1 AND date = $2",
-                recipe["id"], h["date"],
+                recipe_id, h["date"],
             )
             if exists:
                 continue
             await conn.execute(
                 """INSERT INTO recipe_execution (recipe_id, date, cooked_by, rating, appreciated_by, appreciation_date, notes)
                    VALUES ($1, $2, $3, $4, $5, $6, $7)""",
-                recipe["id"], h["date"], h["cooked_by"], h["rating"],
+                recipe_id, h["date"], h["cooked_by"], h["rating"],
                 h["appreciated_by"], h["appreciation_date"], h["notes"],
             )
             await conn.execute(
                 "UPDATE recipe SET execution_count = GREATEST(execution_count, 1) WHERE id = $1",
-                recipe["id"],
+                recipe_id,
             )
             seeded += 1
 
@@ -295,9 +308,7 @@ def _recipe_to_dict(row) -> dict:
             macros[k.replace("macros_", "")] = val
     if macros:
         d["macros"] = macros
-    for key in ("created", "updated"):
-        if d.get(key) and hasattr(d[key], "isoformat"):
-            d[key] = d[key].isoformat()
+    _serialize_dates(d, ("created", "updated"))
     return d
 
 
