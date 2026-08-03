@@ -28,12 +28,12 @@ python -m cooking_manager build --vault /path/to/Cuisine
 python -m cooking_manager serve --port 8795
 
 # Deploy on VPS
-ssh srv759970 'cd /opt/cooking-manager && bash deploy/install.sh'
+ssh srv759970 'cd /opt/cooking-manager-2 && bash deploy/install.sh'
 ```
 
 ## Vault source
 
-Le vault Obsidian `Cuisine/` est dans Dropbox, monté en lecture sur le VPS via rclone (`/mnt/dropbox-full/JULIEN/Obsidian/vault/Cuisine`). L'ingestion est déclenchée via `POST /api/ingest`.
+Le vault Obsidian `Noyau/Cuisine/` est dans Dropbox, monté en lecture sur le VPS via rclone (`/mnt/dropbox-full/JULIEN/Obsidian/vault/Noyau/Cuisine`). L'ingestion est déclenchée via `POST /api/ingest`.
 
 ## Lint gate
 

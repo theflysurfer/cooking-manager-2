@@ -1,0 +1,3 @@
+# Documentation
+
+- `rapports/` — Session diaries

@@ -9,7 +9,7 @@ DATABASE_DSN = os.environ.get(
 
 VAULT_ROOT = os.environ.get(
     "VAULT_ROOT",
-    "/mnt/dropbox-full/JULIEN/Obsidian/vault/Cuisine",
+    "/mnt/dropbox-full/JULIEN/Obsidian/vault/Noyau/Cuisine",
 )
 
 HOST = os.environ.get("HOST", "127.0.0.1")
