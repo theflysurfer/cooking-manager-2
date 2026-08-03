@@ -1,0 +1,18 @@
+[Unit]
+Description=Cooking Manager API
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+User=automation
+WorkingDirectory=/opt/cooking-manager-2
+ExecStart=/opt/cooking-manager-2/.venv/bin/python -m uvicorn backend.app:app --host 127.0.0.1 --port 8795
+Restart=on-failure
+RestartSec=5
+Environment=DATABASE_URL=postgresql://cooking:cooking@127.0.0.1:5432/cooking_manager
+Environment=VAULT_ROOT=/mnt/dropbox-full/JULIEN/Obsidian/vault/Cuisine
+Environment=PORT=8795
+
+[Install]
+WantedBy=multi-user.target

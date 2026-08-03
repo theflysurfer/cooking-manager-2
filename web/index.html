@@ -1,0 +1,48 @@
+<title>Cooking Manager</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="style.css">
+
+<div class="layout">
+  <aside class="sidebar" id="sidebar">
+    <h1 class="logo">Cuisine</h1>
+    <div class="search-wrap">
+      <input type="search" id="search" placeholder="Chercher une recette…" autocomplete="off">
+    </div>
+
+    <section class="filter-group">
+      <h2 class="filter-label">Statut</h2>
+      <div id="filter-status" class="chips"></div>
+    </section>
+
+    <section class="filter-group">
+      <h2 class="filter-label">Famille</h2>
+      <div id="filter-family" class="chips"></div>
+    </section>
+
+    <section class="filter-group">
+      <h2 class="filter-label">Tags</h2>
+      <div id="filter-tags" class="chips"></div>
+    </section>
+
+    <div class="sidebar-footer">
+      <button id="btn-ingest" class="btn-ingest" title="Re-ingérer depuis le vault">↻ Sync vault</button>
+      <div id="stats" class="stats"></div>
+    </div>
+  </aside>
+
+  <main class="content">
+    <div class="toolbar">
+      <span id="result-count" class="result-count"></span>
+      <button class="btn-toggle-sidebar" id="btn-toggle" aria-label="Filtres">☰</button>
+    </div>
+    <div id="recipes" class="recipe-grid"></div>
+  </main>
+</div>
+
+<dialog id="detail" class="detail-dialog">
+  <div class="detail-content" id="detail-content"></div>
+  <button class="detail-close" id="detail-close" aria-label="Fermer">✕</button>
+</dialog>
+
+<script src="app.js"></script>
