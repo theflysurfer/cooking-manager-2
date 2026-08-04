@@ -33,7 +33,7 @@ data/              # sessions de courses + photo-prompt.md (versionné)
 
 ## Les 3 principes de design
 
-Un par couche de Norman (cf. `2026.08 Brand Toolkit/research/EMOTIONAL_DESIGN_METHODS.md`) :
+Un par couche de Norman (cf. `2026.08 Product Toolkit/research/EMOTIONAL_DESIGN_METHODS.md`) :
 
 - **Appétissant** *(viscéral)* — la photo mène, le chrome s'efface, la couleur vient des plats
 - **Sans friction** *(comportemental)* — savoir quoi manger ce soir en un coup d'œil
