@@ -161,7 +161,7 @@ async def search_products(query: str, page: int = 1) -> list[SearchResult]:
     results: list[SearchResult] = []
 
     for link in tree.css("a[href*='/pr-']"):
-        href = link.attributes.get("href", "")
+        href = link.attributes.get("href") or ""
         id_match = re.search(r"/pr-([A-Z0-9]+)", href)
         if not id_match:
             continue
@@ -239,7 +239,7 @@ async def scrape_product_detail(auchan_url: str) -> ProductDetail:
     # Nutriscore
     ns = tree.css_first("[alt*='Nutriscore']")
     if ns:
-        alt = ns.attributes.get("alt", "")
+        alt = ns.attributes.get("alt") or ""
         m = re.search(r"=\s*([A-E])", alt)
         if m:
             detail.nutriscore = m.group(1)
@@ -247,7 +247,7 @@ async def scrape_product_detail(auchan_url: str) -> ProductDetail:
     # Photo
     img = tree.css_first("[class*='product-thumbnail'] img, [class*='product-media'] img")
     if img:
-        detail.photo_url = img.attributes.get("src", "")
+        detail.photo_url = img.attributes.get("src") or ""
 
     # Price
     price_el = tree.css_first("[class*='price--big'], [class*='product-price']")
@@ -295,3 +295,25 @@ async def scrape_product_detail(auchan_url: str) -> ProductDetail:
         detail.weight = wm.group(1)
 
     return detail
+
+
+async def find_product_detail(product_name: str, brand: str | None = None) -> ProductDetail | None:
+    """Resolve a cart product name to its full catalog detail (nutrition, ingredients,
+    allergens, nutriscore) via public search + SSR scrape.
+
+    Cart items only expose an internal cart-item UUID (productId/offerId), not the
+    public catalog auchan_id (e.g. C1224996) needed to fetch the product page. This
+    re-finds the product by name in the public catalog to bridge that gap.
+    """
+    results = await search_products(product_name)
+    if not results:
+        return None
+
+    best = results[0]
+    if brand:
+        for r in results:
+            if r.brand and r.brand.lower() == brand.lower():
+                best = r
+                break
+
+    return await scrape_product_detail(best.url)

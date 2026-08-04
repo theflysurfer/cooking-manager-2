@@ -106,6 +106,15 @@ CREATE TABLE IF NOT EXISTS shopping_product (
     quantity_rationale TEXT,
     alternatives    JSONB DEFAULT '[]',
     lesson_learned  TEXT,
+    auchan_id       TEXT,
+    nutriscore      TEXT,
+    nutrition       JSONB,
+    ingredients     TEXT,
+    allergens       TEXT,
+    characteristics JSONB,
+    photo_url       TEXT,
+    product_url     TEXT,
+    weight          TEXT,
     created_at      TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -130,6 +139,15 @@ ALTER TABLE recipe ADD COLUMN IF NOT EXISTS body TEXT;
 ALTER TABLE menu ADD COLUMN IF NOT EXISTS meals JSONB;
 ALTER TABLE menu ADD COLUMN IF NOT EXISTS body TEXT;
 ALTER TABLE recipe_execution ADD COLUMN IF NOT EXISTS appreciation_date DATE;
+ALTER TABLE shopping_product ADD COLUMN IF NOT EXISTS auchan_id TEXT;
+ALTER TABLE shopping_product ADD COLUMN IF NOT EXISTS nutriscore TEXT;
+ALTER TABLE shopping_product ADD COLUMN IF NOT EXISTS nutrition JSONB;
+ALTER TABLE shopping_product ADD COLUMN IF NOT EXISTS ingredients TEXT;
+ALTER TABLE shopping_product ADD COLUMN IF NOT EXISTS allergens TEXT;
+ALTER TABLE shopping_product ADD COLUMN IF NOT EXISTS characteristics JSONB;
+ALTER TABLE shopping_product ADD COLUMN IF NOT EXISTS photo_url TEXT;
+ALTER TABLE shopping_product ADD COLUMN IF NOT EXISTS product_url TEXT;
+ALTER TABLE shopping_product ADD COLUMN IF NOT EXISTS weight TEXT;
 """
 
 _pool: asyncpg.Pool | None = None

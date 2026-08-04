@@ -2,7 +2,7 @@
 
 import json
 from contextlib import asynccontextmanager
-from datetime import date
+import datetime
 from pathlib import Path
 
 from fastapi import FastAPI, Query, HTTPException
@@ -147,8 +147,8 @@ async def list_menus():
 
 class MenuCreate(BaseModel):
     title: str
-    week_start: date | None = None
-    week_end: date | None = None
+    week_start: datetime.date | None = None
+    week_end: datetime.date | None = None
     configuration: str | None = None
     status: str = "proposed"
     linked_recipes: list[str] = []
@@ -198,11 +198,11 @@ async def stats():
 
 
 class ExecutionCreate(BaseModel):
-    date: date
+    date: datetime.date
     cooked_by: str | None = None
     rating: int | None = None
     appreciated_by: list[str] = []
-    appreciation_date: date | None = None
+    appreciation_date: datetime.date | None = None
     notes: str | None = None
 
 
@@ -253,38 +253,38 @@ async def seed_history():
     history = [
         {
             "slug": "gratin-courge-spaghetti-pois-chiches-feta",
-            "date": date(2026, 7, 28),
+            "date": datetime.date(2026, 7, 28),
             "cooked_by": "Julien",
             "rating": 5,
             "appreciated_by": ["Julien", "Clémence", "Guillaume", "Virginie"],
-            "appreciation_date": date(2026, 7, 28),
+            "appreciation_date": datetime.date(2026, 7, 28),
             "notes": "Unanimité 4/4. Premier plat validé par les beaux-parents. Lieu : Normandie.",
         },
         {
             "slug": "pancakes-banane-avoine",
-            "date": date(2026, 5, 26),
+            "date": datetime.date(2026, 5, 26),
             "cooked_by": "Julien",
             "rating": 5,
             "appreciated_by": ["Julien", "Clémence", "Léa", "Titouan"],
-            "appreciation_date": date(2026, 5, 26),
+            "appreciation_date": datetime.date(2026, 5, 26),
             "notes": "Validée famille au premier test. Adoptée par les 4.",
         },
         {
             "slug": "salade-lentilles-froides-graines-courge",
-            "date": date(2026, 7, 28),
+            "date": datetime.date(2026, 7, 28),
             "cooked_by": "Julien",
             "rating": 5,
             "appreciated_by": ["Guillaume", "Virginie", "Clémence", "Julien"],
-            "appreciation_date": date(2026, 7, 28),
+            "appreciation_date": datetime.date(2026, 7, 28),
             "notes": "Invités-validée. Substitutions : ail→gingembre, oignon blanc→rouge (Guillaume).",
         },
         {
             "slug": "ninja-creami-myrtilles-fromage-blanc",
-            "date": date(2026, 7, 8),
+            "date": datetime.date(2026, 7, 8),
             "cooked_by": "Julien",
             "rating": 5,
             "appreciated_by": ["Julien", "Clémence", "Léa", "Titouan"],
-            "appreciation_date": date(2026, 7, 9),
+            "appreciation_date": datetime.date(2026, 7, 9),
             "notes": "Pot 1 journal Creami. Parfait après re-spin. Tout le monde adore.",
         },
     ]
@@ -337,7 +337,7 @@ async def import_shopping_session():
             """INSERT INTO shopping_session (date, store, cart_id, covers, people, total, items_count, notes)
                VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
                RETURNING id""",
-            date.fromisoformat(meta["date"]), meta["store"], meta.get("cart_id"),
+            datetime.date.fromisoformat(meta["date"]), meta["store"], meta.get("cart_id"),
             meta.get("covers"), meta.get("people", []), meta.get("total"),
             meta.get("items_count"), meta.get("notes"),
         )
@@ -381,6 +381,106 @@ async def import_shopping_session():
             )
 
     return {"imported": session_id, "products": len(products), "file": files[0].name}
+
+
+class ShoppingItemIn(BaseModel):
+    item_requested: str
+    product_name: str
+    brand: str | None = None
+    product_id: str | None = None
+    price_unit: float | None = None
+    quantity_bought: int = 1
+    total_price: float | None = None
+    status: str = "added"
+    rationale: str = ""
+    quantity_rationale: str | None = None
+    alternatives: list = []
+    lesson_learned: str | None = None
+
+
+class ShoppingSessionMeta(BaseModel):
+    date: str
+    store: str
+    cart_id: str | None = None
+    covers: int | None = None
+    people: list[str] = []
+    total: float | None = None
+    items_count: int | None = None
+    notes: str | None = None
+
+
+class PersistCartRequest(BaseModel):
+    meta: ShoppingSessionMeta
+    items: list[ShoppingItemIn]
+    enrich_nutrition: bool = True
+
+
+@app.post("/api/shopping/persist-cart")
+async def persist_cart_with_nutrition(body: PersistCartRequest):
+    """Persist a cart/order into shopping_session + shopping_product, enriching
+    each item with nutrition/nutriscore/ingredients/allergens/characteristics
+    fetched live from the Auchan public catalog (search + SSR product scrape) —
+    the same reverse-engineered client used by backend/auchan_mcp.py.
+    """
+    from .auchan import find_product_detail
+
+    pool = await get_pool(DATABASE_DSN)
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """INSERT INTO shopping_session (date, store, cart_id, covers, people, total, items_count, notes)
+               VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+               RETURNING id""",
+            datetime.date.fromisoformat(body.meta.date), body.meta.store, body.meta.cart_id,
+            body.meta.covers, body.meta.people, body.meta.total,
+            body.meta.items_count, body.meta.notes,
+        )
+        session_id = row["id"]
+
+        enriched_count = 0
+        failed: list[str] = []
+        for item in body.items:
+            detail = None
+            if body.enrich_nutrition:
+                try:
+                    detail = await find_product_detail(item.product_name, item.brand)
+                except Exception:
+                    detail = None
+                if detail is None:
+                    failed.append(item.product_name)
+                else:
+                    enriched_count += 1
+
+            await conn.execute(
+                """INSERT INTO shopping_product
+                   (session_id, item_requested, product_name, brand, product_id,
+                    price_unit, quantity_bought, total_price, status,
+                    rationale, quantity_rationale, alternatives, lesson_learned,
+                    auchan_id, nutriscore, nutrition, ingredients, allergens,
+                    characteristics, photo_url, product_url, weight)
+                   VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,
+                           $14,$15,$16,$17,$18,$19,$20,$21,$22)""",
+                session_id, item.item_requested, item.product_name, item.brand,
+                item.product_id, item.price_unit, item.quantity_bought,
+                item.total_price, item.status, item.rationale,
+                item.quantity_rationale, json.dumps(item.alternatives),
+                item.lesson_learned,
+                detail.auchan_id if detail else None,
+                detail.nutriscore if detail else None,
+                json.dumps(detail.nutrition) if detail else None,
+                detail.ingredients if detail else None,
+                detail.allergens if detail else None,
+                json.dumps(detail.characteristics) if detail else None,
+                detail.photo_url if detail else None,
+                detail.url if detail else None,
+                detail.weight if detail else None,
+            )
+
+    return {
+        "session_id": session_id,
+        "items_persisted": len(body.items),
+        "items_enriched": enriched_count,
+        "enrichment_failed": failed,
+    }
 
 
 @app.get("/api/shopping/preferences")

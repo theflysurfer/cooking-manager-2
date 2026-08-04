@@ -115,6 +115,53 @@ async def grocery_update_quantity(product_id: str, quantity: int) -> str:
 
 
 @mcp.tool()
+async def grocery_persist_cart(
+    date: str,
+    store: str,
+    items_json: str,
+    cart_id: str = "",
+    covers: int = 0,
+    people_csv: str = "",
+    total: float = 0.0,
+    notes: str = "",
+    enrich_nutrition: bool = True,
+) -> str:
+    """Persist a cart/order to the Cooking Manager database (shopping_session +
+    shopping_product), enriching each item with nutrition/nutriscore/ingredients/
+    allergens fetched live from the Auchan public catalog.
+
+    items_json: JSON array of objects with keys item_requested, product_name,
+    brand, product_id, price_unit, quantity_bought, total_price, rationale
+    (rationale required, non-empty).
+
+    Calls the backend's /api/shopping/persist-cart endpoint (COOKING_MANAGER_API_BASE
+    env var, defaults to the VPS) — this is the same enrichment pipeline
+    (backend/auchan.py::find_product_detail) whichever caller triggers it.
+    """
+    import httpx as _httpx
+
+    api_base = os.environ.get("COOKING_MANAGER_API_BASE", "https://cooking.srv759970.hstgr.cloud")
+    items = json.loads(items_json)
+    people = [p.strip() for p in people_csv.split(",") if p.strip()]
+
+    payload = {
+        "meta": {
+            "date": date, "store": store, "cart_id": cart_id or None,
+            "covers": covers or None, "people": people,
+            "total": total or None, "items_count": len(items),
+            "notes": notes or None,
+        },
+        "items": items,
+        "enrich_nutrition": enrich_nutrition,
+    }
+
+    async with _httpx.AsyncClient(timeout=300.0) as client:
+        r = await client.post(f"{api_base}/api/shopping/persist-cart", json=payload)
+        r.raise_for_status()
+        return json.dumps(r.json(), ensure_ascii=False)
+
+
+@mcp.tool()
 async def grocery_set_token(token: str, cart_id: str = "") -> str:
     """Set the Bearer token and optionally cart ID for cart operations."""
     global _client
