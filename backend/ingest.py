@@ -193,6 +193,19 @@ async def ingest(vault_root: Path, dsn: str) -> dict:
         warnings.append("aucun convive lu depuis Convives.md — le contrôle de "
                         "compatibilité alimentaire ne pourra rien vérifier")
 
+    # Photos générées : rattachement déterministe par slug. Rien n'est écrit dans
+    # le vault, et la liaison survit à chaque ré-ingestion. Priorité au fichier
+    # local sur le scraping, qui reste le repli pour les recettes issues du web.
+    media_dir = Path(__file__).resolve().parent.parent / "web" / "media" / "recipes"
+    photos_linked = 0
+    for r in recipes:
+        if r.get("photo_url"):
+            continue
+        slug = r.get("slug", "")
+        if slug and (media_dir / f"{slug}.jpg").is_file():
+            r["photo_url"] = f"/media/recipes/{slug}.jpg"
+            photos_linked += 1
+
     need_photo = [r for r in recipes if not r.get("photo_url") and r.get("sources")]
     if need_photo:
         results = await asyncio.gather(
@@ -275,6 +288,7 @@ async def ingest(vault_root: Path, dsn: str) -> dict:
         "recipes_ingested": len(recipes),
         "menus_ingested": len(menus),
         "convives_ingested": len(convives),
+        "photos_linked": photos_linked,
         "ingredients_parsed": parsed_ingredients,
         "ingredients_raw_only": unparsed_lines,
         "steps_parsed": parsed_steps,
