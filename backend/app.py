@@ -456,9 +456,9 @@ async def persist_cart_with_nutrition(body: PersistCartRequest):
                     price_unit, quantity_bought, total_price, status,
                     rationale, quantity_rationale, alternatives, lesson_learned,
                     auchan_id, nutriscore, nutrition, ingredients, allergens,
-                    characteristics, photo_url, product_url, weight)
+                    characteristics, photo_url, product_url, weight, price_per_kg)
                    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,
-                           $14,$15,$16,$17,$18,$19,$20,$21,$22)""",
+                           $14,$15,$16,$17,$18,$19,$20,$21,$22,$23)""",
                 session_id, item.item_requested, item.product_name, item.brand,
                 item.product_id, item.price_unit, item.quantity_bought,
                 item.total_price, item.status, item.rationale,
@@ -473,6 +473,7 @@ async def persist_cart_with_nutrition(body: PersistCartRequest):
                 detail.photo_url if detail else None,
                 detail.url if detail else None,
                 detail.weight if detail else None,
+                detail.price_per_kg if detail else None,
             )
 
     return {

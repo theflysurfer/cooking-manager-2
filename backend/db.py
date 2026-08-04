@@ -115,6 +115,7 @@ CREATE TABLE IF NOT EXISTS shopping_product (
     photo_url       TEXT,
     product_url     TEXT,
     weight          TEXT,
+    price_per_kg    REAL,
     created_at      TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -148,6 +149,7 @@ ALTER TABLE shopping_product ADD COLUMN IF NOT EXISTS characteristics JSONB;
 ALTER TABLE shopping_product ADD COLUMN IF NOT EXISTS photo_url TEXT;
 ALTER TABLE shopping_product ADD COLUMN IF NOT EXISTS product_url TEXT;
 ALTER TABLE shopping_product ADD COLUMN IF NOT EXISTS weight TEXT;
+ALTER TABLE shopping_product ADD COLUMN IF NOT EXISTS price_per_kg REAL;
 """
 
 _pool: asyncpg.Pool | None = None
