@@ -140,6 +140,23 @@ class RecipeContent:
 _LIGATURES = str.maketrans({"œ": "oe", "Œ": "OE", "æ": "ae", "Æ": "AE"})
 
 
+def _display_name(name: str | None) -> str:
+    """Nom AFFICHABLE : sans la glose qui suit le tiret cadratin.
+
+    `normalize_name` coupait déjà sur « — » pour la clé d'appariement, mais le
+    nom affiché gardait tout : la liste de courses rendait « concentré de
+    vanille — *retour Julien : apporte la profondeur aromatique* ». Une ligne
+    de courses illisible est une ligne qu'on ne coche pas.
+
+    ⚠️ On ne coupe QUE sur le tiret entouré d'espaces (la convention du vault
+    pour une note) : « demi-écrémé », « pois chiches » et les traits d'union de
+    composition doivent survivre intacts.
+    """
+    text = re.sub(r"\s+[–—]\s+.*$", "", name or "")
+    text = re.sub(r"[*_`]", "", text)
+    return text.strip(" .,;")
+
+
 def normalize_name(name: str) -> str:
     """Nom d'ingrédient → forme comparable, clé d'appariement avec le garde-manger.
 
@@ -216,7 +233,7 @@ def parse_ingredient(raw: str, position: int) -> Ingredient:
     ing.qty_min = _to_float(qty_min)
     ing.qty_max = _to_float(qty_max) if qty_max else ing.qty_min
     ing.unit = _UNIT_LOOKUP.get((unit or "").lower()) if unit else None
-    ing.name = (name or "").strip(" .,;")
+    ing.name = _display_name(name)
     ing.name_normalized = normalize_name(ing.name)
 
     # « 2 bananes bien mûres » : pas d'unité explicite, l'unité est la pièce.
