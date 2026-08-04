@@ -461,6 +461,13 @@ async function viewCourses() {
       esc(data.pantry.age_days) + ' jours — les produits frais sont supposés épuisés. ' +
       'Corrigez ce qui est faux plutôt que de faire confiance à cette liste.</div>';
   }
+  // Les restes ne sont pas un manque : les afficher dans la même bannière que
+  // les repas sans fiche ferait clignoter une alerte qu'on ne peut pas éteindre.
+  if (data.meals_leftovers && data.meals_leftovers.length) {
+    html += '<p class="page__sub">' + data.meals_leftovers.length +
+      ' repas de restes — rien à acheter pour eux : ' +
+      esc(data.meals_leftovers.map(function (m) { return m.dish; }).join(' · ')) + '</p>';
+  }
   if (data.meals_unmatched && data.meals_unmatched.length) {
     html += '<div class="banner">' + data.meals_unmatched.length +
       ' repas sans fiche recette — leurs ingrédients ne sont pas dans cette liste : ' +

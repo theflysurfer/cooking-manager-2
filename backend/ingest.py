@@ -351,6 +351,23 @@ async def _link_meals(conn) -> tuple[int, int]:
                 # semaine et finit toujours par diverger du titre de la fiche
                 # d'un mot ou deux (« crevettes citron » / « crevettes sautées
                 # citron »).
+                # Un repas de RESTES n'a pas de fiche, et c'est correct : lui
+                # en donner une ferait racheter les ingrédients du repas qu'il
+                # recycle. Sans ce marqueur il ressort en « repas sans fiche »,
+                # une fausse alerte qui reviendrait chaque semaine.
+                if meal.get(slot + "_leftovers"):
+                    await conn.execute(
+                        """INSERT INTO menu_meal
+                             (menu_id, day, day_label, position, slot, dish, match_kind, covers)
+                           VALUES ($1,$2,$3,$4,$5,$6,'leftovers',$7)
+                           ON CONFLICT (menu_id, position, slot) DO UPDATE SET
+                             dish = EXCLUDED.dish, recipe_id = NULL,
+                             match_kind = 'leftovers', covers = EXCLUDED.covers""",
+                        menu["id"], _as_date(meal.get("date")), meal.get("day"),
+                        position, slot, dish, meal.get("covers"),
+                    )
+                    continue
+
                 explicit = (meal.get(slot + "_slug") or "").strip()
                 if explicit:
                     recipe_id, kind = by_slug.get(explicit), "explicit"

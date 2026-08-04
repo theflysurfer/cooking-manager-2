@@ -397,9 +397,14 @@ async def menu_shopping_list(slug: str, covers: int | None = None):
             slug,
         )
 
-        matched, unmatched = [], []
+        matched, unmatched, leftovers = [], [], []
         for row in rows:
-            if row["id"] is None:
+            if row["match_kind"] == "leftovers":
+                # Repas de restes : sans fiche PAR CONCEPTION. Le compter comme
+                # manquant ferait clignoter une alerte qu'on ne peut pas éteindre.
+                leftovers.append({"day": row["day_label"], "slot": row["slot"],
+                                  "dish": row["dish"]})
+            elif row["id"] is None:
                 unmatched.append({"day": row["day_label"], "slot": row["slot"],
                                   "dish": row["dish"]})
             else:
@@ -451,8 +456,9 @@ async def menu_shopping_list(slug: str, covers: int | None = None):
     return {
         "slug": menu["slug"], "title": menu["title"], "covers": wanted,
         "recipes_matched": len({r["slug"] for r, _ in matched}),
-        "meals_total": len(matched) + len(unmatched),
+        "meals_total": len(matched) + len(unmatched) + len(leftovers),
         "meals_unmatched": unmatched,
+        "meals_leftovers": leftovers,
         "pantry": {"updated": pantry.updated.isoformat() if pantry.updated else None,
                    "age_days": pantry.age_days(), "is_stale": pantry.is_stale()},
         "counts": counts,
