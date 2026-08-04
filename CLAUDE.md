@@ -30,8 +30,8 @@ python -m cooking_manager build --vault /path/to/Cuisine
 # Run web server
 python -m cooking_manager serve --port 8795
 
-# Deploy on VPS
-ssh srv759970 'cd /opt/cooking-manager-2 && bash deploy/install.sh'
+# Deploy on VPS — /opt/cooking-manager-2 est un vrai clone git (depuis 2026-08-04)
+ssh srv759970 'cd /opt/cooking-manager-2 && git pull && .venv/bin/pip install -q . && sudo systemctl restart cooking-manager'
 ```
 
 ## Vault source
@@ -40,7 +40,13 @@ Le vault Obsidian `Noyau/Cuisine/` est dans Dropbox, monté en lecture sur le VP
 
 ## Auchan Drive API
 
-Client reverse-engineered (`backend/auchan.py`). Auth : Bearer JWT Keycloak + `x-gravitee-api-key`. Catalogue : SSR scraping (pas d'API produit). Cart : `POST api.auchan.fr/checkout/v1/carts/{cartId}/items` (add/update/remove via `desiredQuantity`). Remove nécessite l'`id` interne (GET cart d'abord). MCP local : `python -m backend.auchan_mcp` (stdio).
+Client reverse-engineered (`backend/auchan.py`). Auth : Bearer JWT Keycloak + `x-gravitee-api-key`. Catalogue : SSR scraping (pas d'API produit). Cart : `POST api.auchan.fr/checkout/v1/carts/{cartId}/items` (add/update/remove via `desiredQuantity`). Remove nécessite l'`id` interne (GET cart d'abord). MCP local : `python -m backend.auchan_mcp` (stdio) — expose aussi `grocery_persist_cart`, qui persiste et enrichit un panier via `POST /api/shopping/persist-cart`.
+
+⚠️ Le connecteur **claude.ai** `Auchan Drive` (hébergé, pas ce repo) n'expose que l'ajout au panier — `quantity=0` pour supprimer y échoue systématiquement en 500 (refs #13). Toute suppression/mise à jour de quantité doit passer par `backend/auchan_mcp.py` ou un appel direct à `AuchanClient`.
+
+## Persistance + enrichissement nutritionnel
+
+`POST /api/shopping/persist-cart` persiste chaque article dans `shopping_product` et l'enrichit en direct (nutrition, nutriscore, ingrédients, allergènes, caractéristiques, photo, prix/kg) via `backend/auchan.py::find_product_detail()` — pont entre l'UUID interne du panier et l'ID public catalogue (recherche par nom, puis scrape de la fiche produit). Séquentiel, un item peut prendre plusieurs secondes — le timeout nginx `/api/` est à 300s pour cette raison (`deploy/cooking-manager.nginx.conf`).
 
 ## Gotchas
 
@@ -48,6 +54,7 @@ Client reverse-engineered (`backend/auchan.py`). Auth : Bearer JWT Keycloak + `x
 - `consentId` requis comme query param sur tous les appels cart
 - La recherche SSR nécessite le cookie `auchan_store_reference=874` (Aubagne)
 - Remove cart : l'`id` interne (UUID) ≠ `productId` — toujours GET cart d'abord
+- `httpx`/`selectolax`/`mcp` sont des dépendances déclarées dans `pyproject.toml` — un venv reconstruit à neuf (`pip install .`) est le test de vérité si ce fichier dérive
 
 ## Lint gate
 
