@@ -14,7 +14,8 @@
 var API = '/api';
 var state = {
   recipes: [], filters: null, menu: null, compat: null,
-  active: { status: null, family: null, tag: null }, q: ''
+  weekMenu: null,
+  active: { status: null, family: null, tag: null, menu: null }, q: ''
 };
 
 /* ── Utilitaires ───────────────────────────────────────────────────── */
@@ -195,6 +196,11 @@ function recipeCard(r) {
     '<div class="card__title">' + esc(r.title) + '</div>' +
     (meta.length ? '<div class="card__meta"><span>' + meta.map(esc).join('</span><span>') + '</span></div>' : '') +
     (macros ? '<div class="card__macros">' + esc(macros) + '</div>' : '') +
+    // « 2× » est l'information qui manque le plus quand on planifie : une
+    // recette peut revenir plusieurs fois dans la même semaine.
+    (r.occurrences ? '<div class="card__week">' +
+       (r.occurrences > 1 ? r.occurrences + '× cette semaine' : 'Cette semaine') +
+       (r.scheduled_at ? ' · ' + esc(r.scheduled_at.join(' · ')) : '') + '</div>' : '') +
   '</button>';
 }
 
@@ -212,6 +218,7 @@ async function loadRecipes() {
   if (state.active.family) params.set('family', state.active.family);
   if (state.active.tag) params.set('tag', state.active.tag);
   if (state.q) params.set('q', state.q);
+  if (state.active.menu) params.set('menu', state.active.menu);
   params.set('limit', '500');
   var data = await api('/recipes?' + params.toString());
   state.recipes = data.recipes || [];
@@ -244,8 +251,23 @@ async function viewRecipes() {
 
   if (!state.filters) state.filters = await api('/filters');
   var f = state.filters;
+  // La puce « Cette semaine » relie le catalogue au menu courant. Sans elle,
+  // les 22 recettes se valent toutes et rien ne dit lesquelles sont au programme.
+  var weekChip = '';
+  if (!state.weekMenu) {
+    var menus = (await api('/menus')).menus || [];
+    for (var mi = 0; mi < menus.length; mi++) {
+      if (menus[mi].meals && menus[mi].meals.length) { state.weekMenu = menus[mi]; break; }
+    }
+  }
+  if (state.weekMenu) {
+    weekChip = '<button class="chip chip--week" data-filter="menu" data-value="' +
+      esc(state.weekMenu.slug) + '" aria-pressed="' +
+      (state.active.menu ? 'true' : 'false') + '">Cette semaine</button>';
+  }
+
   document.getElementById('filters').innerHTML =
-    '<div class="chips">' + chipGroup(f.statuses || [], 'status') +
+    '<div class="chips">' + weekChip + chipGroup(f.statuses || [], 'status') +
     chipGroup(f.families || [], 'family') + '</div>';
 
   var data = await loadRecipes();
@@ -358,29 +380,140 @@ async function viewRecipe(slug) {
 
 /* ── Vue : courses ─────────────────────────────────────────────────── */
 
+/* Les 4 issues du différentiel. `inconnu` n'est PAS un raté du système : c'est
+   l'app qui refuse de deviner, parce qu'un faux « tu en as » fait sauter un
+   achat et ne se découvre qu'en cuisine. */
+var OUTCOMES = {
+  absent:      { label: 'À acheter',    cls: 'need--buy' },
+  insuffisant: { label: 'À compléter',  cls: 'need--partial' },
+  inconnu:     { label: 'À confirmer',  cls: 'need--ask' },
+  suffisant:   { label: 'Déjà en stock', cls: 'need--have' }
+};
+
+var ORDER = ['absent', 'insuffisant', 'inconnu', 'suffisant'];
+
+function qtyLabel(line) {
+  if (line.qty === null || line.qty === undefined) return '';
+  return line.qty + (line.unit ? ' ' + line.unit : '');
+}
+
+function needRow(line) {
+  var o = OUTCOMES[line.outcome] || OUTCOMES.inconnu;
+  var html = '<li class="need ' + o.cls + '" data-name="' + esc(line.name) + '"' +
+             (line.pantry ? ' data-pantry="' + esc(line.pantry.name) + '"' : '') + '>' +
+    '<div class="need__head">' +
+      '<span class="need__qty">' + esc(qtyLabel(line)) + '</span>' +
+      '<span class="need__name">' + esc(line.name) +
+        (line.is_optional ? ' <em>(optionnel)</em>' : '') + '</span>' +
+    '</div>';
+
+  if (line.recipes && line.recipes.length) {
+    html += '<div class="need__why">' + esc(line.recipes.join(' · ')) +
+      (line.shared ? ' <span class="need__shared">utilisé dans plusieurs recettes</span>' : '') +
+      '</div>';
+  }
+  if (line.pantry) {
+    html += '<div class="need__pantry">D\'après le garde-manger : ' +
+            esc(line.reason) + '</div>';
+  } else if (line.reason) {
+    html += '<div class="need__pantry">' + esc(line.reason) + '</div>';
+  }
+
+  // Les 4 gestes ne s'affichent que là où ils ont un sens : inutile de demander
+  // « tu en as ? » pour un ingrédient dont on sait déjà qu'il manque.
+  if (line.pantry) {
+    html += '<div class="need__actions">' +
+      '<button class="mini" data-act="have">Oui, j\'en ai</button>' +
+      '<button class="mini" data-act="missing">Non, je n\'en ai pas</button>' +
+      '<button class="mini" data-act="partial">Compléter</button>' +
+      '<button class="mini mini--ghost" data-act="update">Mettre à jour</button>' +
+      '</div>';
+  }
+  return html + '</li>';
+}
+
 async function viewCourses() {
-  render(emptyState('Chargement des courses…'));
-  var data = await api('/shopping/sessions');
-  var sessions = data.sessions || [];
-  if (!sessions.length) {
+  render(emptyState('Calcul de la liste…'));
+
+  var menus = (await api('/menus')).menus || [];
+  var menu = null;
+  for (var i = 0; i < menus.length; i++) {
+    if (menus[i].meals && menus[i].meals.length) { menu = menus[i]; break; }
+  }
+  if (!menu) {
     render('<h1 class="page__title">Courses</h1>' +
-      emptyState('Aucune session de courses',
-                 'La liste se génère depuis le menu de la semaine.'));
+      emptyState('Pas de menu à convertir en courses',
+                 'La liste se calcule depuis le menu de la semaine.'));
     return;
   }
-  var s = sessions[0];
+
+  var data = await api('/menus/' + encodeURIComponent(menu.slug) + '/shopping-list');
+  state.shopping = data;
+
   var html = '<h1 class="page__title">Courses</h1>' +
-    '<p class="page__sub">' + esc(s.store || '') + ' · ' + esc(s.date || '') + '</p>' +
-    '<div class="stats">' +
-      '<div class="stat"><span class="stat__val">' + esc(s.items_count || 0) +
-      '</span><span class="stat__label">articles</span></div>' +
-      '<div class="stat"><span class="stat__val">' + esc(s.total || 0) +
-      ' €</span><span class="stat__label">total</span></div>' +
-      '<div class="stat"><span class="stat__val">' + esc(s.covers || 0) +
-      '</span><span class="stat__label">couverts</span></div>' +
-    '</div>';
-  if (s.notes) html += '<div class="banner">' + esc(s.notes) + '</div>';
+    '<p class="page__sub">' + esc(data.title) + ' · ' + esc(data.covers) + ' couverts · ' +
+    esc(data.recipes_matched) + ' recettes reliées</p>';
+
+  // L'âge de l'inventaire est une donnée de premier plan, pas une note de bas
+  // de page : c'est lui qui décide si le frais est encore crédible.
+  if (data.pantry && data.pantry.is_stale) {
+    html += '<div class="banner">Inventaire du garde-manger vieux de ' +
+      esc(data.pantry.age_days) + ' jours — les produits frais sont supposés épuisés. ' +
+      'Corrigez ce qui est faux plutôt que de faire confiance à cette liste.</div>';
+  }
+  if (data.meals_unmatched && data.meals_unmatched.length) {
+    html += '<div class="banner">' + data.meals_unmatched.length +
+      ' repas sans fiche recette — leurs ingrédients ne sont pas dans cette liste : ' +
+      esc(data.meals_unmatched.map(function (m) { return m.dish; }).slice(0, 3).join(' · ')) +
+      '</div>';
+  }
+
+  var c = data.counts || {};
+  html += '<div class="stats">' + ORDER.map(function (k) {
+    return '<div class="stat"><span class="stat__val">' + (c[k] || 0) +
+           '</span><span class="stat__label">' + esc(OUTCOMES[k].label) + '</span></div>';
+  }).join('') + '</div>';
+
+  var lines = data.lines || [];
+  ORDER.forEach(function (key) {
+    var group = lines.filter(function (l) { return l.outcome === key; });
+    if (!group.length) return;
+    html += '<h2 class="section-title">' + esc(OUTCOMES[key].label) +
+            ' <span class="section-count">' + group.length + '</span></h2>' +
+            '<ul class="needs">' + group.map(needRow).join('') + '</ul>';
+  });
+
   render(html);
+}
+
+/* Les 4 gestes écrivent dans le vault. Le retour porte `needs_bisync` : sans
+   bisync, l'écriture reste locale (l'app Dropbox desktop est désactivée). */
+async function applyPantryGesture(li, action) {
+  var pantryName = li.getAttribute('data-pantry');
+  if (!pantryName) return;
+
+  var payload = { item_name: pantryName, action: action };
+  if (action === 'update') {
+    var current = window.prompt('Nouvelle quantité pour « ' + pantryName + ' » :', '');
+    if (current === null || !current.trim()) return;
+    payload.qty_text = current.trim();
+  }
+
+  var box = li.querySelector('.need__actions');
+  box.innerHTML = '<span class="need__pending">Enregistrement…</span>';
+  try {
+    var res = await api('/pantry', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    li.className = 'need need--done';
+    box.innerHTML = '<span class="need__done">' +
+      (res.changed ? 'Garde-manger mis à jour' : 'Confirmé') +
+      (res.needs_bisync ? ' — pensez au bisync du vault' : '') + '</span>';
+  } catch (e) {
+    box.innerHTML = '<span class="need__error">Échec de l\'enregistrement — réessayez</span>';
+  }
 }
 
 /* ── Routeur ───────────────────────────────────────────────────────── */
@@ -421,6 +554,13 @@ window.addEventListener('hashchange', route);
 document.addEventListener('click', function (e) {
   var nav = e.target.closest('.nav__link');
   if (nav) { location.hash = '#/' + nav.getAttribute('data-route'); return; }
+
+  var mini = e.target.closest('.mini[data-act]');
+  if (mini) {
+    var li = mini.closest('.need');
+    if (li) applyPantryGesture(li, mini.getAttribute('data-act'));
+    return;
+  }
 
   var card = e.target.closest('.card');
   if (card) { location.hash = '#/recette/' + encodeURIComponent(card.getAttribute('data-slug')); return; }

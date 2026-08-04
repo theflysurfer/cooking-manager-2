@@ -137,6 +137,9 @@ class RecipeContent:
         return sum(1 for i in self.ingredients if i.parsed) / len(self.ingredients)
 
 
+_LIGATURES = str.maketrans({"œ": "oe", "Œ": "OE", "æ": "ae", "Æ": "AE"})
+
+
 def normalize_name(name: str) -> str:
     """Nom d'ingrédient → forme comparable, clé d'appariement avec le garde-manger.
 
@@ -145,6 +148,11 @@ def normalize_name(name: str) -> str:
     """
     text = re.sub(r"\([^)]*\)", " ", name)           # parenthèses = précisions
     text = re.sub(r"\s+[-–—]\s+.*$", "", text)       # « — optionnel », « — qs »
+    # ⚠️ Les ligatures œ et æ n'ont AUCUNE décomposition Unicode : NFKD les
+    # laisse intactes et l'encodage ASCII les SUPPRIME. « œufs » devenait
+    # « ufs », « bœuf » devenait « buf » — donc « oeuf dur » ne rencontrait
+    # jamais les œufs du garde-manger. Même bug que dans `convives.py`.
+    text = text.translate(_LIGATURES)
     text = unicodedata.normalize("NFKD", text)
     text = text.encode("ascii", "ignore").decode("ascii").lower()
     # ⚠️ Ne retirer QUE ce qui ne change jamais l'identité du produit.

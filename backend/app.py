@@ -1,6 +1,7 @@
 """FastAPI application — recipe browser + ingest trigger."""
 
 import json
+import re
 from contextlib import asynccontextmanager
 import datetime
 from pathlib import Path
@@ -71,6 +72,7 @@ async def list_recipes(
     family: str | None = None,
     tag: str | None = None,
     q: str | None = None,
+    menu: str | None = Query(default=None, description="slug de menu — restreint à la semaine"),
     limit: int = Query(default=100, le=500),
     offset: int = Query(default=0, ge=0),
 ):
@@ -78,6 +80,17 @@ async def list_recipes(
     clauses = []
     params = []
     idx = 1
+
+    if menu:
+        # ⚠️ EXISTS, pas de JOIN : une recette refaite trois fois dans la semaine
+        # doit apparaître UNE fois dans le catalogue. Le nombre de fois est une
+        # donnée de la recette (`occurrences`), pas une multiplication des lignes.
+        clauses.append(
+            f"EXISTS (SELECT 1 FROM menu_meal mm JOIN menu mu ON mu.id = mm.menu_id "
+            f"WHERE mm.recipe_id = recipe.id AND mu.slug = ${idx})"
+        )
+        params.append(menu)
+        idx += 1
 
     if status:
         clauses.append(f"status = ${idx}")
@@ -99,6 +112,18 @@ async def list_recipes(
     where = " WHERE " + " AND ".join(clauses) if clauses else ""
     params.extend([limit, offset])
 
+    # Quand on filtre sur une semaine, le nombre de fois où la recette y revient
+    # (et à quels créneaux) fait partie de la réponse : « 2× » est l'information
+    # qui manque le plus quand on planifie.
+    occurrences = ""
+    if menu:
+        occurrences = """,
+               (SELECT COUNT(*) FROM menu_meal mm JOIN menu mu ON mu.id = mm.menu_id
+                 WHERE mm.recipe_id = recipe.id AND mu.slug = $1) AS occurrences,
+               (SELECT ARRAY_AGG(mm.day_label || ' · ' || mm.slot ORDER BY mm.position)
+                  FROM menu_meal mm JOIN menu mu ON mu.id = mm.menu_id
+                 WHERE mm.recipe_id = recipe.id AND mu.slug = $1) AS scheduled_at"""
+
     sql = f"""
         SELECT id, slug, title, status, recipe_type, family, servings,
                total_time_min, prep_time_min, cook_time_min,
@@ -106,7 +131,7 @@ async def list_recipes(
                applied_substitutions, mediterranean_criteria,
                construction_regime, execution_count, lieu_execution,
                macros_kcal, macros_protein, macros_carbs, macros_fat,
-               protein_density, photo_url, created, updated
+               protein_density, photo_url, created, updated{occurrences}
         FROM recipe {where}
         ORDER BY title
         LIMIT ${idx} OFFSET ${idx + 1}
@@ -297,6 +322,225 @@ async def menu_compatibility(slug: str):
         "meals_checked": len(checked), "conflicts": conflict_count,
         "convives_known": len(convives),
         "results": checked,
+    }
+
+
+def _load_pantry():
+    """Garde-manger du vault, avec la date de son dernier inventaire."""
+    from cooking_manager.pantry import parse_pantry
+    from cooking_manager.vault import _parse_frontmatter
+
+    path = Path(VAULT_ROOT) / "Garde-manger.md"
+    if not path.exists():
+        return parse_pantry("")
+    fm, body = _parse_frontmatter(path)
+    updated = fm.get("updated")
+    try:
+        updated = datetime.date.fromisoformat(str(updated)) if updated else None
+    except ValueError:
+        updated = None
+    return parse_pantry(body, updated)
+
+
+@app.get("/api/pantry")
+async def get_pantry():
+    """Inventaire, groupé par rayon, avec l'âge de l'inventaire en évidence."""
+    pantry = _load_pantry()
+    rayons: dict[str, list] = {}
+    for item in pantry.items:
+        rayons.setdefault(item.rayon, []).append({
+            "name": item.name, "qty_text": item.qty_text,
+            "status": item.status, "xstatus": item.xstatus,
+            "entered_at": item.entered_at.isoformat() if item.entered_at else None,
+        })
+    return {
+        "updated": pantry.updated.isoformat() if pantry.updated else None,
+        "age_days": pantry.age_days(),
+        "is_stale": pantry.is_stale(),
+        "total": len(pantry.items),
+        "rayons": [{"name": k, "items": v} for k, v in rayons.items()],
+    }
+
+
+@app.get("/api/menus/{slug}/shopping-list")
+async def menu_shopping_list(slug: str, covers: int | None = None):
+    """Menu → liste de courses différentielle, groupée par recette.
+
+    Trois étapes, dans cet ordre :
+      1. retrouver les recettes citées dans les repas du menu ;
+      2. agréger leurs ingrédients, pondérés par convives / portions_base ;
+      3. croiser chaque besoin avec le garde-manger réel.
+
+    Le résultat n'est jamais un verdict silencieux : chaque ligne porte son
+    `outcome` et sa `reason`, et l'état `inconnu` existe précisément pour que
+    l'app demande au lieu de deviner.
+    """
+    from cooking_manager.pantry import build_needs, check_need
+
+    pool = await get_pool(DATABASE_DSN)
+    async with pool.acquire() as conn:
+        menu = await conn.fetchrow(
+            "SELECT slug, title, meals FROM menu WHERE slug = $1", slug)
+        if not menu:
+            raise HTTPException(404, f"Menu introuvable : {slug}")
+
+        # Les repas sont reliés aux recettes à l'ingestion (`menu_meal`), plus
+        # devinés à chaque appel : deux appels successifs donnaient auparavant
+        # deux listes différentes si une recette venait d'être ajoutée.
+        rows = await conn.fetch(
+            """SELECT mm.slot, mm.dish, mm.day_label, mm.match_kind,
+                      r.id, r.slug, r.title, r.servings
+                 FROM menu_meal mm
+                 LEFT JOIN recipe r ON r.id = mm.recipe_id
+                WHERE mm.menu_id = (SELECT id FROM menu WHERE slug = $1)
+             ORDER BY mm.position, mm.slot""",
+            slug,
+        )
+
+        matched, unmatched = [], []
+        for row in rows:
+            if row["id"] is None:
+                unmatched.append({"day": row["day_label"], "slot": row["slot"],
+                                  "dish": row["dish"]})
+            else:
+                # ⚠️ Pas de dédoublonnage : une recette refaite deux fois dans
+                # la semaine doit peser deux fois dans les quantités.
+                matched.append((row, row["dish"]))
+
+        wanted = covers or 4
+        payload = []
+        for recipe, _dish in matched:
+            rows = await conn.fetch(
+                """SELECT name, name_normalized, qty_min, qty_max, unit,
+                          is_optional, parsed, raw
+                     FROM recipe_ingredient WHERE recipe_id = $1 ORDER BY position""",
+                recipe["id"],
+            )
+            base = recipe["servings"] or wanted
+            ratio = wanted / base if base else 1.0
+            payload.append((recipe["title"], [dict(r) for r in rows], ratio))
+
+    needs = build_needs(payload)
+    pantry = _load_pantry()
+
+    lines = []
+    for need in needs:
+        verdict = check_need(need, pantry)
+        lines.append({
+            "name": need.name,
+            "name_normalized": need.name_normalized,
+            "qty": round(need.qty, 2) if need.qty is not None else None,
+            "unit": need.unit,
+            "recipes": need.recipes,
+            "shared": len(need.recipes) > 1,
+            "is_optional": need.is_optional,
+            "outcome": verdict.outcome,
+            "reason": verdict.reason,
+            "to_buy": verdict.to_buy,
+            "assumed_empty": verdict.assumed_empty,
+            "pantry": ({"name": verdict.pantry_item.name,
+                        "qty_text": verdict.pantry_item.qty_text,
+                        "status": verdict.pantry_item.status}
+                       if verdict.pantry_item else None),
+        })
+
+    counts: dict[str, int] = {}
+    for line in lines:
+        counts[line["outcome"]] = counts.get(line["outcome"], 0) + 1
+
+    return {
+        "slug": menu["slug"], "title": menu["title"], "covers": wanted,
+        "recipes_matched": len({r["slug"] for r, _ in matched}),
+        "meals_total": len(matched) + len(unmatched),
+        "meals_unmatched": unmatched,
+        "pantry": {"updated": pantry.updated.isoformat() if pantry.updated else None,
+                   "age_days": pantry.age_days(), "is_stale": pantry.is_stale()},
+        "counts": counts,
+        "lines": lines,
+    }
+
+
+
+class PantryUpdate(BaseModel):
+    """Un des 4 gestes du différentiel garde-manger."""
+    item_name: str                    # nom EXACT de la ligne dans Garde-manger.md
+    action: str                       # have | missing | partial | update
+    qty_text: str | None = None       # requis pour `update`
+
+
+@app.patch("/api/pantry")
+async def update_pantry(body: PantryUpdate):
+    """Écrit un geste dans `Garde-manger.md`.
+
+    ⚠️ Écriture **ciblée ligne à ligne**, jamais de réécriture globale : le
+    fichier est aussi lu par le family-dashboard et éditable depuis Obsidian,
+    et une session parallèle peut le modifier entre-temps. Réécrire tout le
+    fichier écraserait son travail sans un mot.
+
+    ⚠️ L'app Dropbox desktop est désactivée : cette écriture ne remonte au cloud
+    qu'après un bisync (`julien-vault-bisync`). Le champ `needs_bisync` du
+    retour est là pour qu'on ne l'oublie pas.
+    """
+    actions = {"have", "missing", "partial", "update"}
+    if body.action not in actions:
+        raise HTTPException(400, f"action inconnue : {body.action} (attendu {actions})")
+    if body.action == "update" and not body.qty_text:
+        raise HTTPException(400, "`qty_text` est requis pour l'action `update`")
+
+    path = Path(VAULT_ROOT) / "Garde-manger.md"
+    if not path.exists():
+        raise HTTPException(404, f"Garde-manger introuvable : {path}")
+
+    text = path.read_text(encoding="utf-8")
+    lines = text.splitlines(keepends=True)
+
+    target, needle = None, body.item_name.strip().lower()
+    for idx, line in enumerate(lines):
+        if not line.lstrip().startswith("- "):
+            continue
+        head = re.split(r"\s+[—–]\s+", line.lstrip()[2:], maxsplit=1)[0]
+        if re.sub(r"\*\*", "", head).strip().lower() == needle:
+            target = idx
+            break
+    if target is None:
+        raise HTTPException(404, f"Ligne introuvable dans le garde-manger : {body.item_name}")
+
+    original = lines[target]
+    today = datetime.date.today().isoformat()
+
+    if body.action == "have":
+        # Rien à changer : l'utilisateur confirme simplement le stock.
+        return {"changed": False, "line": original.strip(), "needs_bisync": False}
+
+    new_status = {"missing": "out", "partial": "low", "update": "ok"}[body.action]
+    updated = re.sub(r"#\s*status\s*=\s*[\w\-àéèêëîïôöûü]+",
+                     f"# status={new_status}", original)
+    if "status=" not in updated:
+        updated = updated.rstrip("\n") + f" # status={new_status}\n"
+
+    if body.action == "update" and body.qty_text:
+        # Remplacer la quantité, en préservant le nom et les annotations.
+        parts = re.split(r"(\s+[—–]\s+)", updated.rstrip("\n"), maxsplit=1)
+        if len(parts) == 3:
+            tail = re.search(r"(\(entré[^)]*\))", parts[2])
+            suffix = f" {tail.group(1)}" if tail else ""
+            status = re.search(r"(#\s*status=[^\s]+.*)$", parts[2])
+            updated = (f"{parts[0]}{parts[1]}{body.qty_text}{suffix} "
+                       f"{status.group(1) if status else ''}".rstrip() + "\n")
+
+    updated = re.sub(r"\(constaté [^)]*\)", "", updated).rstrip("\n")
+    updated = f"{updated} (constaté {today})\n"
+
+    lines[target] = updated
+    path.write_text("".join(lines), encoding="utf-8")
+
+    return {
+        "changed": True,
+        "before": original.strip(),
+        "after": updated.strip(),
+        "needs_bisync": True,
+        "hint": "Lancer la skill julien-vault-bisync pour propager au cloud "
+                "(l'app Dropbox desktop est désactivée).",
     }
 
 

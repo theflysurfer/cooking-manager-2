@@ -4,6 +4,7 @@ import asyncio
 import json
 import re
 import logging
+from datetime import date
 from pathlib import Path
 from urllib.parse import urlparse
 from urllib.request import urlopen, Request
@@ -11,7 +12,7 @@ from urllib.error import URLError
 
 from cooking_manager.vault import read_recipes, read_menus, read_convives
 from cooking_manager.normalizer import normalize_recipe, normalize_menu
-from cooking_manager.ingredients import parse_recipe_body
+from cooking_manager.ingredients import parse_recipe_body, normalize_name
 from cooking_manager.convives import parse_convives
 from .db import get_pool, init_schema
 
@@ -284,9 +285,13 @@ async def ingest(vault_root: Path, dsn: str) -> dict:
         for m in menus:
             await conn.execute(UPSERT_MENU, *_menu_row(m))
 
+        meals_linked, meals_orphan = await _link_meals(conn)
+
     return {
         "recipes_ingested": len(recipes),
         "menus_ingested": len(menus),
+        "meals_linked": meals_linked,
+        "meals_orphan": meals_orphan,
         "convives_ingested": len(convives),
         "photos_linked": photos_linked,
         "ingredients_parsed": parsed_ingredients,
@@ -294,6 +299,101 @@ async def ingest(vault_root: Path, dsn: str) -> dict:
         "steps_parsed": parsed_steps,
         "warnings": warnings,
     }
+
+
+SLOTS = ("breakfast", "lunch", "snack", "dinner")
+
+
+async def _link_meals(conn) -> tuple[int, int]:
+    """Éclate `menu.meals` (JSONB) en lignes `menu_meal`, recettes résolues.
+
+    C'est ici que le menu cesse d'être un bloc de texte et devient un graphe :
+    chaque repas pointe (ou non) une recette. Sans ça, « quelles recettes cette
+    semaine ? » n'a pas de réponse, et la liste de courses doit deviner à
+    chaque appel.
+
+    ⚠️ Une recette refaite plusieurs fois dans la semaine produit **plusieurs
+    lignes** — le dénombrement se fait en aval (`COUNT`), pas en écrasant.
+
+    ⚠️ Un repas non relié reste inséré, `recipe_id = NULL`. Le faire
+    disparaître le rendrait invisible partout, y compris dans les manques
+    signalés par la liste de courses.
+    """
+    recipes = await conn.fetch("SELECT id, title FROM recipe")
+    by_norm = {}
+    for r in recipes:
+        key = normalize_name(r["title"] or "")
+        if key:
+            by_norm.setdefault(key, r)
+
+    linked = orphan = 0
+    menus = await conn.fetch("SELECT id, meals FROM menu WHERE meals IS NOT NULL")
+    for menu in menus:
+        meals = menu["meals"]
+        if isinstance(meals, str):
+            meals = json.loads(meals)
+        if not meals:
+            continue
+
+        # Réécriture complète des repas de CE menu : le vault fait autorité sur
+        # sa propre semaine. Le CASCADE ne touche aucun autre menu.
+        await conn.execute("DELETE FROM menu_meal WHERE menu_id = $1", menu["id"])
+
+        for position, meal in enumerate(meals, start=1):
+            for slot in SLOTS:
+                dish = (meal.get(slot) or "").strip()
+                if not dish:
+                    continue
+                recipe_id, kind = _resolve_dish(dish, by_norm)
+                if recipe_id is not None:
+                    linked += 1
+                else:
+                    orphan += 1
+                await conn.execute(
+                    """INSERT INTO menu_meal
+                         (menu_id, day, day_label, position, slot, dish, recipe_id, match_kind, covers)
+                       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+                       ON CONFLICT (menu_id, position, slot) DO UPDATE SET
+                         dish = EXCLUDED.dish, recipe_id = EXCLUDED.recipe_id,
+                         match_kind = EXCLUDED.match_kind, covers = EXCLUDED.covers""",
+                    menu["id"], _as_date(meal.get("date")), meal.get("day"),
+                    position, slot, dish,
+                    recipe_id, kind, meal.get("covers"),
+                )
+    return linked, orphan
+
+
+def _resolve_dish(dish: str, by_norm: dict) -> tuple[int | None, str | None]:
+    """Intitulé de repas → recette, avec le motif d'appariement retenu.
+
+    Les intitulés sont rédigés à la main (« Gratin courgettes-ricotta-feta +
+    crevettes sautées citron ») et ne collent jamais au titre de la fiche. On
+    reste prudent : mieux vaut ne pas relier — et laisser `recipe_id` à NULL —
+    que rattacher la mauvaise recette et acheter ses ingrédients. Le motif est
+    stocké pour qu'un appariement approximatif reste contestable.
+    """
+    norm = normalize_name(dish or "")
+    if not norm:
+        return None, None
+    if norm in by_norm:
+        return by_norm[norm]["id"], "exact"
+    for key, recipe in by_norm.items():
+        # Seuil de 12 caractères : en dessous, un titre court (« Oeufs »)
+        # s'accrocherait à n'importe quel intitulé qui le mentionne.
+        if len(key) > 12 and (key in norm or norm.startswith(key)):
+            return recipe["id"], "contains"
+    return None, None
+
+
+def _as_date(value):
+    if isinstance(value, date):
+        return value
+    if isinstance(value, str):
+        try:
+            return date.fromisoformat(value[:10])
+        except ValueError:
+            return None
+    return None
 
 
 async def run_ingest(vault_root: str, dsn: str) -> dict:

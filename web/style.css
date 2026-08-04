@@ -527,3 +527,117 @@ h1, h2, h3, .u-heading {
 @media (hover: none) {
   .btn:hover { background: var(--btn); border-color: var(--btn); color: var(--btn-text); }
 }
+
+/* La puce « Cette semaine » n'est pas un filtre comme les autres : elle porte
+   l'accent, parce qu'elle répond à la seule question qu'on se pose devant un
+   catalogue de 22 recettes — laquelle est au programme. */
+.chip--week[aria-pressed="true"] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #FFFFFF;
+}
+.card__week {
+  font-family: var(--font-heading);
+  font-size: 11px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--accent-dark);
+  margin-top: 4px;
+}
+
+/* ── Liste de courses : le différentiel garde-manger ───────────────────
+   La couleur porte l'issue, mais jamais SEULE : chaque groupe a son titre
+   (« À acheter », « À confirmer »…). Sur un iPad tenu à bout de bras dans
+   une cuisine, un liseré de 3 px ne se lit pas — le titre, si. */
+
+.section-title {
+  font-family: var(--font-heading);
+  font-size: 13px;
+  font-weight: 400;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--text-strong);
+  margin: var(--sp-6) 0 var(--sp-2);
+  padding-bottom: var(--sp-1);
+  border-bottom: 1px solid var(--rule);
+}
+.section-count { color: var(--text-muted); letter-spacing: 0; }
+
+.needs { list-style: none; margin: 0 0 var(--sp-4); padding: 0; }
+
+.need {
+  border-bottom: 1px solid var(--border);
+  border-left: 3px solid transparent;
+  padding: var(--sp-2) 0 var(--sp-2) var(--sp-2);
+}
+.need--buy     { border-left-color: var(--accent); }
+.need--partial { border-left-color: var(--warn); }
+.need--ask     { border-left-color: var(--text-muted); }
+.need--have    { border-left-color: var(--ok); opacity: 0.72; }
+.need--done    { border-left-color: var(--ok); }
+
+/* Gouttière fixe plutôt qu'un flex : `gap` en flex n'existe pas avant
+   iOS 14.5 et s'effondrerait à 0 sur la cible. */
+.need__qty {
+  display: inline-block;
+  min-width: 88px;
+  font-family: var(--font-heading);
+  font-size: 12px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--text-strong);
+}
+.need__name { font-family: var(--font-body); font-size: 17px; color: var(--text-strong); }
+.need__name em { font-style: normal; font-size: 14px; color: var(--text-muted); }
+
+.need__why,
+.need__pantry {
+  font-family: var(--font-body);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text-muted);
+  margin-top: 2px;
+  padding-left: 88px;
+}
+.need__shared { color: var(--warn); }
+
+.need__actions { padding-left: 88px; margin-top: var(--sp-1); }
+
+/* Cibles ≥ 44 px : ces boutons se pressent avec un doigt, pas une souris. */
+.mini {
+  min-height: var(--tap);
+  padding: 0 var(--sp-2);
+  margin: 0 var(--sp-1) var(--sp-1) 0;
+  font-family: var(--font-heading);
+  font-size: 11px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--text-strong);
+  background: var(--bg);
+  border: 1px solid var(--rule);
+  border-radius: 0;
+  cursor: pointer;
+  -webkit-appearance: none;
+}
+.mini--ghost { border-color: var(--border); color: var(--text-muted); }
+.mini:active { background: var(--btn); color: var(--btn-text); }
+
+.need__pending,
+.need__done,
+.need__error {
+  display: inline-block;
+  min-height: var(--tap);
+  line-height: var(--tap);
+  font-family: var(--font-heading);
+  font-size: 11px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+.need__done  { color: var(--ok); }
+.need__error { color: var(--warn); }
+
+@media (max-width: 640px) {
+  /* En colonne étroite, la gouttière de 88 px mange le texte. */
+  .need__qty { display: block; min-width: 0; }
+  .need__why, .need__pantry, .need__actions { padding-left: 0; }
+}

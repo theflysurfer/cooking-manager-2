@@ -52,6 +52,33 @@ CREATE TABLE IF NOT EXISTS menu (
     ingested_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Un repas = une ligne. C'est ce qui relie enfin le menu aux recettes, et ce
+-- qui permet de filtrer les recettes par semaine.
+--
+-- ⚠️ La clé est (menu, jour, créneau), PAS (menu, recette) : une recette
+-- refaite trois fois dans la semaine produit trois lignes. Dédoublonner sur la
+-- recette perdrait deux repas — et les quantités qui vont avec.
+--
+-- `recipe_id` est NULLABLE **par conception** : un repas sans fiche
+-- (« restes », « sandwich au marché ») reste un repas. Le forcer à pointer une
+-- recette obligerait à inventer un rattachement — et acheter les ingrédients
+-- de la mauvaise recette.
+CREATE TABLE IF NOT EXISTS menu_meal (
+    id          SERIAL PRIMARY KEY,
+    menu_id     INTEGER NOT NULL REFERENCES menu(id) ON DELETE CASCADE,
+    day         DATE,
+    day_label   TEXT,
+    position    INTEGER NOT NULL DEFAULT 0,
+    slot        TEXT NOT NULL,
+    dish        TEXT NOT NULL,
+    recipe_id   INTEGER REFERENCES recipe(id) ON DELETE SET NULL,
+    match_kind  TEXT,
+    covers      INTEGER,
+    UNIQUE (menu_id, position, slot)
+);
+
+CREATE INDEX IF NOT EXISTS menu_meal_recipe_idx ON menu_meal(recipe_id);
+
 CREATE TABLE IF NOT EXISTS convive (
     id          SERIAL PRIMARY KEY,
     name        TEXT UNIQUE NOT NULL,
