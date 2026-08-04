@@ -1,0 +1,626 @@
+{
+  "meta": {
+    "date": "2026-08-04",
+    "store": "Auchan Drive Aubagne",
+    "cart_id": "c91b5922-cbf2-4ddf-a8cf-d20e61a4d1dc",
+    "covers": 4,
+    "people": [
+      "Julien",
+      "Clemence",
+      "Lea",
+      "Titouan"
+    ],
+    "total": 142.89,
+    "items_count": 58,
+    "notes": "Session nettoyage panier 2026-08-04 : 59 -> 34 articles conserves. status=removed = retire du panier reel pendant la session ; ces lignes restent en base pour tracer la decision."
+  },
+  "items": [
+    {
+      "item_requested": "Feta",
+      "product_name": "Feta Grecque AOP",
+      "brand": "ISLOS",
+      "product_id": "488cc600-b629-468e-9158-7c2a0d2e2a49",
+      "price_unit": 3.03,
+      "quantity_bought": 1,
+      "total_price": 3.03,
+      "rationale": "Pour la salade lentilles froides + gratin (mercredi)"
+    },
+    {
+      "item_requested": "Poivrons",
+      "product_name": "Poivrons panaches",
+      "brand": "SANS MARQUE",
+      "product_id": "9633f334-161f-49c1-abf6-3de536f8d5f5",
+      "price_unit": 2.29,
+      "quantity_bought": 2,
+      "total_price": 4.58,
+      "rationale": "Bocal thon-quinoa-poivrons (jeudi) + tortilla-pizza (jeudi)"
+    },
+    {
+      "item_requested": "Pomme de terre",
+      "product_name": "Pomme de terre bio",
+      "brand": "SANS MARQUE",
+      "product_id": "d5f6f3af-0641-4983-88e7-7e08be370f06",
+      "price_unit": 1.99,
+      "quantity_bought": 1,
+      "total_price": 1.99,
+      "status": "removed",
+      "rationale": "Retire - deja a la maison"
+    },
+    {
+      "item_requested": "Basilic",
+      "product_name": "Basilic",
+      "brand": "LES CRUDETTES",
+      "product_id": "5e0286d7-eb05-48ee-8c73-812e971c86a6",
+      "price_unit": 1.71,
+      "quantity_bought": 2,
+      "total_price": 3.42,
+      "status": "removed",
+      "rationale": "Retire - hors menu de la semaine (repas pates-pesto non prevu)"
+    },
+    {
+      "item_requested": "Crevettes decortiquees",
+      "product_name": "Crevettes decortiquees crues et deveinees",
+      "brand": "SEAFOOD PREMIUM",
+      "product_id": "6456a1fc-fcea-4acb-8289-5b5dcdd23efb",
+      "price_unit": 5.9,
+      "quantity_bought": 3,
+      "total_price": 17.7,
+      "rationale": "Gratin courgettes-crevettes (mercredi), assiette froide + berkoukes (vendredi)"
+    },
+    {
+      "item_requested": "Skyr",
+      "product_name": "Skyr nature",
+      "brand": "AUCHAN",
+      "product_id": "840432ad-2e33-48e0-a3fb-4d96e534b49c",
+      "price_unit": 3.03,
+      "quantity_bought": 1,
+      "total_price": 3.03,
+      "rationale": "Petits-dejeuners overnight oats + pancakes + ranch skyr"
+    },
+    {
+      "item_requested": "Fromage blanc",
+      "product_name": "Fromage blanc 3.1%",
+      "brand": "AUCHAN",
+      "product_id": "95b0cda9-fcbd-44a9-8e27-7490510dff67",
+      "price_unit": 1.34,
+      "quantity_bought": 1,
+      "total_price": 1.34,
+      "rationale": "Snack mardi (fromage blanc + fruits)"
+    },
+    {
+      "item_requested": "Ricotta",
+      "product_name": "Ricotta",
+      "brand": "AUCHAN",
+      "product_id": "e3e650d7-77f7-4b3b-a821-afa1f5c12111",
+      "price_unit": 1.38,
+      "quantity_bought": 1,
+      "total_price": 1.38,
+      "rationale": "Gratin courgettes-ricotta-feta (mercredi)"
+    },
+    {
+      "item_requested": "Feta grecque",
+      "product_name": "Feta grecque AOP",
+      "brand": "AUCHAN",
+      "product_id": "0347af52-3b35-4fc0-86ae-afa95025c0d1",
+      "price_unit": 2.83,
+      "quantity_bought": 1,
+      "total_price": 2.83,
+      "rationale": "Salade lentilles froides (mercredi)"
+    },
+    {
+      "item_requested": "Mozzarella",
+      "product_name": "Mozzarella rapee",
+      "brand": "GALBANI",
+      "product_id": "91fd483e-38f9-4633-a59b-cb81ab41adf5",
+      "price_unit": 3.07,
+      "quantity_bought": 1,
+      "total_price": 3.07,
+      "rationale": "Tortilla-pizza (jeudi)"
+    },
+    {
+      "item_requested": "Thon",
+      "product_name": "CULTIVONS LE BON thon listao entier au naturel",
+      "brand": "AUCHAN",
+      "product_id": "b0c8dbf1-f0b2-42b0-9f70-99a63b61f6f2",
+      "price_unit": 2.05,
+      "quantity_bought": 3,
+      "total_price": 6.15,
+      "rationale": "Bocal thon-quinoa-poivrons + tortilla-pizza (jeudi)"
+    },
+    {
+      "item_requested": "Saumon fume",
+      "product_name": "CULTIVONS LE BON Saumon fume de Norvege",
+      "brand": "AUCHAN",
+      "product_id": "1845aa58-3202-44c3-8b51-f9b916f7dffc",
+      "price_unit": 5.98,
+      "quantity_bought": 1,
+      "total_price": 5.98,
+      "rationale": "Brunch oeufs brouilles + saumon fume + avocat (mardi)"
+    },
+    {
+      "item_requested": "Tortillas",
+      "product_name": "Tortillas de ble",
+      "brand": "AUCHAN",
+      "product_id": "ccc067ff-d124-47d9-a81e-509deaa69918",
+      "price_unit": 1.81,
+      "quantity_bought": 1,
+      "total_price": 1.81,
+      "rationale": "Tortilla-pizza atelier (jeudi)"
+    },
+    {
+      "item_requested": "Bananes",
+      "product_name": "Bananes Antilles francaises",
+      "brand": "SANS MARQUE",
+      "product_id": "56de8bbc-0046-42ad-8446-b359ff260f96",
+      "price_unit": 2.45,
+      "quantity_bought": 1,
+      "total_price": 2.45,
+      "rationale": "Snack (fromage blanc + fruits, fruit + beurre de cacahuete)"
+    },
+    {
+      "item_requested": "Myrtilles",
+      "product_name": "Myrtilles",
+      "brand": "SANS MARQUE",
+      "product_id": "8dcbaa7c-392a-44f7-8bf1-82ff4df3b86c",
+      "price_unit": 2.99,
+      "quantity_bought": 2,
+      "total_price": 5.98,
+      "rationale": "Overnight oats skyr + whey + myrtilles (lundi)"
+    },
+    {
+      "item_requested": "Nectarines",
+      "product_name": "Nectarines jaunes ou blanches prix bas",
+      "brand": "SANS MARQUE",
+      "product_id": "616f8a63-2247-4992-96ec-e735d3cdfad6",
+      "price_unit": 2.99,
+      "quantity_bought": 1,
+      "total_price": 2.99,
+      "rationale": "Snack fruits"
+    },
+    {
+      "item_requested": "Tomates",
+      "product_name": "Tomates rondes en grappes bio",
+      "brand": "SANS MARQUE",
+      "product_id": "aeb86ef5-956e-4d2c-835e-8bd12d8c9566",
+      "price_unit": 3.49,
+      "quantity_bought": 1,
+      "total_price": 3.49,
+      "rationale": "Crudites (assiette froide vendredi)"
+    },
+    {
+      "item_requested": "Concombre",
+      "product_name": "Concombre",
+      "brand": "SANS MARQUE",
+      "product_id": "da2e2db9-8b71-46d0-be33-1fa6b8d70d94",
+      "price_unit": 1.99,
+      "quantity_bought": 1,
+      "total_price": 1.99,
+      "rationale": "Crudites (assiette froide vendredi)"
+    },
+    {
+      "item_requested": "Carottes",
+      "product_name": "Carottes",
+      "brand": "SANS MARQUE",
+      "product_id": "0e257278-5fac-4e4b-b2d5-351eaa401e41",
+      "price_unit": 1.69,
+      "quantity_bought": 1,
+      "total_price": 1.69,
+      "rationale": "Crudites + wraps poulet froid (mardi)"
+    },
+    {
+      "item_requested": "Avocats",
+      "product_name": "Avocats",
+      "brand": "SANS MARQUE",
+      "product_id": "42edc5c6-0b7e-4632-9588-e93e75150116",
+      "price_unit": 2.99,
+      "quantity_bought": 2,
+      "total_price": 5.98,
+      "rationale": "Brunch mardi + petit-dej vendredi (quantite doublee pour couvrir les deux)"
+    },
+    {
+      "item_requested": "Citrons jaunes",
+      "product_name": "Citrons jaunes",
+      "brand": "SANS MARQUE",
+      "product_id": "f3effb20-d13f-45a6-9423-79667dc59d8f",
+      "price_unit": 1.29,
+      "quantity_bought": 1,
+      "total_price": 1.29,
+      "rationale": "Crevettes sautees citron, houmous maison"
+    },
+    {
+      "item_requested": "Compote",
+      "product_name": "Gourdes compote de pomme banane sans sucres ajoutes",
+      "brand": "POM'POTES",
+      "product_id": "0748108b-4ec5-4570-8418-23b45c477fc4",
+      "price_unit": 2.74,
+      "quantity_bought": 1,
+      "total_price": 2.74,
+      "rationale": "Snack jeudi (compote + graines de courge)"
+    },
+    {
+      "item_requested": "Oeufs",
+      "product_name": "Oeufs de poules elevees en plein air",
+      "brand": "AUCHAN",
+      "product_id": "a867961b-9de4-4b29-812b-c09e224b869f",
+      "price_unit": 3.17,
+      "quantity_bought": 1,
+      "total_price": 3.17,
+      "rationale": "Brunch mardi + petit-dej vendredi"
+    },
+    {
+      "item_requested": "Poulet",
+      "product_name": "Filets de poulet blanc",
+      "brand": "PRIX BAS",
+      "product_id": "9b713c15-0ae9-40de-b915-9d30e1345874",
+      "price_unit": 6.59,
+      "quantity_bought": 1,
+      "total_price": 6.59,
+      "rationale": "Wraps hack poulet froid + crudites (mardi)"
+    },
+    {
+      "item_requested": "Courgettes prix bas",
+      "product_name": "Courgettes prix bas",
+      "brand": "SANS MARQUE",
+      "product_id": "bfbdd61b-6d3d-47da-ab93-9aa1d3f648c3",
+      "price_unit": 1.89,
+      "quantity_bought": 1,
+      "total_price": 1.89,
+      "status": "removed",
+      "rationale": "Retire - doublon avec les courgettes bio"
+    },
+    {
+      "item_requested": "Champignons",
+      "product_name": "Champignons blancs pieds coupes",
+      "brand": "SANS MARQUE",
+      "product_id": "1194abaf-aaea-419e-b9c2-96a768070d50",
+      "price_unit": 3.49,
+      "quantity_bought": 1,
+      "total_price": 3.49,
+      "rationale": "Tortilla-pizza atelier (jeudi)"
+    },
+    {
+      "item_requested": "Patates douces",
+      "product_name": "Patates douces",
+      "brand": "SANS MARQUE",
+      "product_id": "e80732b0-9661-4247-99cf-82930237712f",
+      "price_unit": 3.49,
+      "quantity_bought": 1,
+      "total_price": 3.49,
+      "status": "removed",
+      "rationale": "Retire - deja a la maison"
+    },
+    {
+      "item_requested": "Oignons rouges",
+      "product_name": "Oignons rouges",
+      "brand": "SANS MARQUE",
+      "product_id": "fd67bc49-b652-49a4-9137-86726f3064b6",
+      "price_unit": 2.89,
+      "quantity_bought": 1,
+      "total_price": 2.89,
+      "status": "removed",
+      "rationale": "Retire - deja a la maison"
+    },
+    {
+      "item_requested": "Lait de coco",
+      "product_name": "Lait de coco brique",
+      "brand": "AUCHAN",
+      "product_id": "2e5780b5-5f1e-4cb9-81ac-d105f42f85b5",
+      "price_unit": 0.9,
+      "quantity_bought": 2,
+      "total_price": 1.8,
+      "rationale": "Curry coco lieu noir + lentilles corail (lundi)"
+    },
+    {
+      "item_requested": "Pois chiches",
+      "product_name": "Pois chiches",
+      "brand": "AUCHAN",
+      "product_id": "96d16b26-8deb-4709-923d-951346e1cbfb",
+      "price_unit": 1.29,
+      "quantity_bought": 2,
+      "total_price": 2.58,
+      "rationale": "Houmous maison + berkoukes pois chiches (vendredi)"
+    },
+    {
+      "item_requested": "Haricots verts",
+      "product_name": "Haricots verts extra-fins",
+      "brand": "AUCHAN",
+      "product_id": "e5f473f1-8c88-4f6a-95d9-b87798734513",
+      "price_unit": 1.98,
+      "quantity_bought": 1,
+      "total_price": 1.98,
+      "status": "removed",
+      "rationale": "Retire - hors menu de la semaine"
+    },
+    {
+      "item_requested": "Couscous",
+      "product_name": "Couscous fin",
+      "brand": "AUCHAN",
+      "product_id": "41cae079-7dd6-40b7-a0c6-4234bcd607a7",
+      "price_unit": 1.39,
+      "quantity_bought": 1,
+      "total_price": 1.39,
+      "rationale": "Substitut berkoukes (couscous perle introuvable) pour vendredi soir"
+    },
+    {
+      "item_requested": "Houmous",
+      "product_name": "Houmous extra pois chiches et graines de sesame",
+      "brand": "L'ATELIER BLINI",
+      "product_id": "27135f68-e4da-4d7a-a7c1-bb62dc722a9a",
+      "price_unit": 2.79,
+      "quantity_bought": 2,
+      "total_price": 5.58,
+      "rationale": "Assiette froide composee (vendredi midi)"
+    },
+    {
+      "item_requested": "Aubergines",
+      "product_name": "Aubergines",
+      "brand": "SANS MARQUE",
+      "product_id": "db57497b-9856-4efc-a565-c2cf2924ef80",
+      "price_unit": 1.29,
+      "quantity_bought": 1,
+      "total_price": 1.29,
+      "rationale": "Poelee de legumes grilles maison (vendredi, remplace le surgele Picard epuise)"
+    },
+    {
+      "item_requested": "Tomates sechees",
+      "product_name": "Tomates sechees en bocal",
+      "brand": "SACLA",
+      "product_id": "b28354d3-67db-41e7-8a94-8d13c8ccec68",
+      "price_unit": 3.99,
+      "quantity_bought": 1,
+      "total_price": 3.99,
+      "status": "removed",
+      "rationale": "Retire - hors menu de la semaine"
+    },
+    {
+      "item_requested": "Courgettes bio",
+      "product_name": "Courgettes",
+      "brand": "AUCHAN BIO",
+      "product_id": "ab48f842-98b6-4fe1-9338-ef043617b4e2",
+      "price_unit": 2.99,
+      "quantity_bought": 3,
+      "total_price": 8.97,
+      "rationale": "Gratin courgettes-ricotta-feta + poelee legumes grilles"
+    },
+    {
+      "item_requested": "Saumon",
+      "product_name": "Pave de saumon sauvage sans aretes",
+      "brand": "POUCE",
+      "product_id": "4fde04c7-cfa6-45e6-abe0-27d217e5c24d",
+      "price_unit": 3.5,
+      "quantity_bought": 4,
+      "total_price": 14.0,
+      "rationale": "Saumon grille + lentilles vertes + poelee mediterraneenne (mardi soir)"
+    },
+    {
+      "item_requested": "Miel",
+      "product_name": "Miel de fleurs liquide equilibre et fleuri, en flacon doseur",
+      "brand": "AUCHAN",
+      "product_id": "2bbeec67-5175-4664-93d6-87882f291df8",
+      "price_unit": 2.18,
+      "quantity_bought": 1,
+      "total_price": 2.18,
+      "rationale": "Pancakes restants + miel (mercredi snack)"
+    },
+    {
+      "item_requested": "Ail",
+      "product_name": "Ail bio",
+      "brand": "SANS MARQUE",
+      "product_id": "3f527f24-f0c8-4a4a-8e3d-689acc0f8885",
+      "price_unit": 0.99,
+      "quantity_bought": 1,
+      "total_price": 0.99,
+      "status": "removed",
+      "rationale": "Retire - deja a la maison"
+    },
+    {
+      "item_requested": "Riz sachets",
+      "product_name": "Riz long grain incollable sachets cuisson pret en 10 min",
+      "brand": "AUCHAN",
+      "product_id": "ad9f41da-75e3-4f2b-8593-d071ea807f89",
+      "price_unit": 1.33,
+      "quantity_bought": 1,
+      "total_price": 1.33,
+      "status": "removed",
+      "rationale": "Retire - hors menu de la semaine"
+    },
+    {
+      "item_requested": "Gingembre",
+      "product_name": "Gingembre bio",
+      "brand": "SANS MARQUE",
+      "product_id": "4f10f88e-236b-4d86-bca2-a33c9d9e8a8f",
+      "price_unit": 1.99,
+      "quantity_bought": 1,
+      "total_price": 1.99,
+      "status": "removed",
+      "rationale": "Retire - hors menu de la semaine"
+    },
+    {
+      "item_requested": "Pains hot dogs",
+      "product_name": "Pains hot dogs",
+      "brand": "AUCHAN",
+      "product_id": "d98d1281-c8fc-4253-a0e5-61fcc65bd7c9",
+      "price_unit": 1.53,
+      "quantity_bought": 1,
+      "total_price": 1.53,
+      "status": "removed",
+      "rationale": "Retire - hors menu de la semaine (repas hot-dog non prevu)"
+    },
+    {
+      "item_requested": "Oignon jaune",
+      "product_name": "Oignon jaune bio",
+      "brand": "SANS MARQUE",
+      "product_id": "8e3672a5-2cb5-4e94-98cb-27a4cc564209",
+      "price_unit": 0.79,
+      "quantity_bought": 1,
+      "total_price": 0.79,
+      "status": "removed",
+      "rationale": "Retire - deja a la maison"
+    },
+    {
+      "item_requested": "Merguez vegetales",
+      "product_name": "Merguez vegetales et piquantes",
+      "brand": "HAPPYVORE",
+      "product_id": "f592ea1f-5977-49a2-81af-27855868e738",
+      "price_unit": 4.11,
+      "quantity_bought": 1,
+      "total_price": 4.11,
+      "status": "removed",
+      "rationale": "Retire - hors menu de la semaine"
+    },
+    {
+      "item_requested": "Soja cuisine",
+      "product_name": "Soja cuisine fluide bio",
+      "brand": "BJORG",
+      "product_id": "0a1f48cb-edad-4f3a-8d8b-e18fe1dffd42",
+      "price_unit": 2.78,
+      "quantity_bought": 1,
+      "total_price": 2.78,
+      "status": "removed",
+      "rationale": "Retire - hors menu de la semaine"
+    },
+    {
+      "item_requested": "Salsa mexicaine",
+      "product_name": "Salsa mexicaine medium",
+      "brand": "AUCHAN",
+      "product_id": "7465bed0-eaf8-472b-be26-483886218667",
+      "price_unit": 1.74,
+      "quantity_bought": 1,
+      "total_price": 1.74,
+      "status": "removed",
+      "rationale": "Retire - hors menu de la semaine"
+    },
+    {
+      "item_requested": "Citron vert",
+      "product_name": "Citron vert",
+      "brand": "SANS MARQUE",
+      "product_id": "3fa93e04-c8c1-467e-9292-1120605bd61d",
+      "price_unit": 0.59,
+      "quantity_bought": 2,
+      "total_price": 1.18,
+      "status": "removed",
+      "rationale": "Retire - hors menu de la semaine"
+    },
+    {
+      "item_requested": "Citron jaune bio",
+      "product_name": "Citron jaune bio",
+      "brand": "SANS MARQUE",
+      "product_id": "89e85e40-8b53-4276-8db4-1d5f66f31ffd",
+      "price_unit": 0.69,
+      "quantity_bought": 1,
+      "total_price": 0.69,
+      "rationale": "Crevettes sautees citron"
+    },
+    {
+      "item_requested": "Ciboulette",
+      "product_name": "Ciboulette",
+      "brand": "LES CRUDETTES",
+      "product_id": "ed8328fc-4c01-4fc9-8b1f-72e57f355cb3",
+      "price_unit": 1.73,
+      "quantity_bought": 1,
+      "total_price": 1.73,
+      "status": "removed",
+      "rationale": "Retire - hors menu de la semaine"
+    },
+    {
+      "item_requested": "Pesto",
+      "product_name": "Sauce pesto bio alla genovese sans gluten en bocal",
+      "brand": "SACLA",
+      "product_id": "83880cf6-f343-4d3d-b473-ef0534e2c4b0",
+      "price_unit": 3.49,
+      "quantity_bought": 1,
+      "total_price": 3.49,
+      "status": "removed",
+      "rationale": "Retire - hors menu de la semaine"
+    },
+    {
+      "item_requested": "Pates coudes",
+      "product_name": "Pates coudes rayes ble francais",
+      "brand": "PANZANI",
+      "product_id": "1ddc024d-17ba-409e-84d0-06bf4dee649f",
+      "price_unit": 1.21,
+      "quantity_bought": 1,
+      "total_price": 1.21,
+      "status": "removed",
+      "rationale": "Retire - hors menu de la semaine"
+    },
+    {
+      "item_requested": "Vinaigre balsamique",
+      "product_name": "Vinaigre balsamique de modene IGP",
+      "brand": "AUCHAN",
+      "product_id": "4041b7f9-fff8-4ed9-8401-392a5c110622",
+      "price_unit": 1.4,
+      "quantity_bought": 1,
+      "total_price": 1.4,
+      "status": "removed",
+      "rationale": "Retire - hors menu de la semaine"
+    },
+    {
+      "item_requested": "Mozzarella billes",
+      "product_name": "Mozzarella billes",
+      "brand": "AUCHAN",
+      "product_id": "a0cd00e5-34d3-416b-a983-323b757a4f5e",
+      "price_unit": 1.84,
+      "quantity_bought": 2,
+      "total_price": 3.68,
+      "status": "removed",
+      "rationale": "Retire - hors menu de la semaine"
+    },
+    {
+      "item_requested": "Pain burger",
+      "product_name": "Pain burger geant nature",
+      "brand": "JACQUET",
+      "product_id": "5777a455-db9b-439a-8504-de3bac793a8b",
+      "price_unit": 1.14,
+      "quantity_bought": 1,
+      "total_price": 1.14,
+      "status": "removed",
+      "rationale": "Retire - hors menu de la semaine (repas burger non prevu)"
+    },
+    {
+      "item_requested": "Roquette",
+      "product_name": "Roquette",
+      "brand": "AUCHAN",
+      "product_id": "d19655df-95cc-4786-a737-3dcc06b7cb3d",
+      "price_unit": 1.83,
+      "quantity_bought": 2,
+      "total_price": 3.66,
+      "status": "removed",
+      "rationale": "Retire - hors menu de la semaine"
+    },
+    {
+      "item_requested": "Yaourt grec",
+      "product_name": "Yaourt a la grecque nature",
+      "brand": "AUCHAN",
+      "product_id": "df330f94-85d2-4e52-8dad-2145159d05bd",
+      "price_unit": 1.4,
+      "quantity_bought": 1,
+      "total_price": 1.4,
+      "status": "removed",
+      "rationale": "Retire - hors menu de la semaine"
+    },
+    {
+      "item_requested": "Cream cheese",
+      "product_name": "CREAM CHEESE pasteurisee",
+      "brand": "PHILADELPHIA",
+      "product_id": "fb15331f-f1f0-4ec0-930e-72a62f4ab97d",
+      "price_unit": 1.92,
+      "quantity_bought": 1,
+      "total_price": 1.92,
+      "status": "removed",
+      "rationale": "Retire - hors menu de la semaine"
+    },
+    {
+      "item_requested": "Lait",
+      "product_name": "Lait demi-ecreme vitamine D",
+      "brand": "LACTEL",
+      "product_id": "89ca3fff-fd76-4f6b-9cda-f2f1dc55055c",
+      "price_unit": 10.0,
+      "quantity_bought": 1,
+      "total_price": 10.0,
+      "status": "flagged_not_removed",
+      "rationale": "Prix anormal (10 euros), aucun plat du menu n'en a besoin - retrait tente mais session Auchan deconnectee en fin de nettoyage"
+    }
+  ],
+  "enrich_nutrition": true
+}
