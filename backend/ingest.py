@@ -11,6 +11,7 @@ from urllib.error import URLError
 
 from cooking_manager.vault import read_recipes, read_menus
 from cooking_manager.normalizer import normalize_recipe, normalize_menu
+from cooking_manager.ingredients import parse_recipe_body
 from .db import get_pool, init_schema
 
 log = logging.getLogger(__name__)
@@ -196,9 +197,49 @@ async def ingest(vault_root: Path, dsn: str) -> dict:
                 r["photo_url"] = photo
                 log.info("Scraped photo for %s: %s", r.get("slug"), photo)
 
+    parsed_ingredients = parsed_steps = 0
+    unparsed_lines = 0
+
     async with pool.acquire() as conn:
         for r in recipes:
             await conn.execute(UPSERT_RECIPE, *_recipe_row(r))
+
+            # Ingrédients et étapes structurés depuis le corps markdown.
+            # Remplacement complet à chaque ingestion : le vault fait foi, et les
+            # positions changent dès qu'on réordonne une liste.
+            content = parse_recipe_body(r.get("_body", ""))
+            recipe_id = await conn.fetchval(
+                "SELECT id FROM recipe WHERE slug = $1", r.get("slug", "")
+            )
+            if recipe_id is None:
+                continue
+
+            await conn.execute("DELETE FROM recipe_ingredient WHERE recipe_id = $1", recipe_id)
+            for ing in content.ingredients:
+                await conn.execute(
+                    """INSERT INTO recipe_ingredient
+                       (recipe_id, position, raw, qty_min, qty_max, unit, name,
+                        name_normalized, is_optional, parsed)
+                       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)""",
+                    recipe_id, ing.position, ing.raw, ing.qty_min, ing.qty_max,
+                    ing.unit, ing.name, ing.name_normalized, ing.is_optional, ing.parsed,
+                )
+            parsed_ingredients += sum(1 for i in content.ingredients if i.parsed)
+            unparsed_lines += sum(1 for i in content.ingredients if not i.parsed)
+
+            await conn.execute("DELETE FROM recipe_step WHERE recipe_id = $1", recipe_id)
+            for step in content.steps:
+                await conn.execute(
+                    "INSERT INTO recipe_step (recipe_id, position, text) VALUES ($1,$2,$3)",
+                    recipe_id, step.position, step.text,
+                )
+            parsed_steps += len(content.steps)
+
+            if content.ingredients and content.parse_rate < 0.5:
+                warnings.append(
+                    f"{r.get('slug')}: seulement {content.parse_rate:.0%} des ingrédients "
+                    "structurés — vérifier le format de la section"
+                )
 
         # PAS de DELETE FROM menu : l'upsert par slug suffit désormais à dédoublonner.
         # Le DELETE détruisait tout menu absent du vault — y compris ceux créés via
@@ -210,6 +251,9 @@ async def ingest(vault_root: Path, dsn: str) -> dict:
     return {
         "recipes_ingested": len(recipes),
         "menus_ingested": len(menus),
+        "ingredients_parsed": parsed_ingredients,
+        "ingredients_raw_only": unparsed_lines,
+        "steps_parsed": parsed_steps,
         "warnings": warnings,
     }
 

@@ -124,14 +124,35 @@ async def list_recipes(
 
 @app.get("/api/recipes/{slug}")
 async def get_recipe(slug: str):
+    """Fiche complète : métadonnées + ingrédients et étapes STRUCTURÉS.
+
+    Le champ `body` (markdown brut) reste servi pour les notes libres, mais il
+    n'est plus la source d'affichage principale — c'était lui qui produisait le
+    mur de markdown en bas de la fiche.
+    """
     pool = await get_pool(DATABASE_DSN)
     async with pool.acquire() as conn:
-        row = await conn.fetchrow(
-            "SELECT * FROM recipe WHERE slug = $1", slug
+        row = await conn.fetchrow("SELECT * FROM recipe WHERE slug = $1", slug)
+        if not row:
+            raise HTTPException(404, "Recipe not found")
+        ingredients = await conn.fetch(
+            """SELECT position, raw, qty_min, qty_max, unit, name,
+                      name_normalized, is_optional, parsed
+                 FROM recipe_ingredient WHERE recipe_id = $1 ORDER BY position""",
+            row["id"],
         )
-    if not row:
-        raise HTTPException(404, "Recipe not found")
-    return _recipe_to_dict(row)
+        steps = await conn.fetch(
+            "SELECT position, text FROM recipe_step WHERE recipe_id = $1 ORDER BY position",
+            row["id"],
+        )
+
+    data = _recipe_to_dict(row)
+    data["ingredients"] = [
+        _round_numeric({**dict(i), "qty_min": i["qty_min"], "qty_max": i["qty_max"]})
+        for i in ingredients
+    ]
+    data["steps"] = [dict(s) for s in steps]
+    return data
 
 
 @app.get("/api/filters")

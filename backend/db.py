@@ -134,6 +134,37 @@ CREATE TABLE IF NOT EXISTS shopping_preference (
 
 CREATE INDEX IF NOT EXISTS idx_shopping_product_session ON shopping_product(session_id);
 CREATE INDEX IF NOT EXISTS idx_shopping_preference_type ON shopping_preference(pref_type);
+
+-- Ingrédients structurés, extraits du corps markdown des recettes.
+-- `raw` est TOUJOURS conservé : une ligne que le parser n'a pas comprise reste
+-- affichable telle quelle. Un ingrédient avalé en silence = un achat manqué.
+-- `name_normalized` est la clé d'appariement avec le garde-manger.
+CREATE TABLE IF NOT EXISTS recipe_ingredient (
+    id          SERIAL PRIMARY KEY,
+    recipe_id   INTEGER NOT NULL REFERENCES recipe(id) ON DELETE CASCADE,
+    position    INTEGER NOT NULL,
+    raw         TEXT NOT NULL,
+    qty_min     NUMERIC,
+    qty_max     NUMERIC,
+    unit        TEXT,
+    name        TEXT NOT NULL,
+    name_normalized TEXT NOT NULL DEFAULT '',
+    is_optional BOOL NOT NULL DEFAULT FALSE,
+    parsed      BOOL NOT NULL DEFAULT FALSE,
+    UNIQUE (recipe_id, position)
+);
+
+CREATE TABLE IF NOT EXISTS recipe_step (
+    id          SERIAL PRIMARY KEY,
+    recipe_id   INTEGER NOT NULL REFERENCES recipe(id) ON DELETE CASCADE,
+    position    INTEGER NOT NULL,
+    text        TEXT NOT NULL,
+    UNIQUE (recipe_id, position)
+);
+
+CREATE INDEX IF NOT EXISTS idx_ingredient_recipe ON recipe_ingredient(recipe_id);
+CREATE INDEX IF NOT EXISTS idx_ingredient_norm ON recipe_ingredient(name_normalized);
+CREATE INDEX IF NOT EXISTS idx_step_recipe ON recipe_step(recipe_id);
 """
 
 MIGRATIONS_SQL = """
