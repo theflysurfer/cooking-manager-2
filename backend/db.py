@@ -37,6 +37,7 @@ CREATE TABLE IF NOT EXISTS recipe (
 
 CREATE TABLE IF NOT EXISTS menu (
     id          SERIAL PRIMARY KEY,
+    slug        TEXT UNIQUE NOT NULL,
     title       TEXT NOT NULL,
     week_start  DATE,
     week_end    DATE,
@@ -140,6 +141,29 @@ ALTER TABLE recipe ADD COLUMN IF NOT EXISTS body TEXT;
 ALTER TABLE menu ADD COLUMN IF NOT EXISTS meals JSONB;
 ALTER TABLE menu ADD COLUMN IF NOT EXISTS body TEXT;
 ALTER TABLE recipe_execution ADD COLUMN IF NOT EXISTS appreciation_date DATE;
+
+-- menu.slug : clé naturelle, sans laquelle l'ingestion ne peut pas dédoublonner
+-- (elle se protégeait par un DELETE FROM menu qui détruisait les menus absents du vault).
+-- Ajout en 3 temps : colonne nullable -> backfill -> contrainte, sinon l'ALTER échoue
+-- sur les lignes existantes.
+ALTER TABLE menu ADD COLUMN IF NOT EXISTS slug TEXT;
+UPDATE menu SET slug = 'legacy-' || id::text WHERE slug IS NULL OR slug = '';
+DO $mig$
+BEGIN
+    ALTER TABLE menu ADD CONSTRAINT menu_slug_key UNIQUE (slug);
+EXCEPTION
+    WHEN duplicate_table THEN NULL;
+    WHEN duplicate_object THEN NULL;
+END $mig$;
+ALTER TABLE menu ALTER COLUMN slug SET NOT NULL;
+
+-- Auto-nettoyage : une ligne backfillée en 'legacy-N' disparaît dès que la vraie
+-- (même titre, slug issu du vault) a été ingérée. Ne supprime jamais un menu
+-- qui n'aurait pas de remplaçant.
+DELETE FROM menu m
+ WHERE m.slug LIKE 'legacy-%'
+   AND EXISTS (SELECT 1 FROM menu o
+                WHERE o.title = m.title AND o.slug NOT LIKE 'legacy-%');
 ALTER TABLE shopping_product ADD COLUMN IF NOT EXISTS auchan_id TEXT;
 ALTER TABLE shopping_product ADD COLUMN IF NOT EXISTS nutriscore TEXT;
 ALTER TABLE shopping_product ADD COLUMN IF NOT EXISTS nutrition JSONB;
@@ -150,6 +174,19 @@ ALTER TABLE shopping_product ADD COLUMN IF NOT EXISTS photo_url TEXT;
 ALTER TABLE shopping_product ADD COLUMN IF NOT EXISTS product_url TEXT;
 ALTER TABLE shopping_product ADD COLUMN IF NOT EXISTS weight TEXT;
 ALTER TABLE shopping_product ADD COLUMN IF NOT EXISTS price_per_kg REAL;
+
+-- REAL = float4 : 3.8 stocké puis élargi en float8 à la lecture ressort en
+-- 3.799999952316284, affiché tel quel dans l'UI. NUMERIC supprime la cause ;
+-- l'arrondi à la sérialisation (_recipe_to_dict) couvre l'affichage.
+ALTER TABLE recipe ALTER COLUMN macros_kcal    TYPE NUMERIC USING macros_kcal::numeric;
+ALTER TABLE recipe ALTER COLUMN macros_protein TYPE NUMERIC USING macros_protein::numeric;
+ALTER TABLE recipe ALTER COLUMN macros_carbs   TYPE NUMERIC USING macros_carbs::numeric;
+ALTER TABLE recipe ALTER COLUMN macros_fat     TYPE NUMERIC USING macros_fat::numeric;
+ALTER TABLE recipe ALTER COLUMN protein_density TYPE NUMERIC USING protein_density::numeric;
+ALTER TABLE shopping_session ALTER COLUMN total TYPE NUMERIC USING total::numeric;
+ALTER TABLE shopping_product ALTER COLUMN price_unit   TYPE NUMERIC USING price_unit::numeric;
+ALTER TABLE shopping_product ALTER COLUMN total_price  TYPE NUMERIC USING total_price::numeric;
+ALTER TABLE shopping_product ALTER COLUMN price_per_kg TYPE NUMERIC USING price_per_kg::numeric;
 """
 
 _pool: asyncpg.Pool | None = None

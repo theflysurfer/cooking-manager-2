@@ -28,6 +28,31 @@ def _serialize_dates(d: dict, keys: tuple[str, ...]) -> None:
             d[key] = d[key].isoformat()
 
 
+# Nombre de décimales par champ à la sortie de l'API. Les colonnes sont en NUMERIC
+# (asyncpg rend des Decimal) : on arrondit ET on convertit en float ici, pour que
+# l'UI n'ait jamais à s'en soucier. Sans ça, un ancien REAL ressortait en
+# 3.799999952316284 et s'affichait tel quel.
+_ROUNDING = {
+    "macros_kcal": 1, "macros_protein": 1, "macros_carbs": 1, "macros_fat": 1,
+    "kcal": 1, "protein": 1, "carbs": 1, "fat": 1,
+    "protein_density": 3,
+    "price_unit": 2, "total_price": 2, "price_per_kg": 2, "total": 2,
+}
+
+
+def _round_numeric(d: dict) -> dict:
+    """Arrondit les champs numériques connus et normalise Decimal → float."""
+    for key, digits in _ROUNDING.items():
+        val = d.get(key)
+        if val is None or isinstance(val, bool):
+            continue
+        try:
+            d[key] = round(float(val), digits)
+        except (TypeError, ValueError):
+            continue
+    return d
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_schema(DATABASE_DSN)
@@ -147,6 +172,7 @@ async def list_menus():
 
 class MenuCreate(BaseModel):
     title: str
+    slug: str | None = None
     week_start: datetime.date | None = None
     week_end: datetime.date | None = None
     configuration: str | None = None
@@ -158,19 +184,30 @@ class MenuCreate(BaseModel):
 
 @app.post("/api/menus")
 async def create_menu(menu: MenuCreate):
+    """Créer ou mettre à jour un menu. Le slug est la clé naturelle : rejouer le
+    même POST met à jour au lieu de dupliquer (et l'ingestion vault ne l'écrase
+    plus, cf. suppression du DELETE FROM menu)."""
+    from cooking_manager.normalizer import slugify
+
+    slug = menu.slug or slugify(menu.title)
     pool = await get_pool(DATABASE_DSN)
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
-            """INSERT INTO menu (title, week_start, week_end, configuration, status,
+            """INSERT INTO menu (slug, title, week_start, week_end, configuration, status,
                                 linked_recipes, meals, body, created, updated)
-               VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, CURRENT_DATE, CURRENT_DATE)
-               RETURNING id, title""",
-            menu.title, menu.week_start, menu.week_end, menu.configuration,
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, CURRENT_DATE, CURRENT_DATE)
+               ON CONFLICT (slug) DO UPDATE SET
+                   title=$2, week_start=$3, week_end=$4, configuration=$5, status=$6,
+                   linked_recipes=$7, meals=$8::jsonb, body=$9, updated=CURRENT_DATE,
+                   ingested_at=NOW()
+               RETURNING id, slug, title, (xmax = 0) AS inserted""",
+            slug, menu.title, menu.week_start, menu.week_end, menu.configuration,
             menu.status, menu.linked_recipes,
             json.dumps(menu.meals) if menu.meals else None,
             menu.body,
         )
-    return {"id": row["id"], "title": row["title"], "created": True}
+    return {"id": row["id"], "slug": row["slug"], "title": row["title"],
+            "created": row["inserted"]}
 
 
 @app.post("/api/ingest")
@@ -503,7 +540,7 @@ async def list_shopping_sessions():
         )
     sessions = []
     for r in rows:
-        d = dict(r)
+        d = _round_numeric(dict(r))
         _serialize_dates(d, ("date", "created_at"))
         sessions.append(d)
     return {"sessions": sessions}
@@ -547,7 +584,7 @@ async def health():
 # ── Helpers ─────────────────────────────────────────────────────────
 
 def _recipe_to_dict(row) -> dict:
-    d = dict(row)
+    d = _round_numeric(dict(row))
     macros = {}
     for k in ("macros_kcal", "macros_protein", "macros_carbs", "macros_fat"):
         val = d.pop(k, None)

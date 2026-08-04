@@ -5,7 +5,20 @@ value normalization. No LLM — pure dict transforms.
 """
 
 import re
+import unicodedata
 from datetime import datetime
+
+
+def slugify(text: str) -> str:
+    """Titre libre → slug ASCII stable, utilisable comme clé naturelle.
+
+    « Menu semaine du 3 au 7 août » → « menu-semaine-du-3-au-7-aout ».
+    """
+    normalized = unicodedata.normalize("NFKD", str(text))
+    ascii_only = normalized.encode("ascii", "ignore").decode("ascii")
+    slug = re.sub(r"[^a-zA-Z0-9]+", "-", ascii_only).strip("-").lower()
+    return slug or "sans-titre"
+
 
 # ── Key aliases (FR coach → EN canonical) ────────────────────────────
 
@@ -260,6 +273,16 @@ def normalize_menu(raw: dict) -> tuple[dict, list[str]]:
     warnings: list[str] = []
 
     data = _apply_key_aliases(raw, MENU_KEY_ALIASES)
+
+    # Slug : clé naturelle de l'upsert. Le frontmatter gagne s'il en déclare un,
+    # sinon on prend le nom de fichier — même règle que pour les recettes.
+    if not data.get("slug"):
+        src = data.get("_source_path", "")
+        if src:
+            from pathlib import Path
+            data["slug"] = Path(src).stem
+        else:
+            warnings.append(f"menu {data.get('title', '?')!r}: pas de slug ni de fichier source")
 
     # Status
     if "status" in data:

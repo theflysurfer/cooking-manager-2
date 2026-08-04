@@ -41,9 +41,13 @@ ON CONFLICT (slug) DO UPDATE SET
 """
 
 UPSERT_MENU = """
-INSERT INTO menu (title, week_start, week_end, configuration, pattern_sport, status, linked_recipes, meals, body, created, updated)
-VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
-ON CONFLICT ON CONSTRAINT menu_pkey DO NOTHING
+INSERT INTO menu (slug, title, week_start, week_end, configuration, pattern_sport, status, linked_recipes, meals, body, created, updated)
+VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+ON CONFLICT (slug) DO UPDATE SET
+    title=$2, week_start=$3, week_end=$4, configuration=$5, pattern_sport=$6,
+    status=$7, linked_recipes=$8, meals=$9, body=$10,
+    created=$11, updated=$12,
+    ingested_at=NOW()
 """
 
 
@@ -147,6 +151,7 @@ def _recipe_row(r: dict) -> tuple:
 def _menu_row(m: dict) -> tuple:
     meals = m.get("meals") or m.get("repas")
     return (
+        m.get("slug", ""),
         m.get("title", ""),
         _parse_date(m.get("week_start")),
         _parse_date(m.get("week_end")),
@@ -195,7 +200,10 @@ async def ingest(vault_root: Path, dsn: str) -> dict:
         for r in recipes:
             await conn.execute(UPSERT_RECIPE, *_recipe_row(r))
 
-        await conn.execute("DELETE FROM menu")
+        # PAS de DELETE FROM menu : l'upsert par slug suffit désormais à dédoublonner.
+        # Le DELETE détruisait tout menu absent du vault — y compris ceux créés via
+        # POST /api/menus (incident 2026-08-04 : le menu structuré « Semaine du 3 au 7
+        # août » effacé par une ingestion de recettes).
         for m in menus:
             await conn.execute(UPSERT_MENU, *_menu_row(m))
 
