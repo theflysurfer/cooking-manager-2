@@ -65,7 +65,7 @@ Quatre fichiers font autorité, dans cet ordre de spécificité :
 | Fichier | Porte | Ingéré vers |
 |---|---|---|
 | `Recettes/*.md` | recettes + ingrédients + étapes (dans le corps) | `recipe`, `recipe_ingredient`, `recipe_step` |
-| `Menus/*.md` | **le bloc `meals:` du frontmatter** fait foi, pas les tableaux du corps | `menu.meals` (JSONB) |
+| `Menus/*.md` | **le bloc `meals:` du frontmatter** fait foi, pas les tableaux du corps | `menu.meals` (JSONB) + `menu_meal` |
 | `Convives.md` | régimes, interdits, cuissons d'œufs refusées, aversions | `convive` |
 | `Presences.md` | vacances scolaires, absences, exceptions | lu à la volée (pas de table) |
 
@@ -73,6 +73,26 @@ Quatre fichiers font autorité, dans cet ordre de spécificité :
 doublons par un `DELETE FROM menu` qui effaçait tout menu absent du vault — un
 menu créé via l'API disparaissait à la première ingestion de recettes, sans
 erreur ni trace. Ne jamais réintroduire ce DELETE.
+
+### Relier un repas à sa recette — deux marqueurs dans `meals:`
+
+Chaque repas est éclaté en une ligne `menu_meal` (menu × jour × créneau) à
+l'ingestion, et sa recette résolue. L'appariement par titre échoue toujours
+parce que l'intitulé du menu, rédigé à la main, diverge du titre de la fiche.
+D'où deux marqueurs par créneau :
+
+| Marqueur | Effet |
+|---|---|
+| `<slot>_slug: <recipe-slug>` | **désigne** la fiche explicitement — court-circuite l'heuristique. La seule liaison qui ne redérive pas. Un slug inconnu est journalisé, jamais silencieux. |
+| `<slot>_leftovers: true` | repas de **restes**, sans fiche PAR CONCEPTION — lui en donner une ferait racheter les ingrédients du repas recyclé. Rendu dans `meals_leftovers`, pas `meals_unmatched`. |
+
+⚠️ **Une recette au menu doit avoir sa fiche `Recettes/*.md` AVANT le calcul des
+courses** — l'app ne lit QUE les fiches. Les recettes de la semaine vivent
+parfois dans le **panier** (`data/shopping_choices_*.json`, chaque article porte
+son repas) et pas dans `Recettes/` : générer les fiches manquantes depuis le
+panier, ingrédients ancrés sur l'acheté (jamais inventés). *(Incident 2026-08-04 :
+1 repas relié sur 20 — les 19 autres avaient été commandés mais jamais transcrits
+en fiches.)*
 
 ## Compatibilité alimentaire — ne pas la vérifier à la main
 
