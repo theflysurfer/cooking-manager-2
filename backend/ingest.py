@@ -9,9 +9,10 @@ from urllib.parse import urlparse
 from urllib.request import urlopen, Request
 from urllib.error import URLError
 
-from cooking_manager.vault import read_recipes, read_menus
+from cooking_manager.vault import read_recipes, read_menus, read_convives
 from cooking_manager.normalizer import normalize_recipe, normalize_menu
 from cooking_manager.ingredients import parse_recipe_body
+from cooking_manager.convives import parse_convives
 from .db import get_pool, init_schema
 
 log = logging.getLogger(__name__)
@@ -187,6 +188,11 @@ async def ingest(vault_root: Path, dsn: str) -> dict:
         warnings.extend(warns)
         menus.append(normalized)
 
+    convives = parse_convives(read_convives(vault_root).get("_body", ""))
+    if not convives:
+        warnings.append("aucun convive lu depuis Convives.md — le contrôle de "
+                        "compatibilité alimentaire ne pourra rien vérifier")
+
     need_photo = [r for r in recipes if not r.get("photo_url") and r.get("sources")]
     if need_photo:
         results = await asyncio.gather(
@@ -241,6 +247,23 @@ async def ingest(vault_root: Path, dsn: str) -> dict:
                     "structurés — vérifier le format de la section"
                 )
 
+        # Convives — la table était restée VIDE depuis la création du projet :
+        # les profils vivaient dans le vault mais rien ne les ingérait, donc
+        # l'app ignorait qui mange quoi. C'est ce qui a laissé passer des wraps
+        # au poulet devant une pescétarienne (2026-08-04).
+        for convive in convives:
+            await conn.execute(
+                """INSERT INTO convive (name, constraints, notes)
+                   VALUES ($1, $2, $3)
+                   ON CONFLICT (name) DO UPDATE SET
+                       constraints = $2, notes = $3, ingested_at = NOW()""",
+                convive.name,
+                [f"diet:{convive.diet}"]
+                + [f"avoid:{t}" for t in convive.forbidden]
+                + [f"dislike:{t}" for t in convive.dislikes],
+                "invité récurrent" if convive.is_guest else "foyer",
+            )
+
         # PAS de DELETE FROM menu : l'upsert par slug suffit désormais à dédoublonner.
         # Le DELETE détruisait tout menu absent du vault — y compris ceux créés via
         # POST /api/menus (incident 2026-08-04 : le menu structuré « Semaine du 3 au 7
@@ -251,6 +274,7 @@ async def ingest(vault_root: Path, dsn: str) -> dict:
     return {
         "recipes_ingested": len(recipes),
         "menus_ingested": len(menus),
+        "convives_ingested": len(convives),
         "ingredients_parsed": parsed_ingredients,
         "ingredients_raw_only": unparsed_lines,
         "steps_parsed": parsed_steps,

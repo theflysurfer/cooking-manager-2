@@ -231,6 +231,75 @@ async def create_menu(menu: MenuCreate):
             "created": row["inserted"]}
 
 
+@app.get("/api/menus/{slug}/compatibility")
+async def menu_compatibility(slug: str):
+    """Contrôle de compatibilité alimentaire du menu, repas par repas.
+
+    Croise DEUX choses qu'on ne peut pas séparer :
+      * qui est réellement à table (référentiel de présence — garde alternée,
+        vacances scolaires, absences) ;
+      * ce que chacun ne peut pas manger (régimes, interdits, aversions).
+
+    L'incident du 2026-08-04 tenait aux deux à la fois : des wraps au poulet
+    devant une pescétarienne, ET une composition de table devinée depuis une
+    grille valable « hors vacances scolaires » alors qu'on était en août.
+    """
+    from datetime import date as _date
+
+    from cooking_manager.convives import check_meal, parse_convives
+    from cooking_manager.presence import attendees, parse_referential
+    from cooking_manager.vault import _parse_frontmatter, read_convives
+
+    vault = Path(VAULT_ROOT)
+    convives = {c.name: c for c in parse_convives(read_convives(vault).get("_body", ""))}
+
+    presences = vault / "Presences.md"
+    referential = parse_referential(
+        _parse_frontmatter(presences)[1] if presences.exists() else ""
+    )
+
+    pool = await get_pool(DATABASE_DSN)
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT slug, title, meals FROM menu WHERE slug = $1", slug)
+    if not row:
+        raise HTTPException(404, f"Menu introuvable : {slug}")
+
+    meals = row["meals"]
+    if isinstance(meals, str):
+        meals = json.loads(meals)
+
+    checked, conflict_count = [], 0
+    for meal in meals or []:
+        for slot in ("breakfast", "lunch", "snack", "dinner"):
+            dish = meal.get(slot)
+            if not dish:
+                continue
+            try:
+                day = _date.fromisoformat(meal["date"]) if meal.get("date") else None
+            except (ValueError, TypeError):
+                day = None
+
+            present = attendees(day, slot, referential) if day else list(convives)
+            conflicts = check_meal(dish, [convives[n] for n in present if n in convives])
+            conflict_count += len(conflicts)
+            checked.append({
+                "day": meal.get("day"), "date": meal.get("date"), "slot": slot,
+                "dish": dish, "attendees": present,
+                "at_home": bool(present),
+                "conflicts": [
+                    {"convive": c.convive, "reason": c.reason, "matched": c.matched}
+                    for c in conflicts
+                ],
+            })
+
+    return {
+        "slug": row["slug"], "title": row["title"],
+        "meals_checked": len(checked), "conflicts": conflict_count,
+        "convives_known": len(convives),
+        "results": checked,
+    }
+
+
 @app.delete("/api/menus/{slug}")
 async def delete_menu(slug: str):
     """Supprimer un menu par son slug.
