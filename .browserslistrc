@@ -1,0 +1,12 @@
+# Cible réelle : iPad mini 2 en cuisine, iOS 12.5.8 (build 16H88, dernier
+# firmware — le moteur ne bougera plus jamais).
+#
+# ⚠️ Seules les BORNES de plage sont aliasées par browserslist :
+#    `ios_saf 12.5` fonctionne, `ios_saf 12.3` renvoie « Unknown version ».
+#
+# ⚠️ Ne PAS ajouter `last 2 versions` ici : doiuse et eslint-plugin-compat
+#    signalent ce qui casse chez AU MOINS UN navigateur de la liste. Mélanger
+#    du moderne noierait la cible sous le bruit. Un env dédié est obligatoire.
+
+[legacy]
+ios_saf 12.2-12.5

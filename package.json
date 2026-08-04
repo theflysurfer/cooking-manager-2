@@ -1,0 +1,17 @@
+{
+  "name": "cooking-manager-2-web",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Outillage de DEV uniquement (compat iOS 12). Le front reste du statique servi par FastAPI — il n'y a PAS de build.",
+  "scripts": {
+    "audit:ios12": "python ../2025.11\\ Claude\\ Code\\ MarketPlace/skills/julien-audit-ios12-compat/scripts/audit_ios12.py web",
+    "lint:css": "doiuse --browsers \"ios_saf 12.2-12.5\" web/*.css",
+    "lint:js": "eslint web/**/*.js"
+  },
+  "devDependencies": {
+    "browserslist": "^4.28.7",
+    "doiuse": "^6.0.6",
+    "eslint": "^9.0.0",
+    "eslint-plugin-compat": "^7.0.2"
+  }
+}

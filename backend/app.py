@@ -210,6 +210,25 @@ async def create_menu(menu: MenuCreate):
             "created": row["inserted"]}
 
 
+@app.delete("/api/menus/{slug}")
+async def delete_menu(slug: str):
+    """Supprimer un menu par son slug.
+
+    Nécessaire depuis que l'ingestion ne fait plus de `DELETE FROM menu` :
+    sans cet endpoint, un menu créé par l'API ne peut plus jamais partir.
+    Les menus issus du vault reviendront à la prochaine ingestion — c'est le
+    fichier qui fait foi, pas la base.
+    """
+    pool = await get_pool(DATABASE_DSN)
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "DELETE FROM menu WHERE slug = $1 RETURNING id, slug", slug
+        )
+    if not row:
+        raise HTTPException(404, f"Menu introuvable : {slug}")
+    return {"deleted": row["slug"], "id": row["id"]}
+
+
 @app.post("/api/ingest")
 async def trigger_ingest():
     result = await ingest(Path(VAULT_ROOT), DATABASE_DSN)
