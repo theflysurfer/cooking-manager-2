@@ -219,16 +219,19 @@ async function loadRecipes() {
 }
 
 function paintRecipes(total) {
-  var grid = document.getElementById('recipe-grid');
-  if (!grid) return;
+  var host = document.getElementById('recipe-grid');
+  if (!host) return;
   var count = document.getElementById('recipe-count');
   if (count) count.textContent = total + ' recette' + (total !== 1 ? 's' : '');
   if (!state.recipes.length) {
-    grid.innerHTML = emptyState('Aucune recette ne correspond',
+    host.innerHTML = emptyState('Aucune recette ne correspond',
                                 'Essayez un autre mot-clé ou retirez un filtre.');
     return;
   }
-  grid.innerHTML = state.recipes.map(recipeCard).join('');
+  // ⚠️ Le wrapper .grid doit être RÉÉCRIT ici : le squelette de chargement le
+  // portait, mais les cartes le remplaçaient et atterrissaient dans un
+  // conteneur sans grille — elles flottaient et leurs métadonnées se touchaient.
+  host.innerHTML = '<div class="grid">' + state.recipes.map(recipeCard).join('') + '</div>';
 }
 
 async function viewRecipes() {
