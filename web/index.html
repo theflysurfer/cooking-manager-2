@@ -1,53 +1,31 @@
-<title>Cooking Manager</title>
+<!doctype html>
+<html lang="fr">
+<head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Cuisine</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@200;400&family=Lato:wght@400;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
+</head>
+<body>
 
-<div class="layout">
-  <aside class="sidebar" id="sidebar">
-    <h1 class="logo">Cuisine</h1>
-    <div class="search-wrap">
-      <input type="search" id="search" placeholder="Chercher une recette…" autocomplete="off">
-    </div>
+<header class="topbar">
+  <div class="topbar__inner">
+    <a class="brand" href="#/menu">Cuisine</a>
+    <nav class="nav" id="nav">
+      <button class="nav__link" data-route="menu">Semaine</button>
+      <button class="nav__link" data-route="recettes">Recettes</button>
+      <button class="nav__link" data-route="courses">Courses</button>
+    </nav>
+    <button class="icon-btn" id="theme-toggle" title="Thème clair / sombre" aria-label="Basculer le thème">◐</button>
+  </div>
+</header>
 
-    <section class="filter-group">
-      <h2 class="filter-label">Statut</h2>
-      <div id="filter-status" class="chips"></div>
-    </section>
-
-    <section class="filter-group">
-      <h2 class="filter-label">Famille</h2>
-      <div id="filter-family" class="chips"></div>
-    </section>
-
-    <section class="filter-group">
-      <h2 class="filter-label">Tags</h2>
-      <div id="filter-tags" class="chips"></div>
-    </section>
-
-    <div class="sidebar-footer">
-      <button id="btn-ingest" class="btn-ingest" title="Re-ingérer depuis le vault">↻ Sync vault</button>
-      <div id="stats" class="stats"></div>
-    </div>
-  </aside>
-
-  <main class="content">
-    <div class="toolbar">
-      <span id="result-count" class="result-count"></span>
-      <button class="btn-toggle-sidebar" id="btn-toggle" aria-label="Filtres">☰</button>
-    </div>
-    <div id="recipes" class="recipe-grid"></div>
-
-    <section class="menus-section">
-      <h2 class="section-title">Menus de la semaine</h2>
-      <div id="menus" class="menus-grid"></div>
-    </section>
-  </main>
-</div>
-
-<dialog id="detail" class="detail-dialog">
-  <div class="detail-content" id="detail-content"></div>
-  <button class="detail-close" id="detail-close" aria-label="Fermer">✕</button>
-</dialog>
+<main id="app" class="page">
+  <div class="empty"><p class="empty__title">Chargement…</p></div>
+</main>
 
 <script src="app.js"></script>
+</body>
+</html>

@@ -1,471 +1,452 @@
-/* Cooking Manager — frontend */
+/* Cooking Manager — front
+ *
+ * CIBLE : iPad mini 2 / Safari 12.5.8. Syntaxe limitée à ES2019 :
+ *   ❌ ?.  ??  ||=  champs de classe  Array.at()  replaceAll()
+ *   ✅ fetch, async/await, template literals, spread, URLSearchParams
+ * Vérifié par eslint (ecmaVersion 2019) + eslint-plugin-compat.
+ *
+ * Pas de <dialog> : il n'existe pas avant Safari 15.4, et l'élément inconnu
+ * affiche son contenu en permanence dans le flux. Les vues sont routées.
+ */
 
-const API = '/api';
-const state = { recipes: [], filters: {}, active: { status: null, family: null, tag: null }, q: '' };
+'use strict';
 
-async function fetchJSON(url, opts) {
-  const r = await fetch(url, opts);
-  if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
+var API = '/api';
+var state = {
+  recipes: [], filters: null, menu: null, compat: null,
+  active: { status: null, family: null, tag: null }, q: ''
+};
+
+/* ── Utilitaires ───────────────────────────────────────────────────── */
+
+function esc(s) {
+  if (s === null || s === undefined) return '';
+  var d = document.createElement('div');
+  d.textContent = String(s);
+  return d.innerHTML;
+}
+
+function label(s) {
+  if (!s) return '';
+  return String(s).replace(/[_-]/g, ' ');
+}
+
+async function api(path, opts) {
+  var r = await fetch(API + path, opts);
+  if (!r.ok) throw new Error(r.status + ' ' + r.statusText);
   return r.json();
 }
 
-// ── Init ────────────────────────────────────────────────────
+var app = document.getElementById('app');
+function render(html) { app.innerHTML = '<div class="view">' + html + '</div>'; }
 
-async function init() {
-  const [filtersData, statsData] = await Promise.all([
-    fetchJSON(`${API}/filters`),
-    fetchJSON(`${API}/stats`),
-  ]);
-  state.filters = filtersData;
-  renderFilters(filtersData);
-  renderStats(statsData);
-  await Promise.all([loadRecipes(), loadMenus()]);
+function emptyState(title, hint) {
+  return '<div class="empty"><p class="empty__title">' + esc(title) + '</p>' +
+         (hint ? '<p class="empty__hint">' + esc(hint) + '</p>' : '') + '</div>';
 }
 
-// ── Filters ─────────────────────────────────────────────────
-
-function renderFilters({ statuses, families, tags }) {
-  renderChipGroup('filter-status', statuses, 'status');
-  renderChipGroup('filter-family', families, 'family');
-  renderChipGroup('filter-tags', tags, 'tag');
-}
-
-function renderChipGroup(containerId, items, filterKey) {
-  const el = document.getElementById(containerId);
-  el.innerHTML = '';
-  for (const item of items) {
-    const btn = document.createElement('button');
-    btn.className = 'chip';
-    btn.textContent = formatLabel(item);
-    btn.setAttribute('role', 'button');
-    btn.setAttribute('aria-pressed', 'false');
-    btn.addEventListener('click', () => toggleFilter(filterKey, item, btn));
-    el.appendChild(btn);
+function skeletonGrid(n) {
+  var out = '<div class="grid">';
+  for (var i = 0; i < n; i++) {
+    out += '<div><div class="skeleton skeleton--card"></div>' +
+           '<div class="skeleton skeleton--line"></div></div>';
   }
+  return out + '</div>';
 }
 
-function formatLabel(s) {
-  if (!s) return '—';
-  return s.replace(/[_-]/g, ' ');
+/* ── Vue : menu de la semaine ──────────────────────────────────────── */
+
+var SLOTS = [
+  { key: 'breakfast', label: 'Petit-déj' },
+  { key: 'lunch',     label: 'Déjeuner' },
+  { key: 'snack',     label: 'Goûter' },
+  { key: 'dinner',    label: 'Dîner' }
+];
+
+function todayISO() {
+  var d = new Date();
+  var m = String(d.getMonth() + 1);
+  var day = String(d.getDate());
+  if (m.length < 2) m = '0' + m;
+  if (day.length < 2) day = '0' + day;
+  return d.getFullYear() + '-' + m + '-' + day;
 }
 
-function toggleFilter(key, value, btn) {
-  if (state.active[key] === value) {
-    state.active[key] = null;
-    btn.setAttribute('aria-pressed', 'false');
-  } else {
-    const container = btn.parentElement;
-    container.querySelectorAll('.chip').forEach(c => c.setAttribute('aria-pressed', 'false'));
-    state.active[key] = value;
-    btn.setAttribute('aria-pressed', 'true');
+/* Index des contrôles de compatibilité, par « jour/créneau ». */
+function indexCompat(compat) {
+  var idx = {};
+  if (!compat || !compat.results) return idx;
+  compat.results.forEach(function (r) {
+    idx[r.day + '/' + r.slot] = r;
+  });
+  return idx;
+}
+
+function renderDay(meal, compatIdx, today) {
+  var isToday = meal.date === today;
+  var cls = 'day' + (isToday ? ' day--today' : '');
+
+  var slots = '';
+  var away = false;
+  SLOTS.forEach(function (s) {
+    var dish = meal[s.key];
+    if (!dish) return;
+    var check = compatIdx[meal.day + '/' + s.key];
+    var conflicts = (check && check.conflicts) ? check.conflicts : [];
+    var atHome = check ? check.at_home : true;
+    if (!atHome) { away = true; return; }
+
+    slots += '<div class="slot' + (conflicts.length ? ' slot--conflict' : '') + '">' +
+      '<span class="slot__label">' + esc(s.label) + '</span>' +
+      '<span class="slot__dish">' + esc(dish) + '</span>';
+
+    if (check && check.attendees && check.attendees.length) {
+      slots += '<div class="slot__who">' + esc(check.attendees.join(' · ')) + '</div>';
+    }
+    conflicts.forEach(function (c) {
+      slots += '<div class="conflict">⚠ <strong>' + esc(c.convive) + '</strong> — ' +
+               esc(c.reason) + ' : ' + esc(c.matched) + '</div>';
+    });
+    slots += '</div>';
+  });
+
+  if (away && !slots) {
+    return '<article class="day day--away"><div class="day__head">' +
+      '<span class="day__name">' + esc(meal.day) + '</span></div>' +
+      '<p class="day__away-note">Hors foyer — pas de repas à préparer.</p></article>';
   }
-  loadRecipes();
+
+  return '<article class="' + cls + '">' +
+    '<div class="day__head">' +
+      '<span class="day__name">' + esc(meal.day) + '</span>' +
+      (isToday ? '<span class="day__badge">Aujourd\'hui</span>'
+               : '<span class="day__date">' + esc(meal.date || '') + '</span>') +
+    '</div>' + (slots || '<p class="day__away-note">Rien de planifié.</p>') +
+  '</article>';
 }
 
-// ── Load recipes ────────────────────────────────────────────
+async function viewMenu() {
+  render(emptyState('Chargement de la semaine…'));
+  var data = await api('/menus');
+  var menus = data.menus || [];
+  // Le menu actif d'abord, sinon le plus récent qui porte une structure jour.
+  var menu = null;
+  for (var i = 0; i < menus.length; i++) {
+    if (menus[i].status === 'active' && menus[i].meals) { menu = menus[i]; break; }
+  }
+  if (!menu) {
+    for (var j = 0; j < menus.length; j++) {
+      if (menus[j].meals && menus[j].meals.length) { menu = menus[j]; break; }
+    }
+  }
+
+  if (!menu) {
+    render(emptyState(
+      'Pas encore de menu pour cette semaine',
+      'Ajoutez un bloc meals: dans une fiche de Menus/ puis lancez la synchronisation.'
+    ));
+    return;
+  }
+
+  var compat = null;
+  try { compat = await api('/menus/' + encodeURIComponent(menu.slug) + '/compatibility'); }
+  catch (e) { compat = null; }
+
+  var idx = indexCompat(compat);
+  var today = todayISO();
+  var conflicts = compat ? compat.conflicts : 0;
+
+  var html = '<h1 class="page__title">' + esc(menu.title) + '</h1>' +
+    '<p class="page__sub">' + esc(menu.week_start || '') + ' → ' + esc(menu.week_end || '') +
+    (menu.configuration ? ' · ' + esc(label(menu.configuration)) : '') + '</p>';
+
+  if (conflicts > 0) {
+    html += '<div class="banner">' + conflicts + ' conflit' + (conflicts > 1 ? 's' : '') +
+      ' alimentaire' + (conflicts > 1 ? 's' : '') + ' sur la semaine — voir les repas signalés.</div>';
+  }
+
+  html += '<div class="week">';
+  (menu.meals || []).forEach(function (m) { html += renderDay(m, idx, today); });
+  html += '</div>';
+
+  render(html);
+}
+
+/* ── Vue : catalogue de recettes ───────────────────────────────────── */
+
+function recipeCard(r) {
+  var media = r.photo_url
+    ? '<img src="' + esc(r.photo_url) + '" alt="' + esc(r.title) + '">'
+    : '<div class="card__fallback">' + esc((r.title || '?').charAt(0).toUpperCase()) + '</div>';
+
+  var meta = [];
+  if (r.total_time_min) meta.push(r.total_time_min + ' min');
+  if (r.servings) meta.push(r.servings + ' pers.');
+  if (r.family) meta.push(label(r.family));
+
+  var macros = '';
+  if (r.macros && r.macros.kcal) {
+    macros = r.macros.kcal + ' kcal';
+    if (r.macros.protein) macros += ' · ' + r.macros.protein + ' g de protéines';
+  }
+
+  return '<button class="card" data-slug="' + esc(r.slug) + '">' +
+    '<div class="card__media">' + media + '</div>' +
+    '<div class="card__title">' + esc(r.title) + '</div>' +
+    (meta.length ? '<div class="card__meta"><span>' + meta.map(esc).join('</span><span>') + '</span></div>' : '') +
+    (macros ? '<div class="card__macros">' + esc(macros) + '</div>' : '') +
+  '</button>';
+}
+
+function chipGroup(items, key) {
+  return items.map(function (item) {
+    var on = state.active[key] === item;
+    return '<button class="chip" data-filter="' + esc(key) + '" data-value="' + esc(item) +
+           '" aria-pressed="' + (on ? 'true' : 'false') + '">' + esc(label(item)) + '</button>';
+  }).join('');
+}
 
 async function loadRecipes() {
-  const params = new URLSearchParams();
+  var params = new URLSearchParams();
   if (state.active.status) params.set('status', state.active.status);
   if (state.active.family) params.set('family', state.active.family);
   if (state.active.tag) params.set('tag', state.active.tag);
   if (state.q) params.set('q', state.q);
-
-  const data = await fetchJSON(`${API}/recipes?${params}`);
-  state.recipes = data.recipes;
-  renderRecipes(data.recipes, data.total);
+  params.set('limit', '500');
+  var data = await api('/recipes?' + params.toString());
+  state.recipes = data.recipes || [];
+  return data;
 }
 
-// ── Render recipes ──────────────────────────────────────────
-
-function renderRecipes(recipes, total) {
-  document.getElementById('result-count').textContent = `${total} recette${total !== 1 ? 's' : ''}`;
-  const grid = document.getElementById('recipes');
-  grid.innerHTML = '';
-
-  for (const r of recipes) {
-    const card = document.createElement('article');
-    card.className = 'recipe-card';
-    card.tabIndex = 0;
-
-    const timeStr = r.total_time_min ? `${r.total_time_min} min` : '';
-    const servingsStr = r.servings ? `${r.servings} pers.` : '';
-
-    let macrosHTML = '';
-    if (r.macros) {
-      const parts = [];
-      if (r.macros.kcal) parts.push(`<span>${r.macros.kcal} kcal</span>`);
-      if (r.macros.protein) parts.push(`<span>${r.macros.protein}g P</span>`);
-      if (r.macros.carbs) parts.push(`<span>${r.macros.carbs}g G</span>`);
-      if (r.macros.fat) parts.push(`<span>${r.macros.fat}g L</span>`);
-      if (parts.length) macrosHTML = `<div class="card-macros">${parts.join('')}</div>`;
-    }
-
-    const tagsHTML = (r.tags || []).slice(0, 5).map(t =>
-      `<span class="card-tag">${formatLabel(t)}</span>`
-    ).join('');
-
-    const photoHTML = r.photo_url
-      ? `<div class="card-photo"><img src="${esc(r.photo_url)}" alt="${esc(r.title)}" loading="lazy"></div>`
-      : '';
-
-    card.innerHTML = `
-      ${photoHTML}
-      <div class="card-title">${esc(r.title)}</div>
-      <div class="card-meta">
-        <span class="status-dot" data-status="${r.status}" title="${formatLabel(r.status)}"></span>
-        <span>${formatLabel(r.status)}</span>
-        ${timeStr ? `<span>${timeStr}</span>` : ''}
-        ${servingsStr ? `<span>${servingsStr}</span>` : ''}
-        ${r.family ? `<span>${formatLabel(r.family)}</span>` : ''}
-      </div>
-      ${tagsHTML ? `<div class="card-tags">${tagsHTML}</div>` : ''}
-      ${macrosHTML}
-    `;
-
-    card.addEventListener('click', () => openDetail(r.slug));
-    card.addEventListener('keydown', e => { if (e.key === 'Enter') openDetail(r.slug); });
-    grid.appendChild(card);
-  }
-}
-
-// ── Detail dialog ───────────────────────────────────────────
-
-async function openDetail(slug) {
-  const r = await fetchJSON(`${API}/recipes/${slug}`);
-  const dialog = document.getElementById('detail');
-  const content = document.getElementById('detail-content');
-
-  let html = '';
-  if (r.photo_url) {
-    html += `<div class="detail-photo"><img src="${esc(r.photo_url)}" alt="${esc(r.title)}"></div>`;
-  }
-  html += `<h2 class="detail-title">${esc(r.title)}</h2>`;
-
-  // Stats row
-  const stats = [];
-  if (r.total_time_min) stats.push({ val: `${r.total_time_min}'`, label: 'Temps' });
-  if (r.servings) stats.push({ val: r.servings, label: 'Portions' });
-  if (r.execution_count) stats.push({ val: r.execution_count, label: 'Faite' });
-  if (r.protein_density) stats.push({ val: r.protein_density.toFixed(3), label: 'P/kcal' });
-
-  if (stats.length) {
-    html += `<div class="detail-row">${stats.map(s =>
-      `<div class="detail-stat"><span class="val">${s.val}</span><span class="label">${s.label}</span></div>`
-    ).join('')}</div>`;
-  }
-
-  // Macros
-  if (r.macros) {
-    const m = r.macros;
-    html += `<div class="detail-section"><h3>Macros par portion</h3><div class="detail-row">`;
-    if (m.kcal) html += `<div class="detail-stat"><span class="val">${m.kcal}</span><span class="label">kcal</span></div>`;
-    if (m.protein) html += `<div class="detail-stat"><span class="val">${m.protein}g</span><span class="label">Protéines</span></div>`;
-    if (m.carbs) html += `<div class="detail-stat"><span class="val">${m.carbs}g</span><span class="label">Glucides</span></div>`;
-    if (m.fat) html += `<div class="detail-stat"><span class="val">${m.fat}g</span><span class="label">Lipides</span></div>`;
-    html += '</div></div>';
-  }
-
-  // Tags
-  if (r.tags && r.tags.length) {
-    html += `<div class="detail-section"><h3>Tags</h3><div class="detail-tags">${
-      r.tags.map(t => `<span class="detail-tag">${formatLabel(t)}</span>`).join('')
-    }</div></div>`;
-  }
-
-  // Constraints
-  if (r.compatible_constraints && r.compatible_constraints.length) {
-    html += `<div class="detail-section"><h3>Contraintes compatibles</h3><ul class="detail-constraints">${
-      r.compatible_constraints.map(c => `<li>${formatLabel(c)}</li>`).join('')
-    }</ul></div>`;
-  }
-
-  // Substitutions
-  if (r.applied_substitutions && r.applied_substitutions.length) {
-    html += `<div class="detail-section"><h3>Substitutions appliquées</h3><ul class="detail-constraints">${
-      r.applied_substitutions.map(s => `<li>${esc(s)}</li>`).join('')
-    }</ul></div>`;
-  }
-
-  // Sources
-  if (r.sources && r.sources.length) {
-    html += `<div class="detail-section"><h3>Sources</h3><ul class="detail-sources">${
-      r.sources.map(s => {
-        try { const u = new URL(s); return `<li><a href="${esc(s)}" target="_blank" rel="noopener">${esc(u.hostname)}</a></li>`; }
-        catch { return `<li>${esc(s)}</li>`; }
-      }).join('')
-    }</ul></div>`;
-  }
-
-  // Body (ingredients, steps, notes)
-  if (r.body) {
-    html += `<div class="detail-section detail-body">${renderMarkdown(r.body)}</div>`;
-  }
-
-  // Meta
-  const meta = [];
-  if (r.family) meta.push(`Famille : ${formatLabel(r.family)}`);
-  if (r.construction_regime) meta.push(`Régime : ${r.construction_regime}`);
-  if (r.lieu_execution) meta.push(`Lieu : ${r.lieu_execution}`);
-  if (r.appreciated_by && r.appreciated_by.length) meta.push(`Apprécié par : ${r.appreciated_by.join(', ')}`);
-  if (r.created) meta.push(`Créée : ${r.created}`);
-  if (r.updated && r.updated !== r.created) meta.push(`Modifiée : ${r.updated}`);
-
-  if (meta.length) {
-    html += `<div class="detail-section"><h3>Infos</h3><ul class="detail-constraints">${
-      meta.map(m => `<li>${m}</li>`).join('')
-    }</ul></div>`;
-  }
-
-  // Execution history
-  html += `<div class="detail-section">
-    <h3>Historique</h3>
-    <div id="exec-list" class="exec-list"><em>Chargement…</em></div>
-    <details class="exec-form-wrap">
-      <summary>Ajouter une exécution</summary>
-      <form id="exec-form" class="exec-form">
-        <div class="exec-row">
-          <label>Date <input type="date" name="date" required value="${new Date().toISOString().slice(0,10)}"></label>
-          <label>Par <input type="text" name="cooked_by" placeholder="Julien"></label>
-        </div>
-        <div class="exec-row">
-          <label>Note (1-5) <input type="number" name="rating" min="1" max="5"></label>
-          <label>Apprécié par <input type="text" name="appreciated_by" placeholder="Léa, Titouan"></label>
-          <label>Date appréciation <input type="date" name="appreciation_date"></label>
-        </div>
-        <label>Commentaire <textarea name="notes" rows="2" placeholder="Retour, ajustements…"></textarea></label>
-        <button type="submit" class="btn-exec">Enregistrer</button>
-      </form>
-    </details>
-  </div>`;
-
-  content.innerHTML = html;
-  dialog.showModal();
-
-  // Load executions
-  loadExecutions(slug);
-
-  // Bind form
-  document.getElementById('exec-form').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const fd = new FormData(e.target);
-    const payload = {
-      date: fd.get('date'),
-      cooked_by: fd.get('cooked_by') || null,
-      rating: fd.get('rating') ? parseInt(fd.get('rating')) : null,
-      appreciated_by: fd.get('appreciated_by') ? fd.get('appreciated_by').split(',').map(s => s.trim()).filter(Boolean) : [],
-      appreciation_date: fd.get('appreciation_date') || null,
-      notes: fd.get('notes') || null,
-    };
-    await fetchJSON(`${API}/recipes/${slug}/executions`, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify(payload),
-    });
-    e.target.reset();
-    e.target.querySelector('[name=date]').value = new Date().toISOString().slice(0,10);
-    loadExecutions(slug);
-  });
-}
-
-// ── Stats ───────────────────────────────────────────────────
-
-function renderStats(data) {
-  const el = document.getElementById('stats');
-  const parts = [`${data.total_recipes} recettes`];
-  for (const [status, count] of Object.entries(data.by_status || {})) {
-    parts.push(`${count} ${formatLabel(status)}`);
-  }
-  el.textContent = parts.join(' · ');
-}
-
-// ── Ingest ──────────────────────────────────────────────────
-
-document.getElementById('btn-ingest').addEventListener('click', async function() {
-  this.classList.add('syncing');
-  this.textContent = '↻ Sync…';
-  try {
-    const result = await fetchJSON(`${API}/ingest`, { method: 'POST' });
-    this.textContent = `✓ ${result.recipes_ingested} recettes`;
-    await Promise.all([
-      loadRecipes(),
-      fetchJSON(`${API}/filters`).then(renderFilters),
-      fetchJSON(`${API}/stats`).then(renderStats),
-    ]);
-    setTimeout(() => { this.textContent = '↻ Sync vault'; }, 2000);
-  } catch (e) {
-    this.textContent = '✗ Erreur';
-    setTimeout(() => { this.textContent = '↻ Sync vault'; }, 3000);
-  } finally {
-    this.classList.remove('syncing');
-  }
-});
-
-// ── Search ──────────────────────────────────────────────────
-
-let searchTimeout;
-document.getElementById('search').addEventListener('input', function() {
-  clearTimeout(searchTimeout);
-  searchTimeout = setTimeout(() => {
-    state.q = this.value.trim();
-    loadRecipes();
-  }, 250);
-});
-
-// ── Dialog close ────────────────────────────────────────────
-
-document.getElementById('detail-close').addEventListener('click', () => {
-  document.getElementById('detail').close();
-});
-document.getElementById('detail').addEventListener('click', function(e) {
-  if (e.target === this) this.close();
-});
-
-// ── Mobile sidebar toggle ───────────────────────────────────
-
-document.getElementById('btn-toggle').addEventListener('click', () => {
-  document.getElementById('sidebar').classList.toggle('open');
-});
-
-// ── Executions ─────────────────────────────────────────────
-
-async function loadExecutions(slug) {
-  const el = document.getElementById('exec-list');
-  try {
-    const data = await fetchJSON(`${API}/recipes/${slug}/executions`);
-    if (!data.executions.length) {
-      el.innerHTML = '<p class="empty">Jamais cuisinée.</p>';
-      return;
-    }
-    el.innerHTML = data.executions.map(ex => {
-      const stars = ex.rating ? '★'.repeat(ex.rating) + '☆'.repeat(5 - ex.rating) : '';
-      const who = ex.cooked_by ? `par ${esc(ex.cooked_by)}` : '';
-      const liked = ex.appreciated_by && ex.appreciated_by.length
-        ? `<span class="exec-liked">❤ ${ex.appreciated_by.join(', ')}${ex.appreciation_date && ex.appreciation_date !== ex.date ? ` (le ${ex.appreciation_date})` : ''}</span>` : '';
-      return `<div class="exec-entry">
-        <div class="exec-date">${ex.date} ${who} ${stars ? `<span class="exec-stars">${stars}</span>` : ''}</div>
-        ${liked}
-        ${ex.notes ? `<div class="exec-notes">${esc(ex.notes)}</div>` : ''}
-      </div>`;
-    }).join('');
-  } catch {
-    el.innerHTML = '<p class="empty">Erreur de chargement.</p>';
-  }
-}
-
-// ── Menus ──────────────────────────────────────────────────
-
-async function loadMenus() {
-  const data = await fetchJSON(`${API}/menus`);
-  const container = document.getElementById('menus');
-  if (!container) return;
-  if (!data.menus || !data.menus.length) {
-    container.innerHTML = '<p class="empty">Aucun menu disponible.</p>';
+function paintRecipes(total) {
+  var grid = document.getElementById('recipe-grid');
+  if (!grid) return;
+  var count = document.getElementById('recipe-count');
+  if (count) count.textContent = total + ' recette' + (total !== 1 ? 's' : '');
+  if (!state.recipes.length) {
+    grid.innerHTML = emptyState('Aucune recette ne correspond',
+                                'Essayez un autre mot-clé ou retirez un filtre.');
     return;
   }
-  container.innerHTML = data.menus.map(m => {
-    let html = `<article class="menu-card">
-      <div class="card-title">${esc(m.title)}</div>
-      <div class="card-meta">
-        <span>${m.week_start || ''} → ${m.week_end || ''}</span>
-        <span>${formatLabel(m.status)}</span>
-        ${m.configuration ? `<span>${formatLabel(m.configuration)}</span>` : ''}
-      </div>`;
-    if (m.meals && m.meals.length) {
-      html += renderMealGrid(m.meals);
-    } else if (m.body) {
-      html += `<div class="menu-body">${renderMarkdown(m.body)}</div>`;
-    }
-    if (m.linked_recipes && m.linked_recipes.length) {
-      html += `<div class="menu-recipes"><strong>Recettes liées :</strong> ${m.linked_recipes.map(s => formatLabel(s)).join(', ')}</div>`;
-    }
-    html += '</article>';
-    return html;
-  }).join('');
+  grid.innerHTML = state.recipes.map(recipeCard).join('');
 }
 
-// ── Markdown renderer ──────────────────────────────────────
+async function viewRecipes() {
+  render('<h1 class="page__title">Recettes</h1>' +
+    '<div class="toolbar">' +
+      '<input class="search" id="search" type="search" placeholder="Chercher une recette…" autocomplete="off">' +
+      '<span class="card__meta" id="recipe-count"></span>' +
+    '</div><div id="filters"></div>' +
+    '<div id="recipe-grid">' + skeletonGrid(6) + '</div>');
 
-function renderMarkdown(md) {
-  if (!md) return '';
-  let html = esc(md);
-  // headings
-  html = html.replace(/^### (.+)$/gm, '<h4>$1</h4>');
-  html = html.replace(/^## (.+)$/gm, '<h3>$1</h3>');
-  html = html.replace(/^# (.+)$/gm, '<h3>$1</h3>');
-  // bold / italic
-  html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-  html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
-  // hr
-  html = html.replace(/^---$/gm, '<hr>');
-  // blockquote
-  html = html.replace(/^&gt; (.+)$/gm, '<blockquote>$1</blockquote>');
-  // unordered list items
-  html = html.replace(/^- (.+)$/gm, '<li>$1</li>');
-  html = html.replace(/((?:<li>.*<\/li>\n?)+)/g, '<ul>$1</ul>');
-  // ordered list items
-  html = html.replace(/^\d+\. (.+)$/gm, '<li>$1</li>');
-  html = html.replace(/((?:<li>.*<\/li>\n?)+)/g, (match) => {
-    if (!match.includes('<ul>')) return `<ol>${match}</ol>`;
-    return match;
+  if (!state.filters) state.filters = await api('/filters');
+  var f = state.filters;
+  document.getElementById('filters').innerHTML =
+    '<div class="chips">' + chipGroup(f.statuses || [], 'status') +
+    chipGroup(f.families || [], 'family') + '</div>';
+
+  var data = await loadRecipes();
+  paintRecipes(data.total);
+
+  var search = document.getElementById('search');
+  search.value = state.q;
+  var timer;
+  search.addEventListener('input', function () {
+    clearTimeout(timer);
+    var self = this;
+    timer = setTimeout(async function () {
+      state.q = self.value.trim();
+      var d = await loadRecipes();
+      paintRecipes(d.total);
+    }, 250);
   });
-  // paragraphs
-  html = html.replace(/\n\n/g, '</p><p>');
-  html = `<p>${html}</p>`;
-  html = html.replace(/<p>\s*<(h[34]|ul|ol|hr|blockquote)/g, '<$1');
-  html = html.replace(/<\/(h[34]|ul|ol|hr|blockquote)>\s*<\/p>/g, '</$1>');
-  html = html.replace(/<p>\s*<\/p>/g, '');
-  return html;
 }
 
-// ── Meal grid renderer ─────────────────────────────────────
+/* ── Vue : fiche recette ───────────────────────────────────────────── */
 
-function renderMealGrid(meals) {
-  const slots = [
-    { key: 'breakfast', label: 'Petit-déj' },
-    { key: 'lunch', label: 'Déjeuner' },
-    { key: 'dinner', label: 'Dîner' },
-    { key: 'snack', label: 'Goûter' },
-  ];
-  let html = '<div class="meal-grid-wrap"><table class="meal-grid"><thead><tr><th></th>';
-  for (const s of slots) html += `<th>${s.label}</th>`;
-  html += '</tr></thead><tbody>';
-  for (const day of meals) {
-    html += `<tr><td class="meal-day">${esc(day.day)}</td>`;
-    for (const s of slots) {
-      const val = day[s.key] || '';
-      html += `<td class="meal-cell">${esc(val)}</td>`;
-    }
-    html += '</tr>';
+function qtyText(ing) {
+  if (ing.qty_min === null || ing.qty_min === undefined) return '';
+  var q = ing.qty_min;
+  if (ing.qty_max && ing.qty_max !== ing.qty_min) q += '–' + ing.qty_max;
+  return q + (ing.unit ? ' ' + ing.unit : '');
+}
+
+async function viewRecipe(slug) {
+  render(emptyState('Chargement…'));
+  var r = await api('/recipes/' + encodeURIComponent(slug));
+
+  var html = '<button class="btn btn--ghost btn--back" data-back="1">← Retour</button>';
+
+  html += '<div class="recipe__hero">' + (r.photo_url
+    ? '<img src="' + esc(r.photo_url) + '" alt="' + esc(r.title) + '">'
+    : '<div class="card__fallback">' + esc((r.title || '?').charAt(0).toUpperCase()) + '</div>') + '</div>';
+
+  html += '<h1 class="recipe__title">' + esc(r.title) + '</h1>';
+
+  var stats = [];
+  if (r.total_time_min) stats.push({ v: r.total_time_min + "'", l: 'Temps' });
+  if (r.servings) stats.push({ v: r.servings, l: 'Portions' });
+  if (r.macros && r.macros.kcal) stats.push({ v: r.macros.kcal, l: 'kcal / portion' });
+  if (r.macros && r.macros.protein) stats.push({ v: r.macros.protein + ' g', l: 'Protéines' });
+  if (stats.length) {
+    html += '<div class="stats">' + stats.map(function (s) {
+      return '<div class="stat"><span class="stat__val">' + esc(s.v) +
+             '</span><span class="stat__label">' + esc(s.l) + '</span></div>';
+    }).join('') + '</div>';
   }
-  html += '</tbody></table></div>';
 
-  html += '<div class="meal-cards">';
-  for (const day of meals) {
-    html += `<div class="meal-day-card"><div class="meal-day-card-title">${esc(day.day)}</div>`;
-    for (const s of slots) {
-      const val = day[s.key];
-      if (val) html += `<div class="meal-slot"><span class="meal-slot-label">${s.label}</span><span class="meal-slot-value">${esc(val)}</span></div>`;
-    }
-    html += '</div>';
+  var ings = r.ingredients || [];
+  if (ings.length) {
+    html += '<h2 class="section-title">Ingrédients</h2><ul class="ingredients">';
+    ings.forEach(function (i) {
+      var cls = 'ingredient';
+      if (i.is_optional) cls += ' ingredient--optional';
+      if (!i.parsed) cls += ' ingredient--raw';
+      // Une ligne non structurée s'affiche telle quelle : jamais perdue.
+      var name = i.parsed ? i.name : i.raw;
+      html += '<li class="' + cls + '">' +
+              '<span class="ingredient__qty">' + esc(qtyText(i)) + '</span>' +
+              '<span class="ingredient__name">' + esc(name) +
+              (i.is_optional ? ' (optionnel)' : '') + '</span></li>';
+    });
+    html += '</ul>';
   }
-  html += '</div>';
 
-  return html;
+  var steps = r.steps || [];
+  if (steps.length) {
+    html += '<h2 class="section-title">Préparation</h2><ol class="steps">' +
+      steps.map(function (s) { return '<li class="step">' + esc(s.text) + '</li>'; }).join('') +
+      '</ol>';
+  }
+
+  if (!ings.length && !steps.length) {
+    html += emptyState('Cette fiche n\'a pas encore d\'ingrédients structurés',
+                       'Ajoutez une section « ## Ingrédients » puis relancez la synchronisation.');
+  }
+
+  html += '<h2 class="section-title">Historique</h2><div id="exec">' +
+          emptyState('Chargement…') + '</div>';
+
+  render(html);
+
+  try {
+    var ex = await api('/recipes/' + encodeURIComponent(slug) + '/executions');
+    var box = document.getElementById('exec');
+    if (!box) return;
+    if (!ex.executions || !ex.executions.length) {
+      box.innerHTML = emptyState('Jamais cuisinée',
+                                 'Ce sera peut-être pour cette semaine.');
+      return;
+    }
+    box.innerHTML = ex.executions.map(function (e) {
+      var stars = e.rating ? '★'.repeat(e.rating) + '☆'.repeat(5 - e.rating) : '';
+      var who = e.appreciated_by && e.appreciated_by.length
+        ? ' · apprécié par ' + e.appreciated_by.join(', ') : '';
+      return '<div class="slot"><span class="slot__label">' + esc(e.date) +
+             (e.cooked_by ? ' — ' + esc(e.cooked_by) : '') + '</span>' +
+             '<span class="slot__dish">' + esc(stars) + esc(who) + '</span>' +
+             (e.notes ? '<div class="slot__who">' + esc(e.notes) + '</div>' : '') + '</div>';
+    }).join('');
+  } catch (e) { /* l'historique est secondaire : son échec ne casse pas la fiche */ }
 }
 
-// ── Helpers ─────────────────────────────────────────────────
+/* ── Vue : courses ─────────────────────────────────────────────────── */
 
-function esc(s) {
-  if (!s) return '';
-  const d = document.createElement('div');
-  d.textContent = s;
-  return d.innerHTML;
+async function viewCourses() {
+  render(emptyState('Chargement des courses…'));
+  var data = await api('/shopping/sessions');
+  var sessions = data.sessions || [];
+  if (!sessions.length) {
+    render('<h1 class="page__title">Courses</h1>' +
+      emptyState('Aucune session de courses',
+                 'La liste se génère depuis le menu de la semaine.'));
+    return;
+  }
+  var s = sessions[0];
+  var html = '<h1 class="page__title">Courses</h1>' +
+    '<p class="page__sub">' + esc(s.store || '') + ' · ' + esc(s.date || '') + '</p>' +
+    '<div class="stats">' +
+      '<div class="stat"><span class="stat__val">' + esc(s.items_count || 0) +
+      '</span><span class="stat__label">articles</span></div>' +
+      '<div class="stat"><span class="stat__val">' + esc(s.total || 0) +
+      ' €</span><span class="stat__label">total</span></div>' +
+      '<div class="stat"><span class="stat__val">' + esc(s.covers || 0) +
+      '</span><span class="stat__label">couverts</span></div>' +
+    '</div>';
+  if (s.notes) html += '<div class="banner">' + esc(s.notes) + '</div>';
+  render(html);
 }
 
-// ── Boot ────────────────────────────────────────────────────
+/* ── Routeur ───────────────────────────────────────────────────────── */
 
-init().catch(err => {
-  document.getElementById('recipes').innerHTML =
-    `<p style="color:var(--text-soft);padding:40px">Impossible de charger les recettes. Le serveur est-il démarré ?</p>`;
+var ROUTES = { menu: viewMenu, recettes: viewRecipes, courses: viewCourses };
+
+function currentRoute() {
+  var h = location.hash.replace(/^#\/?/, '');
+  return h || 'menu';
+}
+
+async function route() {
+  var path = currentRoute();
+  var parts = path.split('/');
+
+  document.querySelectorAll('.nav__link').forEach(function (b) {
+    if (b.getAttribute('data-route') === parts[0]) b.setAttribute('aria-current', 'page');
+    else b.removeAttribute('aria-current');
+  });
+
+  try {
+    if (parts[0] === 'recette' && parts[1]) {
+      await viewRecipe(decodeURIComponent(parts[1]));
+    } else {
+      var fn = ROUTES[parts[0]] || viewMenu;
+      await fn();
+    }
+    window.scrollTo(0, 0);
+  } catch (e) {
+    render(emptyState('Impossible de charger cette page',
+                      'Le serveur est peut-être indisponible. Réessayez dans un instant.'));
+  }
+}
+
+window.addEventListener('hashchange', route);
+
+/* Délégation d'événements : le contenu est réécrit à chaque vue. */
+document.addEventListener('click', function (e) {
+  var nav = e.target.closest('.nav__link');
+  if (nav) { location.hash = '#/' + nav.getAttribute('data-route'); return; }
+
+  var card = e.target.closest('.card');
+  if (card) { location.hash = '#/recette/' + encodeURIComponent(card.getAttribute('data-slug')); return; }
+
+  var back = e.target.closest('[data-back]');
+  if (back) { history.back(); return; }
+
+  var chip = e.target.closest('.chip');
+  if (chip) {
+    var key = chip.getAttribute('data-filter');
+    var value = chip.getAttribute('data-value');
+    state.active[key] = (state.active[key] === value) ? null : value;
+    document.querySelectorAll('.chip[data-filter="' + key + '"]').forEach(function (c) {
+      c.setAttribute('aria-pressed', c.getAttribute('data-value') === state.active[key] ? 'true' : 'false');
+    });
+    loadRecipes().then(function (d) { paintRecipes(d.total); });
+  }
 });
+
+/* Thème : pas de @media prefers-color-scheme (iOS 13) — attribut sur <html>. */
+var THEME_KEY = 'cm2-theme';
+function applyTheme(t) {
+  document.documentElement.setAttribute('data-theme', t);
+  try { localStorage.setItem(THEME_KEY, t); } catch (e) { /* mode privé */ }
+}
+document.getElementById('theme-toggle').addEventListener('click', function () {
+  var cur = document.documentElement.getAttribute('data-theme');
+  applyTheme(cur === 'dark' ? 'light' : 'dark');
+});
+try {
+  var saved = localStorage.getItem(THEME_KEY);
+  applyTheme(saved || 'light');
+} catch (e) { applyTheme('light'); }
+
+route();

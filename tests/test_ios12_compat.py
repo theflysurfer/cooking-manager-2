@@ -75,11 +75,6 @@ def _fmt(findings, limit=8) -> str:
     return "\n".join(lines)
 
 
-@pytest.mark.xfail(
-    reason="baseline 2026-08-04 : 0/100, 2 bloquants. La refonte du front "
-           "(phases 6-7) doit rendre ce test vert — retirer ce xfail alors.",
-    strict=True,
-)
 def test_no_blocking_incompatibility(audit):
     """Aucune cassure BLOQUANTE : celles qui rendent une fonctionnalité morte.
 
@@ -91,10 +86,6 @@ def test_no_blocking_incompatibility(audit):
     assert not blockers, f"{len(blockers)} cassure(s) bloquante(s) :\n{_fmt(blockers)}"
 
 
-@pytest.mark.xfail(
-    reason="baseline 2026-08-04 : 0/100. Vert après la refonte du front.",
-    strict=True,
-)
 def test_score_above_threshold(audit):
     assert audit["score"] >= MIN_SCORE, (
         f"score {audit['score']}/100 < {MIN_SCORE}\n"
@@ -112,15 +103,35 @@ def test_scanner_is_functional(audit):
     assert "score" in audit and "findings" in audit
 
 
-def test_no_regression_beyond_known_baseline(audit):
-    """Filet anti-aggravation : tant que la refonte n'est pas faite, on
-    interdit au moins d'EMPIRER. Ce test-là doit rester vert en permanence."""
-    baseline_blockers = 2   # <dialog> + showModal(), mesurés le 2026-08-04
-    blockers = [f for f in audit["findings"] if f["severity"] == "bloquant"]
-    assert len(blockers) <= baseline_blockers, (
-        f"régression : {len(blockers)} bloquants contre {baseline_blockers} "
-        f"au baseline\n{_fmt(blockers)}"
+def test_scanner_does_not_flag_its_own_documentation(scanner):
+    """Méta-test : un fichier qui DOCUMENTE la syntaxe interdite ne doit pas
+    être accusé de l'employer.
+
+    Le front porte en tête un commentaire listant « ❌ ?. ?? ||= ». Le scanner
+    le signalait comme trois cassures bloquantes. Un linter qui accuse ses
+    propres commentaires perd toute crédibilité, et on finit par ignorer ses
+    vraies alertes."""
+    js = (
+        "// ne pas utiliser ?. ni ?? ni ||=\n"
+        "/* interdit : a?.b */\n"
+        "var url = 'https://x.test/a?b';\n"
+        "var ok = a && a.b;\n"
     )
+    stripped = scanner._strip_js_comments(js)
+    report = scanner.Report()
+    scanner._scan_simple(stripped, scanner.JS_RULES, "t.js", report)
+    assert not report.findings, [f.feature for f in report.findings]
+    # La numérotation doit survivre au dépouillement.
+    assert stripped.count("\n") == js.count("\n")
+
+
+def test_real_syntax_is_still_caught(scanner):
+    """Le dépouillement ne doit pas rendre le scanner aveugle au vrai code."""
+    report = scanner.Report()
+    scanner._scan_simple(
+        scanner._strip_js_comments("var x = a?.b;\n"), scanner.JS_RULES, "t.js", report
+    )
+    assert [f.feature for f in report.findings] == ["chaînage optionnel ?."]
 
 
 def test_javascript_syntax_stays_es2019(audit):
