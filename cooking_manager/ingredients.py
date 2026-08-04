@@ -159,6 +159,18 @@ def normalize_name(name: str) -> str:
     return " ".join(text.split())
 
 
+def _clean_markup(text: str) -> str:
+    """Retire le balisage markdown résiduel (gras, italique, code).
+
+    Les étapes sortaient avec leurs `**` visibles à l'écran (« congeler
+    **24h minimum** ») : le corps est du markdown, mais l'app rend du texte.
+    """
+    cleaned = re.sub(r"\*\*(.+?)\*\*", r"\1", text)
+    cleaned = re.sub(r"(?<!\w)\*(.+?)\*(?!\w)", r"\1", cleaned)
+    cleaned = re.sub(r"`(.+?)`", r"\1", cleaned)
+    return cleaned.strip()
+
+
 def _to_float(raw: str | None) -> float | None:
     if not raw:
         return None
@@ -253,11 +265,11 @@ def parse_recipe_body(body: str) -> RecipeContent:
         m = _NUMBERED.match(line)
         if m:
             position += 1
-            content.steps.append(Step(position=position, text=m.group(2).strip()))
+            content.steps.append(Step(position=position, text=_clean_markup(m.group(2))))
             continue
         bullet = _BULLET.match(line)
         if bullet and bullet.group(1).strip():
             position += 1
-            content.steps.append(Step(position=position, text=bullet.group(1).strip()))
+            content.steps.append(Step(position=position, text=_clean_markup(bullet.group(1))))
 
     return content

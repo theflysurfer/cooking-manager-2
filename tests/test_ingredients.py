@@ -165,3 +165,11 @@ class TestRecipeBody:
         content = parse_recipe_body(self.BODY)
         assert [i.position for i in content.ingredients] == [1, 2, 3, 4]
         assert [s.position for s in content.steps] == [1, 2, 3]
+
+    def test_steps_are_stripped_of_markdown(self):
+        """Le corps est du markdown, l'app rend du texte : les étapes
+        sortaient avec leurs `**` visibles (« congeler **24h minimum** »)."""
+        body = "## Préparation\n\n1. Congeler **24h minimum** à plat.\n2. Cycle *Lite Ice Cream*.\n"
+        steps = parse_recipe_body(body).steps
+        assert steps[0].text == "Congeler 24h minimum à plat."
+        assert steps[1].text == "Cycle Lite Ice Cream."

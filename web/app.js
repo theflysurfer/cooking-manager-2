@@ -304,10 +304,13 @@ async function viewRecipe(slug) {
       if (!i.parsed) cls += ' ingredient--raw';
       // Une ligne non structurée s'affiche telle quelle : jamais perdue.
       var name = i.parsed ? i.name : i.raw;
+      // Ne pas doubler la mention : le nom la porte déjà souvent
+      // (« gomme xanthane (texture, optionnel) »).
+      var showOpt = i.is_optional && !/optionnel|facultatif|au choix/i.test(name);
       html += '<li class="' + cls + '">' +
               '<span class="ingredient__qty">' + esc(qtyText(i)) + '</span>' +
               '<span class="ingredient__name">' + esc(name) +
-              (i.is_optional ? ' (optionnel)' : '') + '</span></li>';
+              (showOpt ? ' (optionnel)' : '') + '</span></li>';
     });
     html += '</ul>';
   }
