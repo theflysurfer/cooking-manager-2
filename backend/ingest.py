@@ -377,11 +377,17 @@ def _resolve_dish(dish: str, by_norm: dict) -> tuple[int | None, str | None]:
         return None, None
     if norm in by_norm:
         return by_norm[norm]["id"], "exact"
+    # L'inclusion joue dans les DEUX SENS, et c'est nécessaire : la fiche est
+    # souvent plus détaillée que l'intitulé du menu (« Wraps poulet froid +
+    # crudités » au menu, « … + ranch skyr » en fiche). Ne tester qu'un sens
+    # laissait ces repas orphelins — donc leurs ingrédients hors des courses.
     for key, recipe in by_norm.items():
-        # Seuil de 12 caractères : en dessous, un titre court (« Oeufs »)
-        # s'accrocherait à n'importe quel intitulé qui le mentionne.
+        # Seuil de 12 caractères sur la partie COMMUNE : en dessous, un titre
+        # court (« Œufs ») s'accrocherait à tout intitulé qui le mentionne.
         if len(key) > 12 and (key in norm or norm.startswith(key)):
             return recipe["id"], "contains"
+        if len(norm) > 12 and (norm in key or key.startswith(norm)):
+            return recipe["id"], "contained_by"
     return None, None
 
 
