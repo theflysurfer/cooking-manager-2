@@ -84,3 +84,29 @@ class TestRecipeNormalization:
     def test_portions_base_maps_to_servings(self):
         data, _ = normalize_recipe({"title": "R", "slug": "r", "portions_base": 4})
         assert data["servings"] == 4
+
+
+class TestMealsDateSerialization:
+    """Régression : PyYAML type « date: 2026-08-04 » en `datetime.date`, et le
+    bloc `meals` part ensuite en JSONB via json.dumps — qui lève un TypeError.
+    L'ingestion entière retournait 500 dès qu'un menu portait des dates."""
+
+    def test_dates_in_meals_become_iso_strings(self):
+        import datetime
+
+        data, _ = normalize_menu({
+            "title": "T", "_source_path": "/x/m.md",
+            "meals": [{"day": "mardi", "date": datetime.date(2026, 8, 4), "lunch": "Wraps"}],
+        })
+        assert data["meals"][0]["date"] == "2026-08-04"
+        assert isinstance(data["meals"][0]["date"], str)
+
+    def test_result_is_json_serializable(self):
+        import datetime
+        import json
+
+        data, _ = normalize_menu({
+            "title": "T", "_source_path": "/x/m.md",
+            "meals": [{"day": "lundi", "date": datetime.date(2026, 8, 3)}],
+        })
+        json.dumps(data["meals"])  # ne doit pas lever

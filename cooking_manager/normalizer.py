@@ -175,6 +175,21 @@ def _normalize_macros(macros) -> dict | None:
     return out
 
 
+def _isoformat_dates(value):
+    """Remplace récursivement tout date/datetime par sa forme ISO.
+
+    Nécessaire avant toute sérialisation JSON d'une structure issue de YAML :
+    PyYAML type les dates automatiquement, et `json.dumps` s'y casse.
+    """
+    if isinstance(value, dict):
+        return {k: _isoformat_dates(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_isoformat_dates(v) for v in value]
+    if hasattr(value, "isoformat"):
+        return value.isoformat()
+    return value
+
+
 def _ensure_dates(data: dict) -> None:
     """Fill created/updated from _mtime if missing."""
     mtime = data.get("_mtime")
@@ -293,6 +308,13 @@ def normalize_menu(raw: dict) -> tuple[dict, list[str]]:
     for field in ("linked_recipes",):
         if field in data:
             data[field] = _coerce_list(data[field])
+
+    # ⚠️ PyYAML convertit tout seul « date: 2026-08-04 » en objet `datetime.date`.
+    # Le bloc `meals` part ensuite en JSONB via json.dumps, qui ne sait pas les
+    # sérialiser → 500 à l'ingestion. On repasse en chaînes ISO ici, une bonne
+    # fois, plutôt que de patcher chaque consommateur.
+    if isinstance(data.get("meals"), list):
+        data["meals"] = [_isoformat_dates(m) for m in data["meals"]]
 
     # Dates
     _ensure_dates(data)
