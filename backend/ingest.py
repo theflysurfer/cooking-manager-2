@@ -319,7 +319,8 @@ async def _link_meals(conn) -> tuple[int, int]:
     disparaître le rendrait invisible partout, y compris dans les manques
     signalés par la liste de courses.
     """
-    recipes = await conn.fetch("SELECT id, title FROM recipe")
+    recipes = await conn.fetch("SELECT id, slug, title FROM recipe")
+    by_slug = {r["slug"]: r["id"] for r in recipes}
     by_norm = {}
     for r in recipes:
         key = normalize_name(r["title"] or "")
@@ -344,7 +345,24 @@ async def _link_meals(conn) -> tuple[int, int]:
                 dish = (meal.get(slot) or "").strip()
                 if not dish:
                     continue
-                recipe_id, kind = _resolve_dish(dish, by_norm)
+                # Un `<slot>_slug:` dans le vault DÉSIGNE la fiche et
+                # court-circuite toute heuristique. C'est la seule liaison qui ne
+                # redérive pas : l'intitulé du menu est rédigé à la main chaque
+                # semaine et finit toujours par diverger du titre de la fiche
+                # d'un mot ou deux (« crevettes citron » / « crevettes sautées
+                # citron »).
+                explicit = (meal.get(slot + "_slug") or "").strip()
+                if explicit:
+                    recipe_id, kind = by_slug.get(explicit), "explicit"
+                    if recipe_id is None:
+                        # Un slug qui ne pointe nulle part est une faute de
+                        # frappe, pas une absence : le dire, plutôt que retomber
+                        # en silence sur un appariement approximatif.
+                        log.warning("menu %s : slug de recette inconnu %r (%s)",
+                                    menu["id"], explicit, dish)
+                        kind = "explicit_missing"
+                else:
+                    recipe_id, kind = _resolve_dish(dish, by_norm)
                 if recipe_id is not None:
                     linked += 1
                 else:
