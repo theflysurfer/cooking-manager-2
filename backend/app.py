@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 import datetime
 from pathlib import Path
 
-from fastapi import FastAPI, Query, HTTPException
+from fastapi import FastAPI, Query, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -550,6 +550,80 @@ async def update_pantry(body: PantryUpdate):
     }
 
 
+@app.get("/api/menus/{slug}/meals")
+async def list_menu_meals(slug: str):
+    """Liste des repas structurés du menu, avec leur id pour édition."""
+    pool = await get_pool(DATABASE_DSN)
+    async with pool.acquire() as conn:
+        menu = await conn.fetchrow("SELECT id FROM menu WHERE slug = $1", slug)
+        if not menu:
+            raise HTTPException(404, f"Menu introuvable : {slug}")
+        rows = await conn.fetch(
+            """SELECT mm.id, mm.day, mm.day_label, mm.position, mm.slot,
+                      mm.dish, mm.recipe_id, mm.match_kind, mm.covers,
+                      r.slug AS recipe_slug, r.title AS recipe_title,
+                      r.photo_url AS recipe_photo
+                 FROM menu_meal mm
+                 LEFT JOIN recipe r ON r.id = mm.recipe_id
+                WHERE mm.menu_id = $1
+             ORDER BY mm.position, mm.slot""",
+            menu["id"],
+        )
+    meals = []
+    for r in rows:
+        d = dict(r)
+        if d.get("day") and hasattr(d["day"], "isoformat"):
+            d["day"] = d["day"].isoformat()
+        meals.append(d)
+    return {"slug": slug, "meals": meals}
+
+
+class MealUpdate(BaseModel):
+    recipe_slug: str | None = None
+    dish: str | None = None
+
+
+@app.patch("/api/menus/{slug}/meals/{meal_id}")
+async def update_menu_meal(slug: str, meal_id: int, body: MealUpdate):
+    """Changer la recette et/ou l'intitulé d'un créneau repas."""
+    pool = await get_pool(DATABASE_DSN)
+    async with pool.acquire() as conn:
+        menu = await conn.fetchrow("SELECT id FROM menu WHERE slug = $1", slug)
+        if not menu:
+            raise HTTPException(404, f"Menu introuvable : {slug}")
+        meal = await conn.fetchrow(
+            "SELECT id, dish FROM menu_meal WHERE id = $1 AND menu_id = $2",
+            meal_id, menu["id"],
+        )
+        if not meal:
+            raise HTTPException(404, f"Repas introuvable : {meal_id}")
+
+        recipe_id = None
+        match_kind = None
+        if body.recipe_slug:
+            recipe = await conn.fetchrow(
+                "SELECT id, title FROM recipe WHERE slug = $1", body.recipe_slug,
+            )
+            if not recipe:
+                raise HTTPException(404, f"Recette introuvable : {body.recipe_slug}")
+            recipe_id = recipe["id"]
+            match_kind = "manual"
+            dish = body.dish or recipe["title"]
+        elif body.dish:
+            dish = body.dish
+        else:
+            raise HTTPException(400, "recipe_slug ou dish requis")
+
+        await conn.execute(
+            """UPDATE menu_meal SET dish = $1, recipe_id = $2, match_kind = $3
+                WHERE id = $4""",
+            dish, recipe_id, match_kind, meal_id,
+        )
+
+    return {"id": meal_id, "dish": dish, "recipe_id": recipe_id,
+            "match_kind": match_kind}
+
+
 @app.delete("/api/menus/{slug}")
 async def delete_menu(slug: str):
     """Supprimer un menu par son slug.
@@ -930,6 +1004,38 @@ async def auchan_remove_from_cart(body: AuchanRemove):
     if "error" in result:
         raise HTTPException(404, result["error"])
     return {"removed": body.product_id, "cart": result}
+
+
+# ── Voice / STT ───────────────────────────────────────────────────
+
+@app.post("/api/audio")
+async def voice_audio(file: UploadFile):
+    """Audio → transcription → intent JSON. Pipeline complet."""
+    from .stt import process_audio
+
+    audio_bytes = await file.read()
+    content_type = file.content_type or "audio/webm"
+    try:
+        result = await process_audio(audio_bytes, content_type)
+    except RuntimeError as e:
+        raise HTTPException(503, str(e))
+    return result
+
+
+class IntentRequest(BaseModel):
+    text: str
+
+
+@app.post("/api/intent")
+async def voice_intent(body: IntentRequest):
+    """Texte → intent JSON (sans passer par l'audio)."""
+    from .stt import interpret
+
+    try:
+        intent = await interpret(body.text)
+    except RuntimeError as e:
+        raise HTTPException(503, str(e))
+    return {"transcript": body.text, "intent": intent}
 
 
 @app.get("/health")

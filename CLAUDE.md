@@ -24,11 +24,13 @@ cooking_manager/   # Domaine pur, sans I/O réseau
   convives.py      # profils alimentaires + contrôle de compatibilité
   presence.py      # qui est à table (garde alternée × vacances × absences)
 backend/           # FastAPI + schéma DB + ingestion
+  stt.py           # pipeline vocal : Deepgram (STT) + Ollama cloud (intent)
   auchan.py        # client Auchan Drive (reverse-engineered)
   auchan_mcp.py    # serveur FastMCP (stdio)
 web/               # Front : index.html + style.css + app.js (+ media/recipes/)
 tests/             # unitaires · gate compat iOS 12 · e2e (opt-in)
 data/              # sessions de courses + photo-prompt.md (versionné)
+docs/veille/       # analyses concurrentielles (auditées par julien-audit-competitor)
 ```
 
 ## Les 3 principes de design
@@ -118,6 +120,15 @@ Client reverse-engineered (`backend/auchan.py`). Auth : Bearer JWT Keycloak + `x
 ## Persistance + enrichissement nutritionnel
 
 `POST /api/shopping/persist-cart` persiste chaque article dans `shopping_product` et l'enrichit en direct (nutrition, nutriscore, ingrédients, allergènes, caractéristiques, photo, prix/kg) via `backend/auchan.py::find_product_detail()` — pont entre l'UUID interne du panier et l'ID public catalogue (recherche par nom, puis scrape de la fiche produit). Séquentiel, un item peut prendre plusieurs secondes — le timeout nginx `/api/` est à 300s pour cette raison (`deploy/cooking-manager.nginx.conf`).
+
+## Commande vocale (STT + LLM)
+
+Pipeline : MediaRecorder (front) → `POST /api/audio` → Deepgram prerecorded (STT) → Ollama cloud (intent JSON) → exécution. Panneau `#mic-panel` affiche la transcription et l'action interprétée.
+
+- **Modèle Ollama** : `qwen3.5:cloud` — le naming est spécifique (`qwen3-coder:cloud` et `qwen3:32b-cloud` n'existent pas)
+- **Credentials** : credstore systemd (`cooking-deepgram-key`, `cooking-ollama-key`), lues par `deploy/run-with-cred.sh`
+- **MediaRecorder** exige Safari 14.5+ — le FAB micro est **masqué** sur Safari 12 (feature-detect). Le panneau vocal n'apparaît jamais sur l'iPad mini 2
+- **8 intents** : `search_recipe`, `adjust_servings`, `product_blacklist`, `recipe_note`, `recipe_edit_step`, `meal_feedback`, `pantry_leftover`, `swap_recipe`
 
 ## Gotchas
 

@@ -83,7 +83,7 @@ function indexCompat(compat) {
   return idx;
 }
 
-function renderDay(meal, compatIdx, today) {
+function renderDay(meal, compatIdx, today, mealIndex) {
   var isToday = meal.date === today;
   var cls = 'day' + (isToday ? ' day--today' : '');
 
@@ -97,9 +97,27 @@ function renderDay(meal, compatIdx, today) {
     var atHome = check ? check.at_home : true;
     if (!atHome) { away = true; return; }
 
+    var slug = meal[s.key + '_slug'];
+    var isLeftovers = meal[s.key + '_leftovers'];
+    var mealId = meal[s.key + '_meal_id'];
+
     slots += '<div class="slot' + (conflicts.length ? ' slot--conflict' : '') + '">' +
-      '<span class="slot__label">' + esc(s.label) + '</span>' +
-      '<span class="slot__dish">' + esc(dish) + '</span>';
+      '<span class="slot__label">' + esc(s.label) + '</span>';
+
+    if (slug) {
+      slots += '<a class="slot__dish slot__dish--linked" href="#/recette/' +
+        encodeURIComponent(slug) + '">' + esc(dish) +
+        ' <span class="slot__arrow">›</span></a>';
+    } else if (isLeftovers) {
+      slots += '<span class="slot__dish">' + esc(dish) +
+        ' <span class="slot__tag">restes</span></span>';
+    } else {
+      slots += '<span class="slot__dish">' + esc(dish) + '</span>';
+    }
+
+    if (mealId && !isLeftovers) {
+      slots += '<button class="swap-btn" data-meal-id="' + mealId + '">Changer</button>';
+    }
 
     if (check && check.attendees && check.attendees.length) {
       slots += '<div class="slot__who">' + esc(check.attendees.join(' · ')) + '</div>';
@@ -130,7 +148,6 @@ async function viewMenu() {
   render(emptyState('Chargement de la semaine…'));
   var data = await api('/menus');
   var menus = data.menus || [];
-  // Le menu actif d'abord, sinon le plus récent qui porte une structure jour.
   var menu = null;
   for (var i = 0; i < menus.length; i++) {
     if (menus[i].status === 'active' && menus[i].meals) { menu = menus[i]; break; }
@@ -147,6 +164,24 @@ async function viewMenu() {
       'Ajoutez un bloc meals: dans une fiche de Menus/ puis lancez la synchronisation.'
     ));
     return;
+  }
+
+  state.weekMenu = menu;
+
+  var mealsData = null;
+  try { mealsData = await api('/menus/' + encodeURIComponent(menu.slug) + '/meals'); }
+  catch (e) { mealsData = null; }
+
+  if (mealsData && mealsData.meals) {
+    var meals = menu.meals || [];
+    mealsData.meals.forEach(function (mm) {
+      var day = meals[mm.position];
+      if (!day) return;
+      day[mm.slot + '_meal_id'] = mm.id;
+      if (mm.recipe_slug) day[mm.slot + '_slug'] = mm.recipe_slug;
+      if (mm.match_kind === 'leftovers') day[mm.slot + '_leftovers'] = true;
+      if (mm.match_kind === 'manual') day[mm.slot] = mm.dish;
+    });
   }
 
   var compat = null;
@@ -167,10 +202,101 @@ async function viewMenu() {
   }
 
   html += '<div class="week">';
-  (menu.meals || []).forEach(function (m) { html += renderDay(m, idx, today); });
+  (menu.meals || []).forEach(function (m, mi) { html += renderDay(m, idx, today, mi); });
   html += '</div>';
 
+  html += '<div id="swap-picker" class="picker" style="display:none">' +
+    '<div class="picker__backdrop"></div>' +
+    '<div class="picker__panel">' +
+      '<div class="picker__head"><h2>Choisir une recette</h2>' +
+        '<button class="picker__close" aria-label="Fermer">✕</button></div>' +
+      '<input class="picker__search" type="text" placeholder="Rechercher…">' +
+      '<div class="picker__list"></div>' +
+    '</div></div>';
+
   render(html);
+
+  app.addEventListener('click', function (e) {
+    var btn = e.target.closest('.swap-btn');
+    if (btn) {
+      e.preventDefault();
+      openSwapPicker(btn.getAttribute('data-meal-id'));
+    }
+    var close = e.target.closest('.picker__close') || e.target.closest('.picker__backdrop');
+    if (close) closeSwapPicker();
+    var pick = e.target.closest('.picker__item');
+    if (pick) {
+      e.preventDefault();
+      confirmSwap(pick.getAttribute('data-slug'));
+    }
+  });
+}
+
+var _swapMealId = null;
+
+function openSwapPicker(mealId) {
+  _swapMealId = mealId;
+  var picker = document.getElementById('swap-picker');
+  if (!picker) return;
+  picker.style.display = '';
+  var list = picker.querySelector('.picker__list');
+  var input = picker.querySelector('.picker__search');
+  input.value = '';
+  list.innerHTML = '<p style="padding:1rem;opacity:.6">Chargement…</p>';
+  api('/recipes?limit=500').then(function (data) {
+    var recipes = data.recipes || [];
+    renderPickerList(recipes, '');
+    input.oninput = function () { renderPickerList(recipes, input.value); };
+  });
+}
+
+function renderPickerList(recipes, q) {
+  var picker = document.getElementById('swap-picker');
+  if (!picker) return;
+  var list = picker.querySelector('.picker__list');
+  var query = (q || '').toLowerCase();
+  var filtered = recipes.filter(function (r) {
+    if (!query) return true;
+    return (r.title || '').toLowerCase().indexOf(query) >= 0 ||
+           (r.slug || '').toLowerCase().indexOf(query) >= 0;
+  });
+  if (!filtered.length) {
+    list.innerHTML = '<p style="padding:1rem;opacity:.6">Aucun résultat.</p>';
+    return;
+  }
+  var html = '';
+  filtered.forEach(function (r) {
+    var photo = r.photo_url
+      ? '<img class="picker__thumb" src="' + esc(r.photo_url) + '" alt="">'
+      : '<span class="picker__thumb picker__thumb--empty">' +
+        esc((r.title || '?').charAt(0).toUpperCase()) + '</span>';
+    html += '<button class="picker__item" data-slug="' + esc(r.slug) + '">' +
+      photo + '<span class="picker__name">' + esc(r.title) + '</span></button>';
+  });
+  list.innerHTML = html;
+}
+
+function closeSwapPicker() {
+  var picker = document.getElementById('swap-picker');
+  if (picker) picker.style.display = 'none';
+  _swapMealId = null;
+}
+
+async function confirmSwap(recipeSlug) {
+  if (!_swapMealId || !state.weekMenu) return;
+  var slug = state.weekMenu.slug;
+  try {
+    await api('/menus/' + encodeURIComponent(slug) + '/meals/' + _swapMealId, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ recipe_slug: recipeSlug })
+    });
+  } catch (e) {
+    closeSwapPicker();
+    return;
+  }
+  closeSwapPicker();
+  viewMenu();
 }
 
 /* ── Vue : catalogue de recettes ───────────────────────────────────── */
@@ -289,10 +415,24 @@ async function viewRecipes() {
 
 /* ── Vue : fiche recette ───────────────────────────────────────────── */
 
-function qtyText(ing) {
+function roundQty(n) {
+  if (n === 0) return '0';
+  if (n >= 100) return '' + Math.round(n);
+  if (n >= 10) return '' + (Math.round(n * 10) / 10);
+  if (n >= 1) return '' + (Math.round(n * 100) / 100);
+  var r = Math.round(n * 100) / 100;
+  var thirds = [0.33, 0.67];
+  for (var i = 0; i < thirds.length; i++) {
+    if (Math.abs(r - thirds[i]) < 0.04) return thirds[i].toString();
+  }
+  return r.toString();
+}
+
+function qtyText(ing, ratio) {
   if (ing.qty_min === null || ing.qty_min === undefined) return '';
-  var q = ing.qty_min;
-  if (ing.qty_max && ing.qty_max !== ing.qty_min) q += '–' + ing.qty_max;
+  var m = ratio || 1;
+  var q = roundQty(ing.qty_min * m);
+  if (ing.qty_max && ing.qty_max !== ing.qty_min) q += '–' + roundQty(ing.qty_max * m);
   return q + (ing.unit ? ' ' + ing.unit : '');
 }
 
@@ -308,36 +448,69 @@ async function viewRecipe(slug) {
 
   html += '<h1 class="recipe__title">' + esc(r.title) + '</h1>';
 
+  var tags = r.tags || [];
+  if (tags.length) {
+    html += '<div class="recipe__tags">' + tags.map(function (t) {
+      return '<span class="recipe__tag">' + esc(label(t)) + '</span>';
+    }).join(' ') + '</div>';
+  }
+
+  if (r.appreciated_by && r.appreciated_by.length) {
+    html += '<p class="recipe__love">Appréciée par ' +
+      esc(r.appreciated_by.join(', ')) + '</p>';
+  }
+
+  var baseServings = r.servings || 0;
+  var curServings = baseServings;
+  var ratio = 1;
+
   var stats = [];
-  if (r.total_time_min) stats.push({ v: r.total_time_min + "'", l: 'Temps' });
-  if (r.servings) stats.push({ v: r.servings, l: 'Portions' });
+  if (r.prep_time_min || r.cook_time_min) {
+    if (r.prep_time_min) stats.push({ v: r.prep_time_min + "'", l: 'Préparation' });
+    if (r.cook_time_min) stats.push({ v: r.cook_time_min + "'", l: 'Cuisson' });
+  } else if (r.total_time_min) {
+    stats.push({ v: r.total_time_min + "'", l: 'Temps' });
+  }
+  if (baseServings) {
+    stats.push({
+      v: '<button class="srv-btn" data-srv="-1">−</button>' +
+         '<span id="srv-count">' + baseServings + '</span>' +
+         '<button class="srv-btn" data-srv="+1">+</button>',
+      l: 'Portions', raw: true
+    });
+  }
   if (r.macros && r.macros.kcal) stats.push({ v: r.macros.kcal, l: 'kcal / portion' });
   if (r.macros && r.macros.protein) stats.push({ v: r.macros.protein + ' g', l: 'Protéines' });
   if (stats.length) {
     html += '<div class="stats">' + stats.map(function (s) {
-      return '<div class="stat"><span class="stat__val">' + esc(s.v) +
+      var valHtml = s.raw ? s.v : esc(s.v);
+      var idAttr = s.id ? ' id="' + s.id + '"' : '';
+      return '<div class="stat"><span class="stat__val"' + idAttr + '>' + valHtml +
              '</span><span class="stat__label">' + esc(s.l) + '</span></div>';
     }).join('') + '</div>';
   }
 
   var ings = r.ingredients || [];
-  if (ings.length) {
-    html += '<h2 class="section-title">Ingrédients</h2><ul class="ingredients">';
+
+  function renderIngredients(mult) {
+    var h = '';
     ings.forEach(function (i) {
       var cls = 'ingredient';
       if (i.is_optional) cls += ' ingredient--optional';
       if (!i.parsed) cls += ' ingredient--raw';
-      // Une ligne non structurée s'affiche telle quelle : jamais perdue.
       var name = i.parsed ? i.name : i.raw;
-      // Ne pas doubler la mention : le nom la porte déjà souvent
-      // (« gomme xanthane (texture, optionnel) »).
       var showOpt = i.is_optional && !/optionnel|facultatif|au choix/i.test(name);
-      html += '<li class="' + cls + '">' +
-              '<span class="ingredient__qty">' + esc(qtyText(i)) + '</span>' +
-              '<span class="ingredient__name">' + esc(name) +
-              (showOpt ? ' (optionnel)' : '') + '</span></li>';
+      h += '<li class="' + cls + '">' +
+           '<span class="ingredient__qty">' + esc(qtyText(i, mult)) + '</span>' +
+           '<span class="ingredient__name">' + esc(name) +
+           (showOpt ? ' (optionnel)' : '') + '</span></li>';
     });
-    html += '</ul>';
+    return h;
+  }
+
+  if (ings.length) {
+    html += '<h2 class="section-title">Ingrédients</h2><ul class="ingredients" id="ing-list">' +
+            renderIngredients(1) + '</ul>';
   }
 
   var steps = r.steps || [];
@@ -356,6 +529,20 @@ async function viewRecipe(slug) {
           emptyState('Chargement…') + '</div>';
 
   render(html);
+
+  if (baseServings) {
+    document.querySelectorAll('.srv-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var delta = parseInt(btn.getAttribute('data-srv'));
+        curServings = Math.max(1, curServings + delta);
+        ratio = curServings / baseServings;
+        var counter = document.getElementById('srv-count');
+        if (counter) counter.textContent = curServings;
+        var list = document.getElementById('ing-list');
+        if (list) list.innerHTML = renderIngredients(ratio);
+      });
+    });
+  }
 
   try {
     var ex = await api('/recipes/' + encodeURIComponent(slug) + '/executions');
@@ -551,7 +738,7 @@ async function route() {
     window.scrollTo(0, 0);
   } catch (e) {
     render(emptyState('Impossible de charger cette page',
-                      'Le serveur est peut-être indisponible. Réessayez dans un instant.'));
+                      e.message || 'Le serveur est peut-être indisponible.'));
   }
 }
 
@@ -601,5 +788,206 @@ try {
   var saved = localStorage.getItem(THEME_KEY);
   applyTheme(saved || 'light');
 } catch (e) { applyTheme('light'); }
+
+/* ── Bouton micro (STT) — visible seulement si MediaRecorder existe ── */
+
+var _micRecording = false;
+var _micRecorder = null;
+var _micChunks = [];
+
+function initMic() {
+  if (typeof MediaRecorder === 'undefined' ||
+      !navigator.mediaDevices ||
+      !navigator.mediaDevices.getUserMedia) return;
+
+  var fab = document.createElement('button');
+  fab.className = 'mic-fab';
+  fab.setAttribute('aria-label', 'Commande vocale');
+  fab.innerHTML = '<svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">' +
+    '<path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>' +
+    '<path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>' +
+    '</svg>';
+  document.body.appendChild(fab);
+
+  var panel = document.createElement('div');
+  panel.id = 'mic-panel';
+  panel.className = 'mic-panel';
+  panel.style.display = 'none';
+  panel.innerHTML =
+    '<div class="mic-panel__head">' +
+      '<span class="mic-panel__title">Commande vocale</span>' +
+      '<button class="mic-panel__close" aria-label="Fermer">✕</button>' +
+    '</div>' +
+    '<div class="mic-panel__status"></div>' +
+    '<div class="mic-panel__transcript"></div>' +
+    '<div class="mic-panel__intent"></div>';
+  document.body.appendChild(panel);
+
+  panel.querySelector('.mic-panel__close').addEventListener('click', function () {
+    panel.style.display = 'none';
+  });
+
+  fab.addEventListener('click', function () {
+    if (_micRecording) {
+      stopMic();
+    } else {
+      startMic(fab);
+    }
+  });
+}
+
+function startMic(fab) {
+  navigator.mediaDevices.getUserMedia({ audio: true }).then(function (stream) {
+    _micChunks = [];
+    _micRecorder = new MediaRecorder(stream);
+    _micRecorder.ondataavailable = function (e) {
+      if (e.data && e.data.size > 0) _micChunks.push(e.data);
+    };
+    _micRecorder.onstop = function () {
+      stream.getTracks().forEach(function (t) { t.stop(); });
+      var blob = new Blob(_micChunks, { type: 'audio/webm' });
+      uploadAudio(blob);
+    };
+    _micRecorder.start();
+    _micRecording = true;
+    fab.classList.add('mic-fab--active');
+    showMicPanel('recording', 'Parlez…', null);
+  }).catch(function () {
+    showMicPanel('error', 'Micro refusé', null);
+  });
+}
+
+function stopMic() {
+  if (_micRecorder && _micRecorder.state === 'recording') {
+    _micRecorder.stop();
+  }
+  _micRecording = false;
+  var fab = document.querySelector('.mic-fab');
+  if (fab) fab.classList.remove('mic-fab--active');
+  showMicPanel('processing', 'Traitement…', null);
+}
+
+function uploadAudio(blob) {
+  var form = new FormData();
+  form.append('file', blob, 'voice.webm');
+  fetch(API + '/audio', { method: 'POST', body: form })
+    .then(function (r) {
+      if (!r.ok) throw new Error(r.status + '');
+      return r.json();
+    })
+    .then(function (data) {
+      handleVoiceResult(data);
+    })
+    .catch(function (e) {
+      showMicPanel('error', 'Erreur : ' + e.message, null);
+    });
+}
+
+function handleVoiceResult(data) {
+  var t = data.transcript || '';
+  var intent = data.intent || {};
+  var action = intent.action || 'unknown';
+
+  if (action === 'unknown') {
+    showMicPanel('error', t || 'Rien entendu', {action: 'unknown'});
+    return;
+  }
+
+  showMicPanel('success', t, intent);
+
+  if (action === 'search_recipe') {
+    window.location.hash = '#/recettes';
+    setTimeout(function () {
+      state.q = intent.query || '';
+      var searchEl = document.getElementById('search');
+      if (searchEl) searchEl.value = state.q;
+      loadRecipes().then(function (d) { paintRecipes(d.total); });
+    }, 100);
+    return;
+  }
+
+  if (action === 'adjust_servings') {
+    var delta = intent.delta || 0;
+    var srvBtn = document.querySelector('.srv-btn[data-srv="' +
+      (delta > 0 ? '+1' : '-1') + '"]');
+    if (srvBtn && delta) {
+      var clicks = Math.abs(delta);
+      for (var ci = 0; ci < clicks; ci++) srvBtn.click();
+    }
+    return;
+  }
+}
+
+var ACTION_LABELS = {
+  search_recipe: 'Rechercher',
+  adjust_servings: 'Portions',
+  product_blacklist: 'Exclure produit',
+  recipe_note: 'Note recette',
+  recipe_edit_step: 'Modifier étape',
+  meal_feedback: 'Avis repas',
+  pantry_leftover: 'Reste',
+  swap_recipe: 'Changer recette',
+  unknown: 'Non reconnu'
+};
+
+function formatIntentDetail(intent) {
+  if (!intent) return '';
+  var parts = [];
+  var action = intent.action || 'unknown';
+  if (intent.query) parts.push(intent.query);
+  if (intent.product) parts.push(intent.product);
+  if (intent.ingredient) parts.push(intent.ingredient);
+  if (intent.dish) parts.push(intent.dish);
+  if (intent.note) parts.push(intent.note);
+  if (intent.convive) parts.push(intent.convive);
+  if (intent.recipe) parts.push(intent.recipe);
+  if (intent.delta) parts.push((intent.delta > 0 ? '+' : '') + intent.delta);
+  if (intent.servings) parts.push(intent.servings + ' pers.');
+  if (intent.step) parts.push('étape ' + intent.step);
+  if (intent.slot) parts.push(intent.slot);
+  if (intent.day) parts.push(intent.day);
+  if (intent.liked === true) parts.push('👍');
+  if (intent.liked === false) parts.push('👎');
+  return parts.join(' · ');
+}
+
+function showMicPanel(status, transcript, intent) {
+  var panel = document.getElementById('mic-panel');
+  if (!panel) return;
+  panel.style.display = '';
+
+  var statusEl = panel.querySelector('.mic-panel__status');
+  var transcriptEl = panel.querySelector('.mic-panel__transcript');
+  var intentEl = panel.querySelector('.mic-panel__intent');
+
+  panel.className = 'mic-panel mic-panel--' + status;
+
+  if (status === 'recording') {
+    statusEl.innerHTML = '<span class="mic-panel__dot"></span> Enregistrement…';
+    transcriptEl.textContent = '';
+    intentEl.textContent = '';
+    return;
+  }
+  if (status === 'processing') {
+    statusEl.innerHTML = '<span class="mic-panel__spinner"></span> Analyse…';
+    transcriptEl.textContent = transcript || '';
+    intentEl.textContent = '';
+    return;
+  }
+
+  statusEl.textContent = '';
+  transcriptEl.textContent = transcript ? '« ' + transcript + ' »' : '';
+
+  if (intent && intent.action) {
+    var label = ACTION_LABELS[intent.action] || intent.action;
+    var detail = formatIntentDetail(intent);
+    intentEl.innerHTML = '<span class="mic-panel__action">' + label + '</span>' +
+      (detail ? ' <span class="mic-panel__detail">' + detail + '</span>' : '');
+  } else {
+    intentEl.textContent = '';
+  }
+}
+
+initMic();
 
 route();

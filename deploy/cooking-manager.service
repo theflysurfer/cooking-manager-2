@@ -7,12 +7,15 @@ Wants=network.target
 Type=simple
 User=automation
 WorkingDirectory=/opt/cooking-manager-2
-ExecStart=/opt/cooking-manager-2/.venv/bin/python -m uvicorn backend.app:app --host 127.0.0.1 --port 8795
+ExecStart=/opt/cooking-manager-2/deploy/run-with-cred.sh
 Restart=on-failure
 RestartSec=5
 Environment=DATABASE_URL=postgresql://cooking:cooking@127.0.0.1:5432/cooking_manager
 Environment=VAULT_ROOT=/mnt/dropbox-full/JULIEN/Obsidian/vault/Noyau/Cuisine
 Environment=PORT=8795
+Environment=OLLAMA_URL=https://ollama.com
+LoadCredentialEncrypted=cooking-deepgram-key:/etc/credstore.encrypted/cooking-deepgram-key
+LoadCredentialEncrypted=cooking-ollama-key:/etc/credstore.encrypted/cooking-ollama-key
 
 [Install]
 WantedBy=multi-user.target

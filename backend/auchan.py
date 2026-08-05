@@ -269,20 +269,20 @@ async def scrape_product_detail(auchan_url: str) -> ProductDetail:
             if label and "information" not in label and "pour" not in label:
                 detail.nutrition[label] = value
 
-    # Ingredients
-    for el in tree.css("[class*='feature--single'], [class*='feature-wrapper']"):
-        txt = el.text(strip=True)
-        if txt.lower().startswith("ingrédient"):
-            detail.ingredients = txt.replace("Ingrédients", "").strip()
-        elif txt.lower().startswith("allergène"):
-            detail.allergens = txt.replace("Allergènes", "").strip()
-
-    # Characteristics
+    # Ingredients, allergens, and characteristics from feature groups
     for group in tree.css("[class*='feature-group-wrapper']"):
-        txt = group.text(strip=True)
-        parts = re.split(r"(?<=[a-zé])(?=[A-Z])", txt, maxsplit=1)
-        if len(parts) == 2:
-            detail.characteristics[parts[0].strip()] = parts[1].strip()
+        label_el = group.css_first("[class*='feature-label']")
+        values_el = group.css_first("[class*='feature-values']")
+        if not label_el:
+            continue
+        label = label_el.text(strip=True).lower()
+        value = values_el.text(strip=True) if values_el else ""
+        if "ingrédient" in label:
+            detail.ingredients = re.sub(r"^Ingrédients\s*:\s*", "", value).strip()
+        elif "allergène" in label:
+            detail.allergens = re.sub(r"^Allergènes\s*:\s*", "", value).strip()
+        elif label and value:
+            detail.characteristics[label_el.text(strip=True)] = value
 
     # Description
     desc_el = tree.css_first("[class*='product-description__content']")

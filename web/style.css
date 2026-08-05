@@ -273,6 +273,36 @@ h1, h2, h3, .u-heading {
 }
 .conflict strong { font-weight: 700; }
 
+/* Plat lié à une fiche recette — cliquable */
+.slot__dish--linked {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  color: var(--text-strong);
+  text-decoration: none;
+  cursor: pointer;
+  min-height: var(--tap);
+  padding: 4px 0;
+}
+.slot__dish--linked:active { color: var(--accent); }
+.slot__arrow {
+  color: var(--accent);
+  font-size: 1.1rem;
+  margin-left: var(--sp-1);
+  flex-shrink: 0;
+}
+.slot__tag {
+  font-family: var(--font-heading);
+  font-size: 0.52rem;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  padding: 1px 6px;
+  vertical-align: middle;
+  margin-left: 6px;
+}
+
 .day--away { opacity: 0.55; }
 .day__away-note {
   font-size: 0.72rem;
@@ -399,7 +429,26 @@ h1, h2, h3, .u-heading {
   width: 100%; height: 100%; object-fit: cover;
 }
 
-.recipe__title { font-size: 1.5rem; margin-bottom: var(--sp-2); }
+.recipe__title { font-size: 1.5rem; margin-bottom: var(--sp-1); }
+
+.recipe__tags { margin-bottom: var(--sp-2); }
+.recipe__tag {
+  display: inline-block;
+  font-family: var(--font-heading);
+  font-size: 0.56rem;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  padding: 3px 8px;
+  margin: 0 4px 4px 0;
+}
+
+.recipe__love {
+  font-size: 0.82rem;
+  color: var(--text);
+  margin-bottom: var(--sp-2);
+}
 
 /* Bandeau de stats — reprise du pattern Jow */
 .stats {
@@ -425,6 +474,32 @@ h1, h2, h3, .u-heading {
   letter-spacing: 1.5px;
   text-transform: uppercase;
   color: var(--text-muted);
+}
+
+.srv-btn {
+  display: inline-block;
+  width: 1.8rem;
+  height: 1.8rem;
+  line-height: 1.7rem;
+  border: 1.5px solid var(--accent);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--accent);
+  font-size: 1.1rem;
+  font-weight: 600;
+  cursor: pointer;
+  vertical-align: middle;
+  padding: 0;
+  -webkit-appearance: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.srv-btn:active { background: var(--accent); color: #fff; }
+#srv-count {
+  display: inline-block;
+  min-width: 1.5rem;
+  text-align: center;
+  vertical-align: middle;
+  margin: 0 0.3rem;
 }
 
 .ingredients { list-style: none; }
@@ -640,4 +715,293 @@ h1, h2, h3, .u-heading {
   /* En colonne étroite, la gouttière de 88 px mange le texte. */
   .need__qty { display: block; min-width: 0; }
   .need__why, .need__pantry, .need__actions { padding-left: 0; }
+}
+
+/* ── Bouton Changer (swap recipe in menu) ─────────────────────────── */
+.swap-btn {
+  display: inline-block;
+  font-family: var(--font-heading);
+  font-size: 0.55rem;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: var(--accent);
+  background: transparent;
+  border: 1px solid var(--accent);
+  border-radius: 3px;
+  padding: 2px 8px;
+  margin-left: 8px;
+  cursor: pointer;
+  vertical-align: middle;
+  -webkit-appearance: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.swap-btn:active { background: var(--accent); color: #fff; }
+
+/* ── Picker (recipe selector overlay) ─────────────────────────────── */
+.picker {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  z-index: 900;
+}
+.picker__backdrop {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.45);
+}
+.picker__panel {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  max-height: 80vh;
+  background: var(--bg);
+  border-radius: 12px 12px 0 0;
+  display: -webkit-flex;
+  display: flex;
+  -webkit-flex-direction: column;
+  flex-direction: column;
+  overflow: hidden;
+}
+.picker__head {
+  display: -webkit-flex;
+  display: flex;
+  -webkit-align-items: center;
+  align-items: center;
+  -webkit-justify-content: space-between;
+  justify-content: space-between;
+  padding: 12px 16px 8px;
+}
+.picker__head h2 {
+  font-family: var(--font-heading);
+  font-size: 0.72rem;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--text-strong);
+  margin: 0;
+  font-weight: 400;
+}
+.picker__close {
+  background: none;
+  border: none;
+  font-size: 1.2rem;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 4px;
+  -webkit-appearance: none;
+}
+.picker__search {
+  margin: 0 16px 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-family: var(--font-body);
+  color: var(--text);
+  background: var(--surface);
+  -webkit-appearance: none;
+}
+.picker__search:focus { outline: none; border-color: var(--accent); }
+.picker__list {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 0 16px 16px;
+  -webkit-flex: 1;
+  flex: 1;
+}
+.picker__item {
+  display: -webkit-flex;
+  display: flex;
+  -webkit-align-items: center;
+  align-items: center;
+  width: 100%;
+  padding: 8px 0;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  -webkit-appearance: none;
+  -webkit-tap-highlight-color: transparent;
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 0.85rem;
+}
+.picker__item:active { background: var(--surface-alt); }
+.picker__thumb {
+  width: 40px;
+  height: 40px;
+  border-radius: 6px;
+  object-fit: cover;
+  margin-right: 12px;
+  -webkit-flex-shrink: 0;
+  flex-shrink: 0;
+}
+.picker__thumb--empty {
+  display: -webkit-flex;
+  display: flex;
+  -webkit-align-items: center;
+  align-items: center;
+  -webkit-justify-content: center;
+  justify-content: center;
+  background: var(--surface-alt);
+  color: var(--text-muted);
+  font-family: var(--font-heading);
+  font-size: 1rem;
+}
+.picker__name { -webkit-flex: 1; flex: 1; }
+
+/* ── Bouton micro flottant (FAB) ──────────────────────────────────── */
+.mic-fab {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  z-index: 800;
+  display: -webkit-flex;
+  display: flex;
+  -webkit-align-items: center;
+  align-items: center;
+  -webkit-justify-content: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.18);
+  -webkit-appearance: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.mic-fab:active { -webkit-transform: scale(0.92); transform: scale(0.92); }
+.mic-fab--active {
+  background: #E53935;
+  -webkit-animation: mic-pulse 1.2s infinite;
+  animation: mic-pulse 1.2s infinite;
+}
+@-webkit-keyframes mic-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(229,57,53,0.4); }
+  50% { box-shadow: 0 0 0 12px rgba(229,57,53,0); }
+}
+@keyframes mic-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(229,57,53,0.4); }
+  50% { box-shadow: 0 0 0 12px rgba(229,57,53,0); }
+}
+
+/* Panneau vocal (transcription + intent) */
+.mic-panel {
+  position: fixed;
+  bottom: 80px;
+  right: 16px;
+  width: 280px;
+  max-width: calc(100% - 32px);
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.15);
+  z-index: 810;
+  font-family: var(--font-body);
+  overflow: hidden;
+}
+[data-theme="dark"] .mic-panel { background: #2a2a2a; color: #e8e8e8; }
+.mic-panel__head {
+  display: -webkit-box; display: -webkit-flex; display: flex;
+  -webkit-box-align: center; -webkit-align-items: center; align-items: center;
+  -webkit-box-pack: justify; -webkit-justify-content: space-between; justify-content: space-between;
+  padding: 8px 12px;
+  border-bottom: 1px solid rgba(0,0,0,0.06);
+}
+[data-theme="dark"] .mic-panel__head { border-color: rgba(255,255,255,0.08); }
+.mic-panel__title {
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #999;
+}
+.mic-panel__close {
+  background: none;
+  border: none;
+  font-size: 1rem;
+  color: #999;
+  cursor: pointer;
+  padding: 0 2px;
+  line-height: 1;
+}
+.mic-panel__close:hover { color: #333; }
+[data-theme="dark"] .mic-panel__close:hover { color: #ddd; }
+.mic-panel__status {
+  padding: 6px 12px 0;
+  font-size: 0.78rem;
+  color: #888;
+}
+.mic-panel__status:empty { display: none; }
+.mic-panel__transcript {
+  padding: 8px 12px 4px;
+  font-size: 0.85rem;
+  font-style: italic;
+  color: #444;
+  line-height: 1.35;
+  word-break: break-word;
+}
+.mic-panel__transcript:empty { display: none; }
+[data-theme="dark"] .mic-panel__transcript { color: #ccc; }
+.mic-panel__intent {
+  padding: 4px 12px 10px;
+  font-size: 0.8rem;
+  color: #222;
+}
+.mic-panel__intent:empty { display: none; }
+[data-theme="dark"] .mic-panel__intent { color: #ddd; }
+.mic-panel__action {
+  display: inline-block;
+  background: var(--accent, #E8B931);
+  color: #fff;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  vertical-align: middle;
+}
+.mic-panel--error .mic-panel__action { background: #757575; }
+.mic-panel__detail {
+  color: #666;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+[data-theme="dark"] .mic-panel__detail { color: #aaa; }
+
+/* Indicateurs d'état (dot + spinner) */
+.mic-panel__dot {
+  display: inline-block;
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: #E53935;
+  margin-right: 6px;
+  vertical-align: middle;
+  -webkit-animation: mic-pulse 1.2s infinite;
+  animation: mic-pulse 1.2s infinite;
+}
+@-webkit-keyframes mic-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+@keyframes mic-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+.mic-panel__spinner {
+  display: inline-block;
+  width: 12px; height: 12px;
+  border: 2px solid var(--accent, #E8B931);
+  border-top-color: transparent;
+  border-radius: 50%;
+  margin-right: 6px;
+  vertical-align: middle;
+  -webkit-animation: mic-spin 0.8s linear infinite;
+  animation: mic-spin 0.8s linear infinite;
+}
+@-webkit-keyframes mic-spin {
+  to { -webkit-transform: rotate(360deg); transform: rotate(360deg); }
+}
+@keyframes mic-spin {
+  to { -webkit-transform: rotate(360deg); transform: rotate(360deg); }
 }
