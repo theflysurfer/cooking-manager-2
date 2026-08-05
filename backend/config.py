@@ -22,3 +22,6 @@ DEEPGRAM_LANGUAGE = os.environ.get("DEEPGRAM_LANGUAGE", "fr")
 OLLAMA_URL = os.environ.get("OLLAMA_URL", "https://ollama.com")
 OLLAMA_API_KEY = os.environ.get("OLLAMA_API_KEY", "")
 OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "qwen3.5:cloud")
+
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
+GROQ_MODEL = os.environ.get("GROQ_MODEL", "qwen/qwen3.6-27b")

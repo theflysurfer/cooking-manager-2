@@ -16,6 +16,8 @@ from .config import (
     DEEPGRAM_API_KEY,
     DEEPGRAM_LANGUAGE,
     DEEPGRAM_MODEL,
+    GROQ_API_KEY,
+    GROQ_MODEL,
     OLLAMA_API_KEY,
     OLLAMA_MODEL,
     OLLAMA_URL,
@@ -85,8 +87,8 @@ async def transcribe(audio_bytes: bytes, content_type: str = "audio/webm") -> st
             r.raise_for_status()
     except httpx.TimeoutException:
         log.error("Deepgram timeout after 30s")
-        raise RuntimeError("Deepgram timeout")
-        data = r.json()
+        raise RuntimeError("Deepgram timeout") from None
+    data = r.json()
 
     channels = data.get("results", {}).get("channels", [])
     if not channels:
@@ -97,13 +99,37 @@ async def transcribe(audio_bytes: bytes, content_type: str = "audio/webm") -> st
     return alternatives[0].get("transcript", "")
 
 
-async def interpret(transcript: str) -> dict:
-    """Resolve transcript to a structured intent via Ollama cloud."""
-    if not OLLAMA_API_KEY:
-        raise RuntimeError("OLLAMA_API_KEY not configured")
-    if not transcript.strip():
-        return {"action": "unknown", "text": ""}
+async def _interpret_groq(transcript: str) -> str:
+    """Resolve transcript via Groq (OpenAI-compatible, ~<1s)."""
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            r = await client.post(
+                "https://api.groq.com/openai/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {GROQ_API_KEY}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": GROQ_MODEL,
+                    "response_format": {"type": "json_object"},
+                    "reasoning_effort": "none",
+                    "messages": [
+                        {"role": "system", "content": SYSTEM_PROMPT},
+                        {"role": "user", "content": transcript},
+                    ],
+                },
+            )
+    except httpx.TimeoutException:
+        log.error("Groq timeout after 15s (model=%s)", GROQ_MODEL)
+        raise RuntimeError(f"Groq timeout (model={GROQ_MODEL})") from None
+    if not r.is_success:
+        log.error("Groq %d: %s (model=%s)", r.status_code, r.text[:200], GROQ_MODEL)
+        raise RuntimeError(f"Groq error {r.status_code} (model={GROQ_MODEL})")
+    return r.json()["choices"][0]["message"]["content"]
 
+
+async def _interpret_ollama(transcript: str) -> str:
+    """Resolve transcript via Ollama cloud (fallback, slower)."""
     try:
         async with httpx.AsyncClient(timeout=120) as client:
             r = await client.post(
@@ -121,13 +147,25 @@ async def interpret(transcript: str) -> dict:
             )
     except httpx.TimeoutException:
         log.error("Ollama timeout after 120s (model=%s)", OLLAMA_MODEL)
-        raise RuntimeError(f"Ollama timeout (model={OLLAMA_MODEL})")
+        raise RuntimeError(f"Ollama timeout (model={OLLAMA_MODEL})") from None
     if not r.is_success:
         log.error("Ollama %d: %s (model=%s)", r.status_code, r.text[:200], OLLAMA_MODEL)
         raise RuntimeError(f"Ollama error {r.status_code} (model={OLLAMA_MODEL})")
-        data = r.json()
+    return r.json().get("message", {}).get("content", "{}")
 
-    raw = data.get("message", {}).get("content", "{}")
+
+async def interpret(transcript: str) -> dict:
+    """Resolve transcript to a structured intent. Groq first, Ollama fallback."""
+    if not transcript.strip():
+        return {"action": "unknown", "text": ""}
+
+    if GROQ_API_KEY:
+        raw = await _interpret_groq(transcript)
+    elif OLLAMA_API_KEY:
+        raw = await _interpret_ollama(transcript)
+    else:
+        raise RuntimeError("No LLM API key configured (GROQ_API_KEY or OLLAMA_API_KEY)")
+
     raw = re.sub(r"^```(?:json)?\s*", "", raw.strip())
     raw = re.sub(r"\s*```$", "", raw)
     try:

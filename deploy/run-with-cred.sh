@@ -7,6 +7,8 @@ if [ -n "$CREDENTIALS_DIRECTORY" ]; then
     export DEEPGRAM_API_KEY=$(cat "$CREDENTIALS_DIRECTORY/cooking-deepgram-key")
   [ -f "$CREDENTIALS_DIRECTORY/cooking-ollama-key" ] && \
     export OLLAMA_API_KEY=$(cat "$CREDENTIALS_DIRECTORY/cooking-ollama-key")
+  [ -f "$CREDENTIALS_DIRECTORY/groq-key" ] && \
+    export GROQ_API_KEY=$(cat "$CREDENTIALS_DIRECTORY/groq-key")
 fi
 
 exec /opt/cooking-manager-2/.venv/bin/python -m uvicorn backend.app:app --host 127.0.0.1 --port 8795
