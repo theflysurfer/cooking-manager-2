@@ -123,12 +123,13 @@ Client reverse-engineered (`backend/auchan.py`). Auth : Bearer JWT Keycloak + `x
 
 ## Commande vocale (STT + LLM)
 
-Pipeline : MediaRecorder (front) → `POST /api/audio` → Deepgram prerecorded (STT) → Ollama cloud (intent JSON) → exécution. Panneau `#mic-panel` affiche la transcription et l'action interprétée.
+Pipeline : MediaRecorder (front) → `POST /api/audio` → Deepgram prerecorded (STT) → Groq LLM (intent JSON) → exécution. Panneau `#mic-panel` affiche la transcription et l'action interprétée.
 
-- **Modèle Ollama** : `qwen3.5:cloud` — le naming est spécifique (`qwen3-coder:cloud` et `qwen3:32b-cloud` n'existent pas)
-- **Credentials** : credstore systemd (`cooking-deepgram-key`, `cooking-ollama-key`), lues par `deploy/run-with-cred.sh`
+- **LLM intent** : Groq `qwen/qwen3.6-27b` (`reasoning_effort: "none"`, ~300 ms). Ollama cloud en fallback si `GROQ_API_KEY` absent
+- **Credentials** : credstore systemd (`cooking-deepgram-key`, `cooking-ollama-key`, `groq-key` partagé avec bibliotheque), lues par `deploy/run-with-cred.sh`
 - **MediaRecorder** exige Safari 14.5+ — le FAB micro est **masqué** sur Safari 12 (feature-detect). Le panneau vocal n'apparaît jamais sur l'iPad mini 2
 - **8 intents** : `search_recipe`, `adjust_servings`, `product_blacklist`, `recipe_note`, `recipe_edit_step`, `meal_feedback`, `pantry_leftover`, `swap_recipe`
+- **Câblés** (3/8) : `search_recipe`, `adjust_servings`, `swap_recipe` — les 5 autres sont reconnus mais pas exécutés
 
 ## Gotchas
 
