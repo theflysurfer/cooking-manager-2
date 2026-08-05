@@ -66,22 +66,26 @@ async def transcribe(audio_bytes: bytes, content_type: str = "audio/webm") -> st
     if not DEEPGRAM_API_KEY:
         raise RuntimeError("DEEPGRAM_API_KEY not configured")
 
-    async with httpx.AsyncClient(timeout=30) as client:
-        r = await client.post(
-            "https://api.deepgram.com/v1/listen",
-            headers={
-                "Authorization": f"Token {DEEPGRAM_API_KEY}",
-                "Content-Type": content_type,
-            },
-            params={
-                "model": DEEPGRAM_MODEL,
-                "language": DEEPGRAM_LANGUAGE,
-                "smart_format": "true",
-                "punctuate": "true",
-            },
-            content=audio_bytes,
-        )
-        r.raise_for_status()
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            r = await client.post(
+                "https://api.deepgram.com/v1/listen",
+                headers={
+                    "Authorization": f"Token {DEEPGRAM_API_KEY}",
+                    "Content-Type": content_type,
+                },
+                params={
+                    "model": DEEPGRAM_MODEL,
+                    "language": DEEPGRAM_LANGUAGE,
+                    "smart_format": "true",
+                    "punctuate": "true",
+                },
+                content=audio_bytes,
+            )
+            r.raise_for_status()
+    except httpx.TimeoutException:
+        log.error("Deepgram timeout after 30s")
+        raise RuntimeError("Deepgram timeout")
         data = r.json()
 
     channels = data.get("results", {}).get("channels", [])
@@ -100,23 +104,27 @@ async def interpret(transcript: str) -> dict:
     if not transcript.strip():
         return {"action": "unknown", "text": ""}
 
-    async with httpx.AsyncClient(timeout=60) as client:
-        r = await client.post(
-            f"{OLLAMA_URL}/api/chat",
-            headers={"Authorization": f"Bearer {OLLAMA_API_KEY}"},
-            json={
-                "model": OLLAMA_MODEL,
-                "stream": False,
-                "format": "json",
-                "messages": [
-                    {"role": "system", "content": SYSTEM_PROMPT},
-                    {"role": "user", "content": transcript},
-                ],
-            },
-        )
-        if not r.is_success:
-            log.error("Ollama %d: %s (model=%s)", r.status_code, r.text[:200], OLLAMA_MODEL)
-            raise RuntimeError(f"Ollama error {r.status_code} (model={OLLAMA_MODEL})")
+    try:
+        async with httpx.AsyncClient(timeout=120) as client:
+            r = await client.post(
+                f"{OLLAMA_URL}/api/chat",
+                headers={"Authorization": f"Bearer {OLLAMA_API_KEY}"},
+                json={
+                    "model": OLLAMA_MODEL,
+                    "stream": False,
+                    "format": "json",
+                    "messages": [
+                        {"role": "system", "content": SYSTEM_PROMPT},
+                        {"role": "user", "content": transcript},
+                    ],
+                },
+            )
+    except httpx.TimeoutException:
+        log.error("Ollama timeout after 120s (model=%s)", OLLAMA_MODEL)
+        raise RuntimeError(f"Ollama timeout (model={OLLAMA_MODEL})")
+    if not r.is_success:
+        log.error("Ollama %d: %s (model=%s)", r.status_code, r.text[:200], OLLAMA_MODEL)
+        raise RuntimeError(f"Ollama error {r.status_code} (model={OLLAMA_MODEL})")
         data = r.json()
 
     raw = data.get("message", {}).get("content", "{}")
