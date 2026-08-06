@@ -56,6 +56,21 @@ Actions possibles :
 8. search_recipe — chercher une recette
    {"action": "search_recipe", "query": "poulet"}
 
+9. pantry_bulk_update — inventaire du garde-manger (liste de produits)
+   L'utilisateur énumère ce qu'il a / ce qu'il vient d'acheter.
+   Extrais CHAQUE produit avec sa quantité et classe-le dans une section.
+   Sections possibles : Frais — Légumes & Fruits, Frais — Protéines,
+   Surgelés, Sec — Féculents & Légumineuses, Sec — Conserves & Bocaux,
+   Sec — Farines, Céréales, Sucres, Sec — Fruits Secs & Graines,
+   Sec — Aide Culinaire & Panure, Sec — Pâtes à Tartiner & Purées,
+   Condiments & Huiles, Épices & Herbes, Pâtisserie & Levures,
+   Bouillons & Fonds, Sec — Protéines & Compléments.
+   {"action": "pantry_bulk_update", "items": [
+     {"name": "Tomates", "qty_text": "1 kg", "section": "Frais — Légumes & Fruits"},
+     {"name": "Yaourts nature", "qty_text": "x6", "section": "Frais — Protéines"},
+     {"name": "Penne rigate", "qty_text": "500g", "section": "Sec — Féculents & Légumineuses"}
+   ]}
+
 Si la phrase ne correspond à aucune action, renvoie :
    {"action": "unknown", "text": "<phrase originale>"}
 

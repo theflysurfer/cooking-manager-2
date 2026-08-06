@@ -1162,6 +1162,115 @@ function handleVoiceResult(data) {
     }
     return;
   }
+
+  if (action === 'pantry_bulk_update') {
+    var items = intent.items;
+    if (items && items.length) {
+      showBulkConfirm(items);
+    }
+    return;
+  }
+}
+
+
+/* ── Écran de confirmation bulk garde-manger ─────────────────────── */
+
+function showBulkConfirm(items) {
+  var existing = document.getElementById('bulk-confirm');
+  if (existing) existing.parentNode.removeChild(existing);
+
+  var overlay = document.createElement('div');
+  overlay.id = 'bulk-confirm';
+  overlay.className = 'bulk-overlay';
+
+  var html = '<div class="bulk-panel">' +
+    '<div class="bulk-panel__head">' +
+      '<span class="bulk-panel__title">Inventaire vocal</span>' +
+      '<span class="bulk-panel__count">' + items.length + ' produit' + (items.length > 1 ? 's' : '') + '</span>' +
+    '</div>' +
+    '<ul class="bulk-list">';
+
+  for (var i = 0; i < items.length; i++) {
+    var it = items[i];
+    html += '<li class="bulk-item" data-idx="' + i + '">' +
+      '<span class="bulk-item__name">' + esc(it.name) + '</span>' +
+      (it.qty_text ? '<span class="bulk-item__qty">' + esc(it.qty_text) + '</span>' : '') +
+      '<span class="bulk-item__section">' + esc(it.section) + '</span>' +
+      '<button class="bulk-item__rm" data-idx="' + i + '" aria-label="Retirer">✕</button>' +
+    '</li>';
+  }
+
+  html += '</ul>' +
+    '<div class="bulk-panel__actions">' +
+      '<button class="bulk-btn bulk-btn--cancel">Annuler</button>' +
+      '<button class="bulk-btn bulk-btn--ok">Valider</button>' +
+    '</div>' +
+  '</div>';
+
+  overlay.innerHTML = html;
+  document.body.appendChild(overlay);
+
+  var _items = items.slice();
+
+  overlay.querySelector('.bulk-btn--cancel').addEventListener('click', function () {
+    overlay.parentNode.removeChild(overlay);
+  });
+
+  overlay.addEventListener('click', function (e) {
+    if (e.target === overlay) overlay.parentNode.removeChild(overlay);
+  });
+
+  overlay.addEventListener('click', function (e) {
+    var rm = e.target.closest && e.target.closest('.bulk-item__rm');
+    if (!rm) {
+      if (e.target.className === 'bulk-item__rm' || (e.target.getAttribute && e.target.getAttribute('class') === 'bulk-item__rm')) {
+        rm = e.target;
+      }
+    }
+    if (!rm) return;
+    var idx = parseInt(rm.getAttribute('data-idx'), 10);
+    var li = overlay.querySelector('.bulk-item[data-idx="' + idx + '"]');
+    if (li) li.parentNode.removeChild(li);
+    _items[idx] = null;
+    var remaining = _items.filter(function (x) { return x !== null; });
+    var countEl = overlay.querySelector('.bulk-panel__count');
+    if (countEl) countEl.textContent = remaining.length + ' produit' + (remaining.length > 1 ? 's' : '');
+  });
+
+  overlay.querySelector('.bulk-btn--ok').addEventListener('click', function () {
+    var toSend = _items.filter(function (x) { return x !== null; });
+    if (!toSend.length) {
+      overlay.parentNode.removeChild(overlay);
+      return;
+    }
+    var btn = overlay.querySelector('.bulk-btn--ok');
+    btn.textContent = 'Envoi…';
+    btn.disabled = true;
+
+    fetch(API + '/pantry/bulk', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(toSend)
+    })
+    .then(function (r) {
+      if (!r.ok) throw new Error(r.status + '');
+      return r.json();
+    })
+    .then(function (data) {
+      overlay.parentNode.removeChild(overlay);
+      var msg = data.created + ' ajouté' + (data.created > 1 ? 's' : '') +
+                ', ' + data.updated + ' mis à jour';
+      showMicPanel('success', msg, { action: 'pantry_bulk_update' });
+      if (window.location.hash === '#/garde-manger') route();
+    })
+    .catch(function (e) {
+      btn.textContent = 'Erreur';
+      setTimeout(function () {
+        btn.textContent = 'Valider';
+        btn.disabled = false;
+      }, 2000);
+    });
+  });
 }
 
 var ACTION_LABELS = {
@@ -1173,6 +1282,7 @@ var ACTION_LABELS = {
   meal_feedback: 'Avis repas',
   pantry_leftover: 'Reste',
   swap_recipe: 'Changer recette',
+  pantry_bulk_update: 'Inventaire',
   unknown: 'Non reconnu'
 };
 
@@ -1194,6 +1304,7 @@ function formatIntentDetail(intent) {
   if (intent.day) parts.push(intent.day);
   if (intent.liked === true) parts.push('👍');
   if (intent.liked === false) parts.push('👎');
+  if (intent.items && intent.items.length) parts.push(intent.items.length + ' produits');
   return parts.join(' · ');
 }
 

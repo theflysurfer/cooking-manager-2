@@ -724,6 +724,74 @@ async def delete_pantry_item(item_id: int):
     return {"deleted": row["name"], "id": row["id"]}
 
 
+class PantryBulkItem(BaseModel):
+    name: str
+    section: str = "Frais — Légumes & Fruits"
+    qty_text: str = ""
+
+
+@app.post("/api/pantry/bulk")
+async def bulk_upsert_pantry(items: list[PantryBulkItem]):
+    """Upsert a batch of pantry items (vocal bulk inventory)."""
+    from cooking_manager.ingredients import normalize_name
+    from cooking_manager.pantry import PERISHABLE_HINTS, _parse_qty
+
+    if not items:
+        raise HTTPException(400, "Liste vide")
+    if len(items) > 50:
+        raise HTTPException(400, "50 items maximum par batch")
+
+    pool = await get_pool(DATABASE_DSN)
+    results = []
+    async with pool.acquire() as conn:
+        for item in items:
+            name_normalized = normalize_name(item.name)
+            if not name_normalized:
+                results.append({"name": item.name, "status": "skipped", "reason": "nom vide"})
+                continue
+
+            qty_value, unit = _parse_qty(item.qty_text)
+            perishable = any(h in item.section.lower() for h in PERISHABLE_HINTS)
+
+            existing = await conn.fetchrow(
+                "SELECT id FROM pantry_item WHERE name_normalized = $1 AND section = $2",
+                name_normalized, item.section,
+            )
+            if existing:
+                await conn.execute(
+                    """UPDATE pantry_item SET
+                           qty_text=$1, qty_value=$2, unit=$3, status='ok', xstatus='ok',
+                           perishable=$4, updated_at=NOW(), source='voice'
+                       WHERE id=$5""",
+                    item.qty_text,
+                    float(qty_value) if qty_value is not None else None,
+                    unit, perishable, existing["id"],
+                )
+                results.append({
+                    "id": existing["id"], "name": item.name,
+                    "section": item.section, "status": "updated",
+                })
+            else:
+                row = await conn.fetchrow(
+                    """INSERT INTO pantry_item
+                       (name, name_normalized, section, qty_text, qty_value, unit,
+                        status, xstatus, perishable, entered_at, source)
+                       VALUES ($1,$2,$3,$4,$5,$6,'ok','ok',$7,$8,'voice')
+                       RETURNING id""",
+                    item.name, name_normalized, item.section, item.qty_text,
+                    float(qty_value) if qty_value is not None else None,
+                    unit, perishable, datetime.date.today(),
+                )
+                results.append({
+                    "id": row["id"], "name": item.name,
+                    "section": item.section, "status": "created",
+                })
+
+    created = sum(1 for r in results if r.get("status") == "created")
+    updated = sum(1 for r in results if r.get("status") == "updated")
+    return {"results": results, "created": created, "updated": updated}
+
+
 @app.get("/api/pantry/search")
 async def search_pantry(q: str = Query(..., min_length=1)):
     """Recherche dans le garde-manger par nom (partiel, insensible à la casse)."""
