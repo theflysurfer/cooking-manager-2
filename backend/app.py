@@ -325,22 +325,39 @@ async def menu_compatibility(slug: str):
     }
 
 
-def _load_pantry():
-    """Garde-manger du vault (lecture Markdown directe — utilisé par le
-    différentiel shopping-list qui a besoin de l'objet Pantry complet)."""
-    from cooking_manager.pantry import parse_pantry
-    from cooking_manager.vault import _parse_frontmatter
+async def _pantry_from_db():
+    """Build a Pantry from the DB (source of truth since Phase 1)."""
+    from cooking_manager.pantry import Pantry, PantryItem
 
-    path = Path(VAULT_ROOT) / "Garde-manger.md"
-    if not path.exists():
-        return parse_pantry("")
-    fm, body = _parse_frontmatter(path)
-    updated = fm.get("updated")
-    try:
-        updated = datetime.date.fromisoformat(str(updated)) if updated else None
-    except ValueError:
-        updated = None
-    return parse_pantry(body, updated)
+    pool = await get_pool(DATABASE_DSN)
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """SELECT name, name_normalized, section, qty_text, qty_value, unit,
+                      status, xstatus, entered_at
+                 FROM pantry_item ORDER BY section, name"""
+        )
+        meta = await conn.fetchrow(
+            "SELECT MAX(updated_at) AS last_updated FROM pantry_item"
+        )
+
+    last = meta["last_updated"]
+    updated = last.date() if last and hasattr(last, "date") else last
+
+    items = []
+    for r in rows:
+        items.append(PantryItem(
+            rayon=r["section"],
+            name=r["name"],
+            name_normalized=r["name_normalized"],
+            qty_text=r["qty_text"] or "",
+            qty_value=float(r["qty_value"]) if r["qty_value"] is not None else None,
+            unit=r["unit"],
+            status=r["status"],
+            xstatus=r["xstatus"] or "ok",
+            entered_at=r["entered_at"],
+        ))
+
+    return Pantry(items=items, updated=updated)
 
 
 @app.get("/api/pantry")
@@ -465,7 +482,7 @@ async def menu_shopping_list(
             payload.append((recipe["title"], [dict(r) for r in rows], ratio))
 
     needs = build_needs(payload)
-    pantry = _load_pantry()
+    pantry = await _pantry_from_db()
 
     lines = []
     for need in needs:

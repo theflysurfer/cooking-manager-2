@@ -145,7 +145,7 @@ Pipeline : MediaRecorder (front) → `POST /api/audio` → Deepgram prerecorded 
 - Toute nouvelle colonne dans un CREATE TABLE doit aussi etre dans MIGRATIONS_SQL (`ALTER TABLE ADD COLUMN IF NOT EXISTS`) — le VPS a deja les tables, `CREATE TABLE IF NOT EXISTS` ne rajoute rien
 - `menu_meal.position` est **1-based** en DB (`enumerate(meals, start=1)`) — tout consommateur JS doit faire `position - 1` pour indexer le tableau `menu.meals[]`
 - Après un `rclone copy` vers Dropbox, le mount VPS (`/mnt/dropbox-full`) peut avoir un délai de propagation (~30 s) — relancer `POST /api/ingest` si une recette n'apparaît pas
-- `_load_pantry()` (Markdown) est encore utilisé par `menu_shopping_list()` — ne pas le supprimer tant que le différentiel courses n'est pas migré vers la DB
+- `_pantry_from_db()` remplace `_load_pantry()` — le différentiel courses lit désormais la DB, plus le Markdown
 - Pour le garde-manger, la **DB est la source de vérité** (pas le vault). Le vault est une source d'ingestion parmi d'autres (API, voix, Auchan). Les items `source != 'vault'` survivent à la ré-ingestion
 
 ## Gates avant commit — les trois sont bloquants
