@@ -634,11 +634,19 @@ async function viewCourses() {
     return;
   }
 
-  var data = await api('/menus/' + encodeURIComponent(menu.slug) + '/shopping-list');
+  var showRemaining = state.coursesRemaining !== false;
+  var today = new Date().toISOString().slice(0, 10);
+  var qs = showRemaining ? '?from_date=' + today : '';
+  var data = await api('/menus/' + encodeURIComponent(menu.slug) + '/shopping-list' + qs);
   state.shopping = data;
 
+  var toggleLabel = showRemaining ? 'Semaine complète' : 'Reste de la semaine';
   var html = '<h1 class="page__title">Courses</h1>' +
-    '<p class="page__sub">' + esc(data.title) + ' · ' + esc(data.covers) + ' couverts · ' +
+    '<div class="toggle-bar"><button class="btn btn--toggle" onclick="toggleCoursesScope()">' +
+    esc(toggleLabel) + '</button></div>' +
+    '<p class="page__sub">' + esc(data.title) +
+    (showRemaining ? ' · à partir d\'aujourd\'hui' : '') +
+    ' · ' + esc(data.covers) + ' couverts · ' +
     esc(data.recipes_matched) + ' recettes reliées</p>';
 
   // L'âge de l'inventaire est une donnée de premier plan, pas une note de bas
@@ -680,8 +688,11 @@ async function viewCourses() {
   render(html);
 }
 
-/* Les 4 gestes écrivent dans le vault. Le retour porte `needs_bisync` : sans
-   bisync, l'écriture reste locale (l'app Dropbox desktop est désactivée). */
+function toggleCoursesScope() {
+  state.coursesRemaining = state.coursesRemaining === false;
+  viewCourses();
+}
+
 async function applyPantryGesture(li, action) {
   var pantryName = li.getAttribute('data-pantry');
   if (!pantryName) return;

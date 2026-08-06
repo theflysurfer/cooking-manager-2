@@ -363,7 +363,9 @@ async def get_pantry():
 
 
 @app.get("/api/menus/{slug}/shopping-list")
-async def menu_shopping_list(slug: str, covers: int | None = None):
+async def menu_shopping_list(
+    slug: str, covers: int | None = None, from_date: str | None = None,
+):
     """Menu → liste de courses différentielle, groupée par recette.
 
     Trois étapes, dans cet ordre :
@@ -387,14 +389,21 @@ async def menu_shopping_list(slug: str, covers: int | None = None):
         # Les repas sont reliés aux recettes à l'ingestion (`menu_meal`), plus
         # devinés à chaque appel : deux appels successifs donnaient auparavant
         # deux listes différentes si une recette venait d'être ajoutée.
+        date_filter = ""
+        params: list = [slug]
+        if from_date:
+            date_filter = " AND (mm.day IS NULL OR mm.day >= $2)"
+            params.append(datetime.date.fromisoformat(from_date))
+
         rows = await conn.fetch(
             """SELECT mm.slot, mm.dish, mm.day_label, mm.match_kind,
                       r.id, r.slug, r.title, r.servings
                  FROM menu_meal mm
                  LEFT JOIN recipe r ON r.id = mm.recipe_id
-                WHERE mm.menu_id = (SELECT id FROM menu WHERE slug = $1)
-             ORDER BY mm.position, mm.slot""",
-            slug,
+                WHERE mm.menu_id = (SELECT id FROM menu WHERE slug = $1)"""
+            + date_filter
+            + " ORDER BY mm.position, mm.slot",
+            *params,
         )
 
         matched, unmatched, leftovers = [], [], []

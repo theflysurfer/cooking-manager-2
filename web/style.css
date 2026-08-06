@@ -558,6 +558,8 @@ h1, h2, h3, .u-heading {
 .btn:hover { background: var(--accent); border-color: var(--accent); color: #fff; }
 .btn--ghost { background: none; color: var(--text-strong); border-color: var(--rule); }
 .btn--back { margin-bottom: var(--sp-3); }
+.btn--toggle { background: none; color: var(--accent); border-color: var(--accent); font-size: 0.6rem; }
+.toggle-bar { display: flex; justify-content: flex-end; margin-bottom: var(--sp-2); }
 
 /* ── États : vides, chargement, erreur ─────────────────────────────── */
 
