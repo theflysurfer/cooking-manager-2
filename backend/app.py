@@ -994,6 +994,56 @@ async def list_session_products(session_id: int):
     return {"products": products, "total": len(products)}
 
 
+@app.post("/api/shopping/backfill-nutrition")
+async def backfill_nutrition(session_id: int | None = None):
+    """Re-enrich products that have no nutriscore/allergens/ean."""
+    from .auchan import find_product_detail
+
+    pool = await get_pool(DATABASE_DSN)
+    async with pool.acquire() as conn:
+        where = "WHERE nutriscore IS NULL AND allergens IS NULL"
+        params: list = []
+        if session_id is not None:
+            where += " AND session_id = $1"
+            params.append(session_id)
+        rows = await conn.fetch(
+            "SELECT id, product_name, brand FROM shopping_product " + where,
+            *params,
+        )
+
+    enriched = 0
+    failed: list[str] = []
+    async with pool.acquire() as conn:
+        for row in rows:
+            try:
+                detail = await find_product_detail(row["product_name"], row["brand"])
+            except Exception:
+                detail = None
+            if detail is None:
+                failed.append(row["product_name"])
+                continue
+            await conn.execute(
+                """UPDATE shopping_product
+                      SET nutriscore = $1, nutrition = $2, ingredients = $3,
+                          allergens = $4, characteristics = $5, photo_url = $6,
+                          product_url = $7, weight = $8, price_per_kg = $9, ean = $10
+                    WHERE id = $11""",
+                detail.nutriscore,
+                json.dumps(detail.nutrition) if detail.nutrition else None,
+                detail.ingredients, detail.allergens,
+                json.dumps(detail.characteristics) if detail.characteristics else None,
+                detail.photo_url, detail.url, detail.weight, detail.price_per_kg,
+                detail.ean, row["id"],
+            )
+            enriched += 1
+
+    return {
+        "total_candidates": len(rows),
+        "enriched": enriched,
+        "failed": failed,
+    }
+
+
 @app.get("/api/shopping/preferences")
 async def list_shopping_preferences():
     pool = await get_pool(DATABASE_DSN)
