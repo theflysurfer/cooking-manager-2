@@ -396,7 +396,7 @@ async def menu_shopping_list(
             params.append(datetime.date.fromisoformat(from_date))
 
         rows = await conn.fetch(
-            """SELECT mm.slot, mm.dish, mm.day_label, mm.match_kind,
+            """SELECT mm.slot, mm.dish, mm.day_label, mm.match_kind, mm.covers,
                       r.id, r.slug, r.title, r.servings
                  FROM menu_meal mm
                  LEFT JOIN recipe r ON r.id = mm.recipe_id
@@ -421,7 +421,7 @@ async def menu_shopping_list(
                 # la semaine doit peser deux fois dans les quantités.
                 matched.append((row, row["dish"]))
 
-        wanted = covers or 4
+        default_covers = covers or 4
         payload = []
         for recipe, _dish in matched:
             rows = await conn.fetch(
@@ -430,8 +430,9 @@ async def menu_shopping_list(
                      FROM recipe_ingredient WHERE recipe_id = $1 ORDER BY position""",
                 recipe["id"],
             )
-            base = recipe["servings"] or wanted
-            ratio = wanted / base if base else 1.0
+            meal_covers = recipe["covers"] if recipe["covers"] else default_covers
+            base = recipe["servings"] or meal_covers
+            ratio = meal_covers / base if base else 1.0
             payload.append((recipe["title"], [dict(r) for r in rows], ratio))
 
     needs = build_needs(payload)
@@ -463,7 +464,7 @@ async def menu_shopping_list(
         counts[line["outcome"]] = counts.get(line["outcome"], 0) + 1
 
     return {
-        "slug": menu["slug"], "title": menu["title"], "covers": wanted,
+        "slug": menu["slug"], "title": menu["title"], "covers": default_covers,
         "recipes_matched": len({r["slug"] for r, _ in matched}),
         "meals_total": len(matched) + len(unmatched) + len(leftovers),
         "meals_unmatched": unmatched,
@@ -590,18 +591,19 @@ async def list_menu_meals(slug: str):
 class MealUpdate(BaseModel):
     recipe_slug: str | None = None
     dish: str | None = None
+    covers: int | None = None
 
 
 @app.patch("/api/menus/{slug}/meals/{meal_id}")
 async def update_menu_meal(slug: str, meal_id: int, body: MealUpdate):
-    """Changer la recette et/ou l'intitulé d'un créneau repas."""
+    """Changer la recette, l'intitulé et/ou le nombre de couverts d'un repas."""
     pool = await get_pool(DATABASE_DSN)
     async with pool.acquire() as conn:
         menu = await conn.fetchrow("SELECT id FROM menu WHERE slug = $1", slug)
         if not menu:
             raise HTTPException(404, f"Menu introuvable : {slug}")
         meal = await conn.fetchrow(
-            "SELECT id, dish FROM menu_meal WHERE id = $1 AND menu_id = $2",
+            "SELECT id, dish, covers FROM menu_meal WHERE id = $1 AND menu_id = $2",
             meal_id, menu["id"],
         )
         if not meal:
@@ -609,6 +611,8 @@ async def update_menu_meal(slug: str, meal_id: int, body: MealUpdate):
 
         recipe_id = None
         match_kind = None
+        dish = meal["dish"]
+
         if body.recipe_slug:
             recipe = await conn.fetchrow(
                 "SELECT id, title FROM recipe WHERE slug = $1", body.recipe_slug,
@@ -620,17 +624,22 @@ async def update_menu_meal(slug: str, meal_id: int, body: MealUpdate):
             dish = body.dish or recipe["title"]
         elif body.dish:
             dish = body.dish
-        else:
-            raise HTTPException(400, "recipe_slug ou dish requis")
 
-        await conn.execute(
-            """UPDATE menu_meal SET dish = $1, recipe_id = $2, match_kind = $3
-                WHERE id = $4""",
-            dish, recipe_id, match_kind, meal_id,
-        )
+        if body.covers is not None:
+            await conn.execute(
+                "UPDATE menu_meal SET covers = $1 WHERE id = $2",
+                body.covers, meal_id,
+            )
+
+        if body.recipe_slug or body.dish:
+            await conn.execute(
+                """UPDATE menu_meal SET dish = $1, recipe_id = $2, match_kind = $3
+                    WHERE id = $4""",
+                dish, recipe_id, match_kind, meal_id,
+            )
 
     return {"id": meal_id, "dish": dish, "recipe_id": recipe_id,
-            "match_kind": match_kind}
+            "match_kind": match_kind, "covers": body.covers}
 
 
 @app.delete("/api/menus/{slug}")

@@ -116,7 +116,13 @@ function renderDay(meal, compatIdx, today, mealIndex) {
     }
 
     if (mealId && !isLeftovers) {
-      slots += '<button class="swap-btn" data-meal-id="' + mealId + '">Changer</button>';
+      var mealCovers = meal[s.key + '_covers'];
+      slots += '<div class="slot__actions">' +
+        '<button class="swap-btn" data-meal-id="' + mealId + '">Changer</button>' +
+        '<button class="covers-btn" data-meal-id="' + mealId + '"' +
+        ' data-covers="' + (mealCovers || '') + '">' +
+        (mealCovers ? mealCovers + ' couv.' : 'Couverts') + '</button>' +
+        '</div>';
     }
 
     if (check && check.attendees && check.attendees.length) {
@@ -181,6 +187,7 @@ async function viewMenu() {
       if (mm.recipe_slug) day[mm.slot + '_slug'] = mm.recipe_slug;
       if (mm.match_kind === 'leftovers') day[mm.slot + '_leftovers'] = true;
       if (mm.match_kind === 'manual') day[mm.slot] = mm.dish;
+      if (mm.covers) day[mm.slot + '_covers'] = mm.covers;
     });
   }
 
@@ -222,6 +229,11 @@ async function viewMenu() {
       e.preventDefault();
       openSwapPicker(btn.getAttribute('data-meal-id'));
     }
+    var coversBtn = e.target.closest('.covers-btn');
+    if (coversBtn) {
+      e.preventDefault();
+      promptCovers(coversBtn);
+    }
     var close = e.target.closest('.picker__close') || e.target.closest('.picker__backdrop');
     if (close) closeSwapPicker();
     var pick = e.target.closest('.picker__item');
@@ -229,6 +241,25 @@ async function viewMenu() {
       e.preventDefault();
       confirmSwap(pick.getAttribute('data-slug'));
     }
+  });
+}
+
+function promptCovers(btn) {
+  var mealId = btn.getAttribute('data-meal-id');
+  var current = btn.getAttribute('data-covers') || '4';
+  var val = window.prompt('Nombre de couverts pour ce repas :', current);
+  if (val === null) return;
+  var n = parseInt(val, 10);
+  if (!n || n < 1) return;
+  var slug = state.weekMenu && state.weekMenu.slug;
+  if (!slug) return;
+  api('/menus/' + encodeURIComponent(slug) + '/meals/' + mealId, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ covers: n })
+  }).then(function () {
+    btn.setAttribute('data-covers', n);
+    btn.textContent = n + ' couv.';
   });
 }
 

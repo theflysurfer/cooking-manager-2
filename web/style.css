@@ -731,13 +731,30 @@ h1, h2, h3, .u-heading {
   border: 1px solid var(--accent);
   border-radius: 3px;
   padding: 2px 8px;
-  margin-left: 8px;
   cursor: pointer;
   vertical-align: middle;
   -webkit-appearance: none;
   -webkit-tap-highlight-color: transparent;
 }
 .swap-btn:active { background: var(--accent); color: #fff; }
+.slot__actions { display: flex; margin-top: 4px; }
+.slot__actions > * + * { margin-left: 6px; }
+.covers-btn {
+  display: inline-block;
+  font-family: var(--font-heading);
+  font-size: 0.55rem;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  background: transparent;
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  padding: 2px 8px;
+  cursor: pointer;
+  -webkit-appearance: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.covers-btn:active { background: var(--rule); }
 
 /* ── Picker (recipe selector overlay) ─────────────────────────────── */
 .picker {
