@@ -194,6 +194,7 @@ class ProductDetail:
     name: str = ""
     brand: str = ""
     auchan_id: str = ""
+    ean: str = ""
     price: float | None = None
     price_per_kg: float | None = None
     weight: str = ""
@@ -236,13 +237,8 @@ async def scrape_product_detail(auchan_url: str) -> ProductDetail:
     if brand_el:
         detail.brand = brand_el.text(strip=True)
 
-    # Nutriscore
-    ns = tree.css_first("[alt*='Nutriscore']")
-    if ns:
-        alt = ns.attributes.get("alt") or ""
-        m = re.search(r"=\s*([A-E])", alt)
-        if m:
-            detail.nutriscore = m.group(1)
+    # Nutriscore — Auchan no longer displays it as an image;
+    # enriched later via Open Food Facts if EAN is found
 
     # Photo
     img = tree.css_first("[class*='product-thumbnail'] img, [class*='product-media'] img")
@@ -269,7 +265,7 @@ async def scrape_product_detail(auchan_url: str) -> ProductDetail:
             if label and "information" not in label and "pour" not in label:
                 detail.nutrition[label] = value
 
-    # Ingredients, allergens, and characteristics from feature groups
+    # Ingredients, allergens, EAN, and characteristics from feature groups
     for group in tree.css("[class*='feature-group-wrapper']"):
         label_el = group.css_first("[class*='feature-label']")
         values_el = group.css_first("[class*='feature-values']")
@@ -281,8 +277,27 @@ async def scrape_product_detail(auchan_url: str) -> ProductDetail:
             detail.ingredients = re.sub(r"^Ingrédients\s*:\s*", "", value).strip()
         elif "allergène" in label:
             detail.allergens = re.sub(r"^Allergènes\s*:\s*", "", value).strip()
+        elif "réf" in label and "ean" in label:
+            ean_match = re.search(r"(\d{8,13})\s*$", value)
+            if ean_match:
+                detail.ean = ean_match.group(1)
         elif label and value:
             detail.characteristics[label_el.text(strip=True)] = value
+
+    # Extract allergens from CAPITALIZED words in ingredients text
+    # (Auchan marks allergens in uppercase per EU regulation)
+    if detail.ingredients and not detail.allergens:
+        caps = re.findall(r"\b([A-ZÀÂÉÈÊËÎÏÔÙÛÜÇ]{2,}(?:\s+[A-ZÀÂÉÈÊËÎÏÔÙÛÜÇ]{2,})*)\b",
+                          detail.ingredients)
+        if caps:
+            seen: set[str] = set()
+            unique: list[str] = []
+            for c in caps:
+                low = c.lower()
+                if low not in seen:
+                    seen.add(low)
+                    unique.append(c.capitalize())
+            detail.allergens = ", ".join(unique)
 
     # Description
     desc_el = tree.css_first("[class*='product-description__content']")
@@ -294,7 +309,66 @@ async def scrape_product_detail(auchan_url: str) -> ProductDetail:
     if wm:
         detail.weight = wm.group(1)
 
+    # Enrich from Open Food Facts if we have an EAN and are missing data
+    if detail.ean and (not detail.nutriscore or not detail.allergens):
+        await _enrich_from_openfoodfacts(detail)
+
     return detail
+
+
+_OFF_ALLERGEN_FR: dict[str, str] = {
+    "en:gluten": "Gluten",
+    "en:milk": "Lait",
+    "en:eggs": "Œufs",
+    "en:nuts": "Fruits à coque",
+    "en:peanuts": "Arachides",
+    "en:soybeans": "Soja",
+    "en:celery": "Céleri",
+    "en:mustard": "Moutarde",
+    "en:sesame-seeds": "Sésame",
+    "en:fish": "Poisson",
+    "en:crustaceans": "Crustacés",
+    "en:molluscs": "Mollusques",
+    "en:lupin": "Lupin",
+    "en:sulphur-dioxide-and-sulphites": "Sulfites",
+}
+
+
+async def _enrich_from_openfoodfacts(detail: ProductDetail) -> None:
+    """Fill nutriscore/allergens/ingredients from Open Food Facts (free API)."""
+    try:
+        async with httpx.AsyncClient(timeout=5) as client:
+            r = await client.get(
+                f"https://world.openfoodfacts.org/api/v2/product/{detail.ean}",
+                params={"fields": "nutriscore_grade,allergens_tags,ingredients_text_fr"},
+                headers={"User-Agent": "CookingManager/2.0 (contact@cooking.app)"},
+            )
+            if not r.is_success:
+                return
+    except httpx.TimeoutException:
+        return
+    data = r.json()
+    product = data.get("product", {})
+    if not product:
+        return
+
+    if not detail.nutriscore:
+        grade = product.get("nutriscore_grade", "")
+        if grade and grade in "abcde":
+            detail.nutriscore = grade.upper()
+
+    if not detail.allergens:
+        tags: list[str] = product.get("allergens_tags", [])
+        if tags:
+            detail.allergens = ", ".join(
+                _OFF_ALLERGEN_FR.get(t, t.replace("en:", "").replace("-", " ").capitalize())
+                for t in tags
+            )
+
+    if not detail.ingredients:
+        off_ingredients = product.get("ingredients_text_fr", "")
+        if off_ingredients:
+            detail.ingredients = off_ingredients
 
 
 async def find_product_detail(product_name: str, brand: str | None = None) -> ProductDetail | None:

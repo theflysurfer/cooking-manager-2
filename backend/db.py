@@ -144,6 +144,7 @@ CREATE TABLE IF NOT EXISTS shopping_product (
     product_url     TEXT,
     weight          TEXT,
     price_per_kg    REAL,
+    ean             TEXT,
     created_at      TIMESTAMPTZ DEFAULT NOW()
 );
 
