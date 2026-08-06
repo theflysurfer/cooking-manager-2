@@ -10,10 +10,11 @@ from urllib.parse import urlparse
 from urllib.request import urlopen, Request
 from urllib.error import URLError
 
-from cooking_manager.vault import read_recipes, read_menus, read_convives
+from cooking_manager.vault import read_recipes, read_menus, read_convives, _parse_frontmatter
 from cooking_manager.normalizer import normalize_recipe, normalize_menu
 from cooking_manager.ingredients import parse_recipe_body, normalize_name
 from cooking_manager.convives import parse_convives
+from cooking_manager.pantry import parse_pantry
 from .db import get_pool, init_schema
 
 log = logging.getLogger(__name__)
@@ -286,6 +287,7 @@ async def ingest(vault_root: Path, dsn: str) -> dict:
             await conn.execute(UPSERT_MENU, *_menu_row(m))
 
         meals_linked, meals_orphan = await _link_meals(conn)
+        pantry_count = await _ingest_pantry(conn, vault_root, warnings)
 
     return {
         "recipes_ingested": len(recipes),
@@ -293,6 +295,7 @@ async def ingest(vault_root: Path, dsn: str) -> dict:
         "meals_linked": meals_linked,
         "meals_orphan": meals_orphan,
         "convives_ingested": len(convives),
+        "pantry_items": pantry_count,
         "photos_linked": photos_linked,
         "ingredients_parsed": parsed_ingredients,
         "ingredients_raw_only": unparsed_lines,
@@ -435,6 +438,60 @@ def _as_date(value):
         except ValueError:
             return None
     return None
+
+
+async def _ingest_pantry(conn, vault_root: Path, warnings: list[str]) -> int:
+    """Ingère Garde-manger.md → pantry_item (upsert par nom normalisé + rayon).
+
+    Les items source='vault' absents du fichier sont supprimés (le Markdown fait
+    foi pour ce qui vient du vault). Les items source='manual'/'auchan'/'voice'
+    ne sont jamais touchés — ils vivent en DB uniquement.
+    """
+    path = vault_root / "Garde-manger.md"
+    if not path.exists():
+        warnings.append("Garde-manger.md introuvable — garde-manger non ingéré")
+        return 0
+
+    fm, body = _parse_frontmatter(path)
+    updated = fm.get("updated")
+    try:
+        updated = date.fromisoformat(str(updated)) if updated else None
+    except ValueError:
+        updated = None
+
+    pantry = parse_pantry(body, updated)
+    if not pantry.items:
+        warnings.append("Garde-manger.md vide — aucun item lu")
+        return 0
+
+    ingested_ids = []
+    for item in pantry.items:
+        row = await conn.fetchrow(
+            """INSERT INTO pantry_item
+               (name, name_normalized, section, qty_text, qty_value, unit,
+                status, xstatus, perishable, entered_at, source)
+               VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'vault')
+               ON CONFLICT (name_normalized, section) DO UPDATE SET
+                   name = $1, qty_text = $4, qty_value = $5, unit = $6,
+                   status = $7, xstatus = $8, perishable = $9,
+                   entered_at = $10, source = 'vault', updated_at = NOW()
+               RETURNING id""",
+            item.name, item.name_normalized, item.rayon,
+            item.qty_text, float(item.qty_value) if item.qty_value is not None else None,
+            item.unit, item.status, item.xstatus, item.is_perishable, item.entered_at,
+        )
+        ingested_ids.append(row["id"])
+
+    if ingested_ids:
+        deleted = await conn.fetchval(
+            "WITH d AS (DELETE FROM pantry_item WHERE source = 'vault' "
+            "AND NOT (id = ANY($1::int[])) RETURNING 1) SELECT COUNT(*) FROM d",
+            ingested_ids,
+        )
+        if deleted:
+            log.info("Pantry: supprimé %d items vault absents du fichier", deleted)
+
+    return len(pantry.items)
 
 
 async def run_ingest(vault_root: str, dsn: str) -> dict:

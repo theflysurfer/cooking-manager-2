@@ -193,6 +193,34 @@ CREATE TABLE IF NOT EXISTS recipe_step (
 CREATE INDEX IF NOT EXISTS idx_ingredient_recipe ON recipe_ingredient(recipe_id);
 CREATE INDEX IF NOT EXISTS idx_ingredient_norm ON recipe_ingredient(name_normalized);
 CREATE INDEX IF NOT EXISTS idx_step_recipe ON recipe_step(recipe_id);
+
+-- Garde-manger : la DB est la source de vérité (pas le vault Markdown, qui n'est
+-- qu'une source d'ingestion parmi d'autres — Auchan, voix, API).
+-- Contrainte UNIQUE sur (name_normalized, section) : un produit par rayon.
+-- Les items ajoutés par API/MCP vivent ici même si le vault ne les mentionne pas.
+CREATE TABLE IF NOT EXISTS pantry_item (
+    id                  SERIAL PRIMARY KEY,
+    name                TEXT NOT NULL,
+    name_normalized     TEXT NOT NULL,
+    section             TEXT NOT NULL,
+    qty_text            TEXT DEFAULT '',
+    qty_value           NUMERIC,
+    unit                TEXT,
+    status              TEXT NOT NULL DEFAULT 'ok',
+    xstatus             TEXT NOT NULL DEFAULT 'ok',
+    perishable          BOOLEAN NOT NULL DEFAULT FALSE,
+    entered_at          DATE,
+    source              TEXT DEFAULT 'vault',
+    shopping_product_id INTEGER REFERENCES shopping_product(id) ON DELETE SET NULL,
+    notes               TEXT,
+    created_at          TIMESTAMPTZ DEFAULT NOW(),
+    updated_at          TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE (name_normalized, section)
+);
+
+CREATE INDEX IF NOT EXISTS idx_pantry_item_status ON pantry_item(status);
+CREATE INDEX IF NOT EXISTS idx_pantry_item_norm ON pantry_item(name_normalized);
+CREATE INDEX IF NOT EXISTS idx_pantry_item_section ON pantry_item(section);
 """
 
 MIGRATIONS_SQL = """

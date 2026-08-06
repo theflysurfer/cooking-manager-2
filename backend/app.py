@@ -326,7 +326,8 @@ async def menu_compatibility(slug: str):
 
 
 def _load_pantry():
-    """Garde-manger du vault, avec la date de son dernier inventaire."""
+    """Garde-manger du vault (lecture Markdown directe — utilisé par le
+    différentiel shopping-list qui a besoin de l'objet Pantry complet)."""
     from cooking_manager.pantry import parse_pantry
     from cooking_manager.vault import _parse_frontmatter
 
@@ -344,20 +345,48 @@ def _load_pantry():
 
 @app.get("/api/pantry")
 async def get_pantry():
-    """Inventaire, groupé par rayon, avec l'âge de l'inventaire en évidence."""
-    pantry = _load_pantry()
+    """Inventaire depuis la DB, groupé par rayon."""
+    pool = await get_pool(DATABASE_DSN)
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """SELECT id, name, name_normalized, section, qty_text, qty_value, unit,
+                      status, xstatus, perishable, entered_at, source,
+                      shopping_product_id, notes, updated_at
+                 FROM pantry_item ORDER BY section, name"""
+        )
+        meta = await conn.fetchrow(
+            "SELECT MAX(updated_at) AS last_updated, COUNT(*) AS total FROM pantry_item"
+        )
+
+    last_updated = meta["last_updated"]
+    age_days = None
+    is_stale = False
+    if last_updated:
+        age_days = (datetime.datetime.now(datetime.timezone.utc) - last_updated).days
+        is_stale = age_days > 14
+
     rayons: dict[str, list] = {}
-    for item in pantry.items:
-        rayons.setdefault(item.rayon, []).append({
-            "name": item.name, "qty_text": item.qty_text,
-            "status": item.status, "xstatus": item.xstatus,
-            "entered_at": item.entered_at.isoformat() if item.entered_at else None,
+    for r in rows:
+        rayons.setdefault(r["section"], []).append({
+            "id": r["id"],
+            "name": r["name"],
+            "name_normalized": r["name_normalized"],
+            "qty_text": r["qty_text"],
+            "qty_value": float(r["qty_value"]) if r["qty_value"] is not None else None,
+            "unit": r["unit"],
+            "status": r["status"],
+            "xstatus": r["xstatus"],
+            "perishable": r["perishable"],
+            "entered_at": r["entered_at"].isoformat() if r["entered_at"] else None,
+            "source": r["source"],
+            "notes": r["notes"],
         })
+
     return {
-        "updated": pantry.updated.isoformat() if pantry.updated else None,
-        "age_days": pantry.age_days(),
-        "is_stale": pantry.is_stale(),
-        "total": len(pantry.items),
+        "updated": last_updated.isoformat() if last_updated else None,
+        "age_days": age_days,
+        "is_stale": is_stale,
+        "total": meta["total"],
         "rayons": [{"name": k, "items": v} for k, v in rayons.items()],
     }
 
@@ -558,6 +587,140 @@ async def update_pantry(body: PantryUpdate):
         "hint": "Lancer la skill julien-vault-bisync pour propager au cloud "
                 "(l'app Dropbox desktop est désactivée).",
     }
+
+
+# ── Pantry CRUD (DB-backed) ──────────────────────────────────────
+
+class PantryItemCreate(BaseModel):
+    name: str
+    section: str
+    qty_text: str = ""
+    status: str = "ok"
+    entered_at: datetime.date | None = None
+    source: str = "manual"
+    notes: str | None = None
+
+
+class PantryItemUpdate(BaseModel):
+    name: str | None = None
+    section: str | None = None
+    qty_text: str | None = None
+    status: str | None = None
+    xstatus: str | None = None
+    entered_at: datetime.date | None = None
+    notes: str | None = None
+
+
+@app.post("/api/pantry/items")
+async def create_pantry_item(body: PantryItemCreate):
+    from cooking_manager.ingredients import normalize_name
+    from cooking_manager.pantry import XSTATUS_MAP, PERISHABLE_HINTS
+
+    name_normalized = normalize_name(body.name)
+    if not name_normalized:
+        raise HTTPException(400, "Nom vide après normalisation")
+
+    xstatus = body.status
+    status = XSTATUS_MAP.get(xstatus, body.status)
+    perishable = any(h in body.section.lower() for h in PERISHABLE_HINTS)
+
+    pool = await get_pool(DATABASE_DSN)
+    async with pool.acquire() as conn:
+        try:
+            row = await conn.fetchrow(
+                """INSERT INTO pantry_item
+                   (name, name_normalized, section, qty_text, status, xstatus,
+                    perishable, entered_at, source, notes)
+                   VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+                   RETURNING id, name, section, status""",
+                body.name, name_normalized, body.section, body.qty_text,
+                status, xstatus, perishable,
+                body.entered_at or datetime.date.today(), body.source, body.notes,
+            )
+        except Exception as e:
+            if "unique" in str(e).lower():
+                raise HTTPException(
+                    409, f"Item déjà existant : {body.name} dans {body.section}"
+                ) from None
+            raise
+    return dict(row)
+
+
+@app.get("/api/pantry/items/{item_id}")
+async def get_pantry_item(item_id: int):
+    pool = await get_pool(DATABASE_DSN)
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT * FROM pantry_item WHERE id = $1", item_id)
+    if not row:
+        raise HTTPException(404, f"Item introuvable : {item_id}")
+    d = dict(row)
+    _serialize_dates(d, ("entered_at", "created_at", "updated_at"))
+    return d
+
+
+@app.put("/api/pantry/items/{item_id}")
+async def update_pantry_item(item_id: int, body: PantryItemUpdate):
+    from cooking_manager.ingredients import normalize_name
+    from cooking_manager.pantry import XSTATUS_MAP, PERISHABLE_HINTS
+
+    pool = await get_pool(DATABASE_DSN)
+    async with pool.acquire() as conn:
+        existing = await conn.fetchrow("SELECT * FROM pantry_item WHERE id = $1", item_id)
+        if not existing:
+            raise HTTPException(404, f"Item introuvable : {item_id}")
+
+        name = body.name or existing["name"]
+        section = body.section or existing["section"]
+        qty_text = body.qty_text if body.qty_text is not None else existing["qty_text"]
+        xstatus = body.xstatus or body.status or existing["xstatus"]
+        status = XSTATUS_MAP.get(xstatus, xstatus)
+        entered_at = body.entered_at or existing["entered_at"]
+        notes = body.notes if body.notes is not None else existing["notes"]
+
+        from cooking_manager.pantry import _parse_qty
+        qty_value, unit = _parse_qty(qty_text)
+        perishable = any(h in section.lower() for h in PERISHABLE_HINTS)
+
+        await conn.execute(
+            """UPDATE pantry_item SET
+                   name=$1, name_normalized=$2, section=$3, qty_text=$4,
+                   qty_value=$5, unit=$6, status=$7, xstatus=$8,
+                   perishable=$9, entered_at=$10, notes=$11, updated_at=NOW()
+               WHERE id=$12""",
+            name, normalize_name(name), section, qty_text,
+            float(qty_value) if qty_value is not None else None, unit,
+            status, xstatus, perishable, entered_at, notes, item_id,
+        )
+
+    return {"id": item_id, "name": name, "status": status, "updated": True}
+
+
+@app.delete("/api/pantry/items/{item_id}")
+async def delete_pantry_item(item_id: int):
+    pool = await get_pool(DATABASE_DSN)
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "DELETE FROM pantry_item WHERE id = $1 RETURNING id, name", item_id
+        )
+    if not row:
+        raise HTTPException(404, f"Item introuvable : {item_id}")
+    return {"deleted": row["name"], "id": row["id"]}
+
+
+@app.get("/api/pantry/search")
+async def search_pantry(q: str = Query(..., min_length=1)):
+    """Recherche dans le garde-manger par nom (partiel, insensible à la casse)."""
+    pool = await get_pool(DATABASE_DSN)
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """SELECT id, name, name_normalized, section, qty_text, status, xstatus,
+                      perishable, entered_at, source, notes
+                 FROM pantry_item
+                WHERE name ILIKE $1 OR name_normalized ILIKE $1
+             ORDER BY name LIMIT 20""",
+            f"%{q}%",
+        )
+    return {"results": [dict(r) for r in rows], "total": len(rows)}
 
 
 @app.get("/api/menus/{slug}/meals")
