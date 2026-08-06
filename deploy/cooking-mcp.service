@@ -1,15 +1,24 @@
 [Unit]
-Description=Cooking Manager MCP server (streamable-http)
+Description=Cooking Manager MCP server (streamable-http + Google OAuth)
 After=cooking-manager.service
 Wants=cooking-manager.service
 
 [Service]
 Type=simple
-User=automation
+User=mcp-run
+Group=mcp-run
 WorkingDirectory=/opt/cooking-manager-2
-ExecStart=/opt/cooking-manager-2/.venv/bin/python -m backend.cooking_mcp --transport=streamable-http
-Restart=on-failure
+ExecStart=/opt/cooking-manager-2/.venv/bin/python -m backend.cooking_mcp --http 3868 --public-url https://cooking-mcp.srv759970.hstgr.cloud
+Restart=always
 RestartSec=5
+Environment=PYTHONUNBUFFERED=1
+Environment=HOME=/home/automation/cooking
+LoadCredentialEncrypted=mcp-key-cooking:/etc/credstore.encrypted/mcp-key-cooking
+PrivateMounts=yes
+LimitCORE=0
+NoNewPrivileges=yes
+PrivateTmp=yes
+ReadWritePaths=/home/automation/cooking /var/lib/mcp-oauth
 
 [Install]
 WantedBy=multi-user.target

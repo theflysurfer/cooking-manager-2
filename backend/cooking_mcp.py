@@ -193,11 +193,23 @@ async def pantry_ingest() -> str:
 
 
 if __name__ == "__main__":
-    import sys
+    import argparse
 
-    transport = "stdio"
-    for arg in sys.argv[1:]:
-        if arg.startswith("--transport="):
-            transport = arg.split("=", 1)[1]
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--transport", default="stdio")
+    parser.add_argument("--http", type=int, help="HTTP port (implies streamable-http)")
+    parser.add_argument("--public-url", help="Public URL for OAuth redirects")
+    args = parser.parse_args()
 
-    mcp.run(transport=transport)  # type: ignore[arg-type]
+    if args.http:
+        import sys
+
+        sys.path.insert(0, "/home/automation/shared")
+        from mcp_auth import build_google_auth  # type: ignore[import-not-found]
+
+        public_url = args.public_url or f"http://127.0.0.1:{args.http}"
+        mcp.auth = build_google_auth("cooking", server_base_url=public_url)  # type: ignore[assignment]
+        mcp.settings.port = args.http
+        mcp.run(transport="streamable-http")
+    else:
+        mcp.run(transport=args.transport)  # type: ignore[arg-type]
