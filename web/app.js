@@ -181,7 +181,7 @@ async function viewMenu() {
   if (mealsData && mealsData.meals) {
     var meals = menu.meals || [];
     mealsData.meals.forEach(function (mm) {
-      var day = meals[mm.position];
+      var day = meals[mm.position - 1];
       if (!day) return;
       day[mm.slot + '_meal_id'] = mm.id;
       if (mm.recipe_slug) day[mm.slot + '_slug'] = mm.recipe_slug;
@@ -348,17 +348,15 @@ function recipeCard(r) {
     if (r.macros.protein) macros += ' · ' + r.macros.protein + ' g de protéines';
   }
 
-  return '<button class="card" data-slug="' + esc(r.slug) + '">' +
+  return '<a class="card" href="#/recette/' + encodeURIComponent(r.slug) + '">' +
     '<div class="card__media">' + media + '</div>' +
     '<div class="card__title">' + esc(r.title) + '</div>' +
     (meta.length ? '<div class="card__meta"><span>' + meta.map(esc).join('</span><span>') + '</span></div>' : '') +
     (macros ? '<div class="card__macros">' + esc(macros) + '</div>' : '') +
-    // « 2× » est l'information qui manque le plus quand on planifie : une
-    // recette peut revenir plusieurs fois dans la même semaine.
     (r.occurrences ? '<div class="card__week">' +
        (r.occurrences > 1 ? r.occurrences + '× cette semaine' : 'Cette semaine') +
        (r.scheduled_at ? ' · ' + esc(r.scheduled_at.join(' · ')) : '') + '</div>' : '') +
-  '</button>';
+  '</a>';
 }
 
 function chipGroup(items, key) {
@@ -956,9 +954,6 @@ document.addEventListener('click', function (e) {
     if (sessionCard) expandSession(sessionCard);
     return;
   }
-
-  var card = e.target.closest('.card');
-  if (card) { location.hash = '#/recette/' + encodeURIComponent(card.getAttribute('data-slug')); return; }
 
   var back = e.target.closest('[data-back]');
   if (back) { history.back(); return; }

@@ -359,7 +359,8 @@ h1, h2, h3, .u-heading {
 
 /* La carte n'est pas une carte : une image posée sur du blanc.
    Ni fond, ni bordure, ni ombre, ni rayon — d'après HFC. */
-.card { cursor: pointer; background: none; border: none; text-align: left; padding: 0; }
+.card { cursor: pointer; background: none; border: none; text-align: left; padding: 0;
+  display: block; text-decoration: none; color: inherit; }
 
 /* ⚠️ aspect-ratio non supporté (iOS 15) → hack padding-bottom.
    52.6% = 10/19, le ratio 19:10 des cartes. */
