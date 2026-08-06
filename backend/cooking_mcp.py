@@ -9,8 +9,6 @@ import os
 
 from mcp.server.fastmcp import FastMCP
 
-MCP_PORT = int(os.environ.get("MCP_PORT", "3868"))
-
 mcp = FastMCP(
     "Cooking Manager",
     instructions=(
@@ -19,8 +17,6 @@ mcp = FastMCP(
         "La liste de courses différentielle croise le menu de la semaine "
         "avec le stock réel."
     ),
-    host="127.0.0.1",
-    port=MCP_PORT,
 )
 
 API_BASE = os.environ.get(
@@ -209,7 +205,6 @@ if __name__ == "__main__":
 
         public_url = args.public_url or f"http://127.0.0.1:{args.http}"
         mcp.auth = build_google_auth("cooking", server_base_url=public_url)  # type: ignore[assignment]
-        mcp.settings.port = args.http
-        mcp.run(transport="streamable-http")
+        mcp.run(transport="streamable-http", host="127.0.0.1", port=args.http)  # type: ignore[call-arg]
     else:
         mcp.run(transport=args.transport)  # type: ignore[arg-type]
