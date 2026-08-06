@@ -107,18 +107,39 @@ The vault is mounted read-only on the VPS via rclone. Ingestion: `POST /api/inge
 | POST | `/api/audio` | Audio → STT → LLM intent → action |
 | POST | `/api/intent` | Text → LLM intent → action |
 
+### Pantry (DB-backed)
+| Method | Endpoint | Description |
+|---|---|---|
+| GET | `/api/pantry` | Pantry contents grouped by section |
+| POST | `/api/pantry/items` | Add a pantry item |
+| GET | `/api/pantry/items/{id}` | Item detail |
+| PUT | `/api/pantry/items/{id}` | Update item (status, qty, notes) |
+| DELETE | `/api/pantry/items/{id}` | Remove item |
+| GET | `/api/pantry/search?q=` | Search items by name |
+| PATCH | `/api/pantry` | Update pantry (legacy Markdown writer) |
+
 ### Other
 | Method | Endpoint | Description |
 |---|---|---|
 | POST | `/api/ingest` | Ingest vault into database |
 | GET | `/api/stats` | Dashboard stats |
-| GET | `/api/pantry` | Pantry contents |
-| PATCH | `/api/pantry` | Update pantry items |
 | GET | `/health` | Health check |
 
-## Auchan Drive MCP
+## MCP Servers
 
-Local MCP server for Claude Code integration:
+### Cooking Manager MCP
+
+Local MCP server for LLM access to pantry, recipes, and menus:
+
+```bash
+python -m backend.cooking_mcp  # stdio transport
+```
+
+10 tools: `pantry_list`, `pantry_search`, `pantry_add`, `pantry_update`, `pantry_remove`, `shopping_list`, `recipe_search`, `recipe_detail`, `menu_current`, `pantry_ingest`.
+
+### Auchan Drive MCP
+
+Local MCP server for Auchan Drive cart management:
 
 ```bash
 python -m backend.auchan_mcp  # stdio transport
@@ -144,7 +165,8 @@ cooking_manager/       # Pure domain — no network I/O
 backend/               # FastAPI + DB schema + ingestion
   stt.py               # Voice pipeline: Deepgram STT + Groq LLM intent
   auchan.py            # Auchan Drive client (reverse-engineered)
-  auchan_mcp.py        # FastMCP server (stdio)
+  auchan_mcp.py        # FastMCP server (stdio) — Auchan cart
+  cooking_mcp.py       # FastMCP server (stdio) — pantry, recipes, menus
 web/                   # Frontend: index.html + style.css + app.js
 tests/                 # Unit tests · iOS 12 compat gate · e2e (opt-in)
 deploy/                # systemd unit, nginx config, install script
