@@ -7,7 +7,7 @@ Run: python -m backend.cooking_mcp
 import json
 import os
 
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 
 mcp = FastMCP(
     "Cooking Manager",
@@ -205,6 +205,11 @@ if __name__ == "__main__":
 
         public_url = args.public_url or f"http://127.0.0.1:{args.http}"
         mcp.auth = build_google_auth("cooking", server_base_url=public_url)  # type: ignore[assignment]
-        mcp.run(transport="streamable-http", host="127.0.0.1", port=args.http)  # type: ignore[call-arg]
+        mcp.run(
+            transport="streamable-http",
+            host="127.0.0.1",
+            port=args.http,
+            allowed_hosts=["cooking-mcp.srv759970.hstgr.cloud"],
+        )
     else:
         mcp.run(transport=args.transport)  # type: ignore[arg-type]
