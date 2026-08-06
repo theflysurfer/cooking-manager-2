@@ -752,9 +752,161 @@ async function applyPantryGesture(li, action) {
   }
 }
 
+/* ── Vue : garde-manger ───────────────────────────────────────────── */
+
+var STATUS_COLORS = { ok: '#4caf50', low: '#ff9800', out: '#f44336' };
+var STATUS_LABELS = { ok: 'En stock', low: 'Peu', out: 'Épuisé' };
+
+async function viewPantry() {
+  render('<div class="section-head"><h2 class="section-title">Garde-manger</h2></div>' +
+    skeletonGrid(6));
+  var data = await api('/pantry');
+
+  var html = '<div class="section-head"><h2 class="section-title">Garde-manger</h2>';
+  if (data.updated) {
+    var staleClass = data.is_stale ? ' pantry-age--stale' : '';
+    html += '<span class="pantry-age' + staleClass + '">' +
+      'Inventaire du ' + data.updated +
+      (data.age_days !== null ? ' (' + data.age_days + ' j)' : '') + '</span>';
+  }
+  html += '</div>';
+
+  if (!data.rayons || !data.rayons.length) {
+    render(html + emptyState('Garde-manger vide', 'Aucun article dans l\'inventaire.'));
+    return;
+  }
+
+  if (data.is_stale) {
+    html += '<div class="alert alert--warn">Inventaire vieux de ' +
+      data.age_days + ' jours — les produits frais sont supposés épuisés.</div>';
+  }
+
+  html += '<div class="pantry-stats">' + data.total + ' articles</div>';
+
+  for (var i = 0; i < data.rayons.length; i++) {
+    var rayon = data.rayons[i];
+    html += '<section class="pantry-rayon">';
+    html += '<h3 class="pantry-rayon__title">' + esc(rayon.name) + '</h3>';
+    html += '<ul class="pantry-list">';
+    for (var j = 0; j < rayon.items.length; j++) {
+      var item = rayon.items[j];
+      var statusColor = STATUS_COLORS[item.status] || '#999';
+      var statusLabel = STATUS_LABELS[item.status] || item.status;
+      html += '<li class="pantry-item pantry-item--' + esc(item.status) + '">';
+      html += '<span class="pantry-item__dot" style="background:' + statusColor + '" title="' + esc(statusLabel) + '"></span>';
+      html += '<span class="pantry-item__name">' + esc(item.name) + '</span>';
+      if (item.qty_text) {
+        html += '<span class="pantry-item__qty">' + esc(item.qty_text) + '</span>';
+      }
+      if (item.xstatus && item.xstatus !== 'ok' && item.xstatus !== item.status) {
+        html += '<span class="pantry-item__xstatus">' + esc(item.xstatus) + '</span>';
+      }
+      html += '</li>';
+    }
+    html += '</ul></section>';
+  }
+
+  render(html);
+}
+
+/* ── Vue : historique achats ──────────────────────────────────────── */
+
+var NUTRISCORE_COLORS = { A: '#038141', B: '#85bb2f', C: '#fecb02', D: '#ee8100', E: '#e63e11' };
+
+function nutriscoreBadge(grade) {
+  if (!grade) return '';
+  var upper = grade.toUpperCase();
+  var color = NUTRISCORE_COLORS[upper] || '#999';
+  return '<span class="nutriscore" style="background:' + color + '">' + upper + '</span>';
+}
+
+async function viewShopping() {
+  render('<div class="section-head"><h2 class="section-title">Historique des achats</h2></div>' +
+    skeletonGrid(4));
+  var data = await api('/shopping/sessions');
+
+  if (!data.sessions || !data.sessions.length) {
+    render(emptyState('Aucun achat enregistré', 'Les sessions apparaîtront ici après un drive.'));
+    return;
+  }
+
+  var html = '<div class="section-head"><h2 class="section-title">Historique des achats</h2></div>';
+  html += '<div class="sessions-list">';
+  for (var i = 0; i < data.sessions.length; i++) {
+    var s = data.sessions[i];
+    html += '<div class="session-card" data-session-id="' + s.id + '">';
+    html += '<div class="session-card__head">';
+    html += '<strong>' + esc(s.store) + '</strong>';
+    html += '<span class="session-card__date">' + esc(s.date) + '</span>';
+    html += '</div>';
+    html += '<div class="session-card__meta">';
+    if (s.items_count) html += s.items_count + ' articles';
+    if (s.total) html += ' · ' + Number(s.total).toFixed(2) + ' €';
+    html += '</div>';
+    html += '<button class="btn btn--sm session-card__expand">Voir les produits</button>';
+    html += '<div class="session-card__products" style="display:none"></div>';
+    html += '</div>';
+  }
+  html += '</div>';
+
+  render(html);
+}
+
+async function expandSession(card) {
+  var sid = card.getAttribute('data-session-id');
+  var container = card.querySelector('.session-card__products');
+  var btn = card.querySelector('.session-card__expand');
+
+  if (container.style.display !== 'none') {
+    container.style.display = 'none';
+    btn.textContent = 'Voir les produits';
+    return;
+  }
+
+  btn.textContent = 'Chargement…';
+  var data = await api('/shopping/sessions/' + sid + '/products');
+  btn.textContent = 'Masquer';
+  container.style.display = '';
+
+  if (!data.products || !data.products.length) {
+    container.innerHTML = '<p class="empty__hint">Aucun produit</p>';
+    return;
+  }
+
+  var html = '<table class="products-table"><thead><tr>' +
+    '<th>Produit</th><th>Qté</th><th>Prix</th><th>NS</th><th>Allergènes</th>' +
+    '</tr></thead><tbody>';
+  for (var i = 0; i < data.products.length; i++) {
+    var p = data.products[i];
+    html += '<tr class="product-row">';
+    html += '<td class="product-row__name">';
+    if (p.photo_url) {
+      html += '<img class="product-row__img" src="' + esc(p.photo_url) + '" alt="" loading="lazy">';
+    }
+    html += '<div>';
+    html += '<div>' + esc(p.product_name) + '</div>';
+    if (p.brand) html += '<div class="product-row__brand">' + esc(p.brand) + '</div>';
+    if (p.weight) html += '<div class="product-row__weight">' + esc(p.weight) + '</div>';
+    html += '</div></td>';
+    html += '<td>' + (p.quantity_bought || 1) + '</td>';
+    html += '<td>';
+    if (p.total_price) html += Number(p.total_price).toFixed(2) + ' €';
+    if (p.price_per_kg) html += '<div class="product-row__ppkg">' + Number(p.price_per_kg).toFixed(2) + ' €/kg</div>';
+    html += '</td>';
+    html += '<td>' + nutriscoreBadge(p.nutriscore) + '</td>';
+    html += '<td class="product-row__allergens">' + esc(p.allergens || '') + '</td>';
+    html += '</tr>';
+  }
+  html += '</tbody></table>';
+  container.innerHTML = html;
+}
+
 /* ── Routeur ───────────────────────────────────────────────────────── */
 
-var ROUTES = { menu: viewMenu, recettes: viewRecipes, courses: viewCourses };
+var ROUTES = {
+  menu: viewMenu, recettes: viewRecipes, courses: viewCourses,
+  'garde-manger': viewPantry, achats: viewShopping
+};
 
 function currentRoute() {
   var h = location.hash.replace(/^#\/?/, '');
@@ -795,6 +947,13 @@ document.addEventListener('click', function (e) {
   if (mini) {
     var li = mini.closest('.need');
     if (li) applyPantryGesture(li, mini.getAttribute('data-act'));
+    return;
+  }
+
+  var sessionExpand = e.target.closest('.session-card__expand');
+  if (sessionExpand) {
+    var sessionCard = sessionExpand.closest('.session-card');
+    if (sessionCard) expandSession(sessionCard);
     return;
   }
 

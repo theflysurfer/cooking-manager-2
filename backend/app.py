@@ -973,6 +973,27 @@ async def persist_cart_with_nutrition(body: PersistCartRequest):
     }
 
 
+@app.get("/api/shopping/sessions/{session_id}/products")
+async def list_session_products(session_id: int):
+    pool = await get_pool(DATABASE_DSN)
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """SELECT product_name, brand, item_requested, price_unit, quantity_bought,
+                      total_price, nutriscore, nutrition, ingredients, allergens,
+                      photo_url, product_url, weight, price_per_kg, ean, status
+                 FROM shopping_product WHERE session_id = $1
+                 ORDER BY id""",
+            session_id,
+        )
+    products = []
+    for r in rows:
+        d = _round_numeric(dict(r))
+        if d.get("nutrition") and isinstance(d["nutrition"], str):
+            d["nutrition"] = json.loads(d["nutrition"])
+        products.append(d)
+    return {"products": products, "total": len(products)}
+
+
 @app.get("/api/shopping/preferences")
 async def list_shopping_preferences():
     pool = await get_pool(DATABASE_DSN)
