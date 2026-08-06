@@ -225,6 +225,9 @@ def parse_pantry(body: str, updated: date | None = None) -> Pantry:
             # Le nom s'arrête au premier séparateur « — » ; le reste est la quantité.
             head = re.split(r"\s+[—–]\s+", line, maxsplit=1)
             name = re.sub(r"\*\*", "", head[0]).strip()
+            name = re.sub(r"#\s*status\s*=\s*[\w\-àéèêëîïôöûü]+", "", name)
+            name = re.sub(r"\(entré[^)]*\)", "", name)
+            name = re.sub(r"\(constaté[^)]*\)", "", name).strip()
             qty_text = head[1] if len(head) > 1 else ""
             qty_text = re.sub(r"#.*$", "", qty_text)
             qty_text = re.sub(r"\(entré[^)]*\)", "", qty_text).strip(" |")
