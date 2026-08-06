@@ -77,6 +77,8 @@ html {
   font-size: 17px;
   font-size: clamp(16px, 1.15vw, 19px);
   -webkit-text-size-adjust: 100%;
+  overflow-x: hidden;
+  max-width: 100%;
 }
 
 body {
@@ -715,6 +717,14 @@ h1, h2, h3, .u-heading {
 .need__error { color: var(--warn); }
 
 @media (max-width: 640px) {
+  .brand { letter-spacing: 3px; font-size: 1.1rem; flex-shrink: 0; }
+  .nav {
+    min-width: 0;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .nav__link { padding: 0 6px; font-size: 0.6rem; letter-spacing: 1px; }
+
   /* En colonne étroite, la gouttière de 88 px mange le texte. */
   .need__qty { display: block; min-width: 0; }
   .need__why, .need__pantry, .need__actions { padding-left: 0; }
