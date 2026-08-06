@@ -1,82 +1,18 @@
 ---
 title: Nomenclature des tests — Cooking Manager
 axis: quality
-upstream: [MOMENTS.md, julien-test-case-design]
+upstream: [MOMENTS.md, "2026.08 Product Toolkit/docs/MODEL_test_nomenclature.md"]
 status: draft
 date: 2026-08-06
 ---
 
 # Nomenclature des tests
 
-> Un moment sans scénario saute. Un scénario sans test n'existe pas.
-
-## Principes
-
-1. **Le scénario est l'atome du test** (VOCABULARY.md, Product Toolkit). Le moment est
-   l'atome du design — il *engendre* les scénarios, il ne les remplace pas.
-2. **Chaque scénario porte un identifiant `SC-NN`** stable, attribué une fois dans
-   MOMENTS.md et jamais réutilisé. Le numéro est global au projet (pas par rôle).
-3. **Le test référence le scénario, pas le module.** Un fichier de test peut couvrir
-   plusieurs scénarios du même rôle ; une fonction de test couvre un seul SC-NN.
-
-## Convention de nommage
-
-### Fichiers de test
-
-```
-tests/test_<étage>_<rôle>_<domaine>.py
-```
-
-| Segment | Valeurs | Exemples |
-|---|---|---|
-| `<étage>` | `unit`, `e2e`, `compat` | étage 1 = logique pure, étage 2 = parcours réel, étage 3 = compat device |
-| `<rôle>` | `r1`…`r7`, ou omis si transverse | `r1` = planificateur, `r3` = cuisinier |
-| `<domaine>` | slug libre, court | `compatibility`, `stock`, `prep`, `swap` |
-
-Exemples :
-- `test_unit_r1_compatibility.py` — logique de détection de conflits (R1 planificateur)
-- `test_e2e_r2_shopping.py` — parcours achat drive (R2 acheteur)
-- `test_e2e_r5_stock.py` — mise à jour garde-manger (R5 intendant)
-- `test_unit_r6_prep.py` — checklist préparation veille (R6 préparateur)
-- `test_e2e_import.py` — import de recette (J4, transverse, pas de rôle unique)
-
-### Fonctions de test
-
-```python
-def test_sc<NN>_<slug_court>(…):
-    """SC-<NN> — <description en une ligne>."""
-```
-
-Le préfixe `sc<NN>` fait le lien mécanique avec MOMENTS.md. Le slug court décrit
-le cas. Exemple :
-
-```python
-def test_sc01_conflict_detected_pescetarian(menu_with_chicken, clemence):
-    """SC-01 — un plat à base de poulet est signalé pour un convive pescétarien."""
-    alerts = check_meal(menu_with_chicken, [clemence])
-    assert any(a.severity == "error" for a in alerts)
-
-def test_sc02_no_false_positive_fish(menu_with_salmon, clemence):
-    """SC-02 — un plat à base de saumon ne déclenche pas d'alerte pour un pescétarien."""
-    alerts = check_meal(menu_with_salmon, [clemence])
-    assert not alerts
-```
-
-### Non-régressions
-
-Un test de non-régression (bug corrigé) porte le numéro d'issue GitHub :
-
-```python
-def test_nonreg_issue04_ingest_does_not_delete_menus(…):
-    """Non-rég #4 — l'ingestion de recettes ne doit plus effacer les menus."""
-```
-
-Pas de SC-NN : une non-régression n'est pas un scénario d'usage, c'est un verrou
-sur un bug passé.
+> Doctrine générale : `2026.08 Product Toolkit/docs/MODEL_test_nomenclature.md`.
+> Ce document est l'**instance locale** — il catalogue les SC-NN de ce projet et
+> trace la migration des tests existants.
 
 ## Catalogue des scénarios (SC-NN)
-
-Chaque scénario est attribué à un moment (R + famille) et à un étage de test.
 
 | SC | Rôle | Famille | Description | Étage |
 |---|---|---|---|---|
@@ -107,10 +43,6 @@ Chaque scénario est attribué à un moment (R + famille) et à un étage de tes
 
 ## Migration des tests existants
 
-Les tests actuels n'ont pas de SC-NN. La migration est **incrémentale** : on ne
-renomme pas les tests existants d'un coup, on attribue un SC-NN à chaque nouveau
-test et on annote les existants quand on les touche.
-
 | Fichier actuel | Scénarios couverts | Action |
 |---|---|---|
 | `test_convives.py` | SC-01, SC-02, SC-03 (partiellement) | annoter les fonctions |
@@ -121,15 +53,10 @@ test et on annote les existants quand on les touche.
 | `test_presence.py` | SC-03 (partiellement) | annoter |
 | `test_pantry.py` | SC-14 (partiellement) | annoter |
 
-## Lien avec julien-test-case-design
+## Vérification
 
-La skill `julien-test-case-design` produit une suite en trois étages :
-
-| Étage skill | Correspond à | Marqueur pytest |
-|---|---|---|
-| Étage 1 — logique pure | `test_unit_*` | (pas de marqueur, défaut) |
-| Étage 2 — parcours réels | `test_e2e_*` | `@pytest.mark.e2e` |
-| Étage 3 — mise en page/gestes | `test_compat_*` | `@pytest.mark.compat` |
-
-Quand la skill est invoquée sur ce projet, elle lit ce document + MOMENTS.md pour
-dériver les scénarios manquants et les tests à écrire.
+```bash
+grep -oP 'SC-\d+' docs/conception/MOMENTS.md | sort -u > /tmp/sc_moments
+grep -roPh 'SC-\d+' tests/ | sort -u > /tmp/sc_tests
+comm -23 /tmp/sc_moments /tmp/sc_tests
+```
