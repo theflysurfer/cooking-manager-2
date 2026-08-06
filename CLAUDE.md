@@ -8,6 +8,7 @@ Web app pour parcourir et filtrer les recettes familiales depuis le vault Obsidi
 - **Frontend** : vanilla JS, **zéro build** — fichiers statiques servis par FastAPI
 - **DB** : `postgresql-shared` (Docker) → database `cooking_manager`, user `cooking`
 - **Deploy** : systemd `cooking-manager.service` + nginx sur srv759970, port 8795
+- **MCP** : `cooking-mcp.service` port 3868, `https://cooking-mcp.srv759970.hstgr.cloud/mcp`
 
 ⚠️ **Cible : iPad mini 2 / Safari 12.5.8**, utilisé en cuisine. Ce n'est pas un
 plancher de compatibilité théorique : l'ancien front y était littéralement cassé
