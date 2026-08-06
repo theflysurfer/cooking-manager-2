@@ -1001,7 +1001,7 @@ async def backfill_nutrition(session_id: int | None = None):
 
     pool = await get_pool(DATABASE_DSN)
     async with pool.acquire() as conn:
-        where = "WHERE nutriscore IS NULL AND allergens IS NULL"
+        where = "WHERE (nutriscore IS NULL OR nutriscore = '') AND (allergens IS NULL OR allergens = '')"
         params: list = []
         if session_id is not None:
             where += " AND session_id = $1"
