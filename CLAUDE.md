@@ -24,7 +24,7 @@ cooking_manager/   # Domaine pur, sans I/O réseau
   convives.py      # profils alimentaires + contrôle de compatibilité
   presence.py      # qui est à table (garde alternée × vacances × absences)
 backend/           # FastAPI + schéma DB + ingestion
-  stt.py           # pipeline vocal : Deepgram (STT) + Ollama cloud (intent)
+  stt.py           # pipeline vocal : Deepgram (STT) + Groq LLM (intent)
   auchan.py        # client Auchan Drive (reverse-engineered)
   auchan_mcp.py    # serveur FastMCP (stdio)
 web/               # Front : index.html + style.css + app.js (+ media/recipes/)
@@ -121,6 +121,8 @@ Client reverse-engineered (`backend/auchan.py`). Auth : Bearer JWT Keycloak + `x
 
 `POST /api/shopping/persist-cart` persiste chaque article dans `shopping_product` et l'enrichit en direct (nutrition, nutriscore, ingrédients, allergènes, caractéristiques, photo, prix/kg) via `backend/auchan.py::find_product_detail()` — pont entre l'UUID interne du panier et l'ID public catalogue (recherche par nom, puis scrape de la fiche produit). Séquentiel, un item peut prendre plusieurs secondes — le timeout nginx `/api/` est à 300s pour cette raison (`deploy/cooking-manager.nginx.conf`).
 
+Le nutriscore est enrichi via **Open Food Facts** (`/api/v2/product/{ean}`) quand le scraping Auchan ne le fournit pas (Auchan n'affiche plus le nutriscore en image). L'EAN est extrait du groupe "Réf / EAN" de la fiche produit. Les allergènes sont d'abord extraits des MAJUSCULES dans le texte d'ingrédients (norme UE), puis complétés par OFF si absent.
+
 ## Commande vocale (STT + LLM)
 
 Pipeline : MediaRecorder (front) → `POST /api/audio` → Deepgram prerecorded (STT) → Groq LLM (intent JSON) → exécution. Panneau `#mic-panel` affiche la transcription et l'action interprétée.
@@ -138,6 +140,7 @@ Pipeline : MediaRecorder (front) → `POST /api/audio` → Deepgram prerecorded 
 - La recherche SSR nécessite le cookie `auchan_store_reference=874` (Aubagne)
 - Remove cart : l'`id` interne (UUID) ≠ `productId` — toujours GET cart d'abord
 - `httpx`/`selectolax`/`mcp` sont des dépendances déclarées dans `pyproject.toml` — un venv reconstruit à neuf (`pip install .`) est le test de vérité si ce fichier dérive
+- Toute nouvelle colonne dans un CREATE TABLE doit aussi etre dans MIGRATIONS_SQL (`ALTER TABLE ADD COLUMN IF NOT EXISTS`) — le VPS a deja les tables, `CREATE TABLE IF NOT EXISTS` ne rajoute rien
 
 ## Gates avant commit — les trois sont bloquants
 
