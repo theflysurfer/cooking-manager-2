@@ -1,0 +1,15 @@
+[Unit]
+Description=Cooking Manager MCP server (streamable-http)
+After=cooking-manager.service
+Wants=cooking-manager.service
+
+[Service]
+Type=simple
+User=automation
+WorkingDirectory=/opt/cooking-manager-2
+ExecStart=/opt/cooking-manager-2/.venv/bin/python -m backend.cooking_mcp --transport=streamable-http
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

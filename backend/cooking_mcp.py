@@ -9,6 +9,8 @@ import os
 
 from mcp.server.fastmcp import FastMCP
 
+MCP_PORT = int(os.environ.get("MCP_PORT", "3868"))
+
 mcp = FastMCP(
     "Cooking Manager",
     instructions=(
@@ -17,10 +19,12 @@ mcp = FastMCP(
         "La liste de courses différentielle croise le menu de la semaine "
         "avec le stock réel."
     ),
+    host="127.0.0.1",
+    port=MCP_PORT,
 )
 
 API_BASE = os.environ.get(
-    "COOKING_MANAGER_API_BASE", "https://cooking.srv759970.hstgr.cloud"
+    "COOKING_MANAGER_API_BASE", "http://127.0.0.1:8795"
 )
 
 
@@ -189,4 +193,11 @@ async def pantry_ingest() -> str:
 
 
 if __name__ == "__main__":
-    mcp.run(transport="stdio")
+    import sys
+
+    transport = "stdio"
+    for arg in sys.argv[1:]:
+        if arg.startswith("--transport="):
+            transport = arg.split("=", 1)[1]
+
+    mcp.run(transport=transport)  # type: ignore[arg-type]
