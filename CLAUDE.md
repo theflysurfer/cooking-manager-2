@@ -8,7 +8,7 @@ Web app pour parcourir et filtrer les recettes familiales depuis le vault Obsidi
 - **Frontend** : vanilla JS, **zéro build** — fichiers statiques servis par FastAPI
 - **DB** : `postgresql-shared` (Docker) → database `cooking_manager`, user `cooking`
 - **Deploy** : systemd `cooking-manager.service` + nginx sur srv759970, port 8795
-- **MCP** : `cooking-mcp.service` port 3868, `https://cooking-mcp.srv759970.hstgr.cloud/mcp`
+- **MCP** : `cooking-mcp.service` port 3868, `https://cooking-mcp.srv759970.hstgr.cloud/mcp`, user `mcp-run`, Google OAuth (`build_google_auth("cooking")` depuis `/home/automation/shared/mcp_auth.py`)
 
 ⚠️ **Cible : iPad mini 2 / Safari 12.5.8**, utilisé en cuisine. Ce n'est pas un
 plancher de compatibilité théorique : l'ancien front y était littéralement cassé
@@ -148,6 +148,8 @@ Pipeline : MediaRecorder (front) → `POST /api/audio` → Deepgram prerecorded 
 - Après un `rclone copy` vers Dropbox, le mount VPS (`/mnt/dropbox-full`) peut avoir un délai de propagation (~30 s) — relancer `POST /api/ingest` si une recette n'apparaît pas
 - `_pantry_from_db()` remplace `_load_pantry()` — le différentiel courses lit désormais la DB, plus le Markdown
 - Pour le garde-manger, la **DB est la source de vérité** (pas le vault). Le vault est une source d'ingestion parmi d'autres (API, voix, Auchan). Les items `source != 'vault'` survivent à la ré-ingestion
+- `cooking_mcp.py` importe `from fastmcp import FastMCP` (pas `from mcp.server.fastmcp`) — seul le package `fastmcp` (v3.4+) expose `host`/`port`/`allowed_hosts` dans `run()`. Le package `mcp` v2 a un `FastMCP.run()` minimaliste
+- Tout MCP VPS derrière nginx avec `Host $host` doit passer `allowed_hosts=[<domaine>]` à `mcp.run()`, sinon Starlette retourne 421
 
 ## Gates avant commit — les trois sont bloquants
 
