@@ -145,6 +145,10 @@ class SearchResult:
     auchan_id: str
     price: str
     url: str
+    image_url: str = ""
+
+
+_IMG_SIZE_RE = re.compile(r"width=\d+&height=\d+")
 
 
 async def search_products(query: str, page: int = 1) -> list[SearchResult]:
@@ -166,10 +170,23 @@ async def search_products(query: str, page: int = 1) -> list[SearchResult]:
         if not id_match:
             continue
 
-        raw_text = _PIPE_RE.sub("", link.text(strip=True))
+        source_el = link.css_first("picture source[alt]")
+        if source_el:
+            name = (source_el.attributes.get("alt") or "").strip()
+        else:
+            raw_text = _PIPE_RE.sub("", link.text(strip=True))
+            brand_el = link.css_first("strong")
+            brand_txt = brand_el.text(strip=True) if brand_el else ""
+            name = raw_text.replace(brand_txt, "", 1).strip() if brand_txt else raw_text
+
         brand_el = link.css_first("strong")
         brand = brand_el.text(strip=True) if brand_el else ""
-        name = raw_text.replace(brand, "", 1).strip() if brand else raw_text
+
+        meta_img = link.css_first("meta[itemprop='image']")
+        image_url = ""
+        if meta_img:
+            raw_url = meta_img.attributes.get("content") or ""
+            image_url = _IMG_SIZE_RE.sub("width=200&height=200", raw_url)
 
         price_el = link.css_first("[class*='price']")
         price = price_el.text(strip=True) if price_el else ""
@@ -177,7 +194,7 @@ async def search_products(query: str, page: int = 1) -> list[SearchResult]:
         url = f"https://www.auchan.fr{href}" if href.startswith("/") else href
         results.append(SearchResult(
             name=name, brand=brand, auchan_id=id_match.group(1),
-            price=price, url=url,
+            price=price, url=url, image_url=image_url,
         ))
 
     seen = set()

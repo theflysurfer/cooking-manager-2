@@ -76,9 +76,9 @@ async def _search_auchan(query: str, limit: int = 5) -> list[StoreProduct]:
         price = _parse_price(r.price) if r.price else None
         out.append(StoreProduct(
             product_id=r.auchan_id,
-            name=f"{r.brand} {r.name}".strip() if r.brand else r.name,
+            name=r.name,
             brand=r.brand,
-            image_url="",
+            image_url=r.image_url,
             price=price,
             price_per_unit="",
             nutriscore="",
