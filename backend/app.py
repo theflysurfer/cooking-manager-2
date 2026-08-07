@@ -1457,6 +1457,32 @@ async def auchan_remove_from_cart(body: AuchanRemove):
     return {"removed": body.product_id, "cart": result}
 
 
+# ── Multi-drive search ────────────────────────────────────────────
+
+@app.get("/api/drives/{store}/search")
+async def drive_search(store: str, q: str = Query(..., min_length=1)):
+    from .drives import search_store, SUPPORTED_STORES
+    from dataclasses import asdict
+    if store not in SUPPORTED_STORES:
+        raise HTTPException(400, f"Enseigne inconnue, choix : {', '.join(SUPPORTED_STORES)}")
+    results = await search_store(store, q)
+    return {"products": [asdict(p) for p in results]}
+
+
+class MapIngredientsBody(BaseModel):
+    store: str
+    ingredients: list[dict]
+
+
+@app.post("/api/drives/map-ingredients")
+async def drive_map_ingredients(body: MapIngredientsBody):
+    from .drives import map_ingredients, SUPPORTED_STORES
+    if body.store not in SUPPORTED_STORES:
+        raise HTTPException(400, f"Enseigne inconnue, choix : {', '.join(SUPPORTED_STORES)}")
+    mappings = await map_ingredients(body.store, body.ingredients)
+    return {"mappings": mappings, "store": body.store}
+
+
 # ── Voice / STT ───────────────────────────────────────────────────
 
 @app.post("/api/audio")

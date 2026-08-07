@@ -715,13 +715,21 @@ async function viewCourses() {
   }).join('') + '</div>';
 
   var lines = data.lines || [];
+  var buyCount = 0;
   ORDER.forEach(function (key) {
     var group = lines.filter(function (l) { return l.outcome === key; });
     if (!group.length) return;
+    if (key === 'absent' || key === 'insuffisant') buyCount += group.length;
     html += '<h2 class="section-title">' + esc(OUTCOMES[key].label) +
             ' <span class="section-count">' + group.length + '</span></h2>' +
             '<ul class="needs">' + group.map(needRow).join('') + '</ul>';
   });
+
+  if (buyCount > 0) {
+    html += '<div class="drive-cta">' +
+      '<button class="btn btn--accent" onclick="location.hash=\'#/drive\'">' +
+      'Envoyer au drive (' + buyCount + ' articles)</button></div>';
+  }
 
   render(html);
 }
@@ -757,6 +765,261 @@ async function applyPantryGesture(li, action) {
   } catch (e) {
     box.innerHTML = '<span class="need__error">Échec de l\'enregistrement — réessayez</span>';
   }
+}
+
+/* ── Vue : drive (courses → panier enseigne) ─────────────────────── */
+
+async function viewDrive() {
+  var data = state.shopping;
+  if (!data) {
+    render(emptyState('Calcul de la liste…'));
+    var menus = (await api('/menus')).menus || [];
+    var menu = null;
+    for (var i = 0; i < menus.length; i++) {
+      if (menus[i].meals && menus[i].meals.length) { menu = menus[i]; break; }
+    }
+    if (!menu) {
+      render('<h1 class="page__title">Drive</h1>' +
+        emptyState('Pas de menu actif', 'La liste de courses se calcule depuis le menu.'));
+      return;
+    }
+    var today = new Date().toISOString().slice(0, 10);
+    data = await api('/menus/' + encodeURIComponent(menu.slug) +
+                     '/shopping-list?from_date=' + today);
+    state.shopping = data;
+  }
+
+  var toBuy = (data.lines || []).filter(function (l) {
+    return l.outcome === 'absent' || l.outcome === 'insuffisant';
+  });
+
+  if (!toBuy.length) {
+    render('<h1 class="page__title">Drive</h1>' +
+      emptyState('Rien à acheter', 'Tous les ingrédients sont en stock.') +
+      '<div class="drive-actions"><button class="btn" ' +
+      'onclick="location.hash=\'#/courses\'">Retour aux courses</button></div>');
+    return;
+  }
+
+  var store = state.driveStore || 'auchan';
+  render('<h1 class="page__title">Panier drive</h1>' +
+    '<p class="page__sub">' + esc(data.title) + ' · ' + toBuy.length + ' ingrédients</p>' +
+    _storePicker(store) +
+    '<div class="drive-loading"><p class="empty__title">Recherche sur ' +
+    esc(store.charAt(0).toUpperCase() + store.slice(1)) + '…</p></div>');
+
+  var payload = toBuy.map(function (l) {
+    return {
+      name: l.name, name_normalized: l.name_normalized,
+      qty: l.qty, unit: l.unit, recipes: l.recipes
+    };
+  });
+
+  try {
+    var result = await api('/drives/map-ingredients', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ store: store, ingredients: payload })
+    });
+  } catch (e) {
+    render('<h1 class="page__title">Panier drive</h1>' +
+      '<div class="banner">Erreur : ' + esc(e.message) + '</div>' +
+      '<div class="drive-actions"><button class="btn" ' +
+      'onclick="location.hash=\'#/courses\'">Retour aux courses</button></div>');
+    return;
+  }
+
+  state.driveMappings = result.mappings;
+  _renderDrive(data, result.mappings, store);
+}
+
+function _storePicker(active) {
+  var stores = [
+    { id: 'auchan', label: 'Auchan' },
+    { id: 'leclerc', label: 'Leclerc' }
+  ];
+  var html = '<div class="store-picker">';
+  for (var i = 0; i < stores.length; i++) {
+    var s = stores[i];
+    var cls = s.id === active ? 'store-pill store-pill--active' : 'store-pill';
+    html += '<button class="' + cls + '" data-store="' + s.id + '">' +
+      esc(s.label) + '</button>';
+  }
+  return html + '</div>';
+}
+
+function _renderDrive(data, mappings, store) {
+  var html = '<h1 class="page__title">Panier drive</h1>' +
+    '<p class="page__sub">' + esc(data.title) + ' · ' + mappings.length + ' ingrédients</p>' +
+    _storePicker(store);
+
+  var total = 0;
+  var matched = 0;
+
+  html += '<ul class="drive-list">';
+  for (var i = 0; i < mappings.length; i++) {
+    var m = mappings[i];
+    var sel = m.selected;
+    var product = (sel >= 0 && m.results.length > sel) ? m.results[sel] : null;
+    var expanded = state.driveExpanded === i;
+
+    html += '<li class="drive-row' + (product ? '' : ' drive-row--empty') +
+            '" data-idx="' + i + '">';
+
+    html += '<div class="drive-row__need">' +
+      '<strong class="drive-row__ing">' + esc(m.ingredient) + '</strong>';
+    if (m.qty !== null && m.qty !== undefined) {
+      html += ' <span class="drive-row__qty">' + m.qty +
+        (m.unit ? ' ' + esc(m.unit) : '') + '</span>';
+    }
+    if (m.recipes && m.recipes.length) {
+      html += '<div class="drive-row__recipes">' + esc(m.recipes.join(' · ')) + '</div>';
+    }
+    html += '</div>';
+
+    if (product) {
+      matched++;
+      if (product.price) total += product.price;
+
+      html += '<div class="drive-row__product">';
+      if (product.image_url) {
+        html += '<div class="drive-row__thumb">' +
+          '<img src="' + esc(product.image_url) +
+          '" alt="" width="56" height="56"></div>';
+      }
+      html += '<div class="drive-row__detail">' +
+        '<span class="drive-row__pname">' + esc(product.name) + '</span>';
+      if (product.price !== null && product.price !== undefined) {
+        html += '<span class="drive-row__price">' +
+          product.price.toFixed(2) + ' €</span>';
+      }
+      if (product.price_per_unit) {
+        html += '<span class="drive-row__ppu">' +
+          esc(product.price_per_unit) + '</span>';
+      }
+      if (product.nutriscore) {
+        html += ' ' + nutriscoreBadge(product.nutriscore);
+      }
+      html += '</div>';
+      html += '<button class="mini drive-row__swap" data-swap="' + i +
+        '">' + (expanded ? '▲' : 'Changer') + '</button>';
+      html += '</div>';
+    } else {
+      html += '<div class="drive-row__product drive-row__product--miss">' +
+        '<span class="drive-row__miss">Aucun résultat</span>' +
+        '<button class="mini drive-row__swap" data-swap="' + i +
+        '">Chercher</button></div>';
+    }
+
+    if (expanded) {
+      html += '<div class="drive-alts">';
+      if (m.results.length > 1) {
+        for (var j = 0; j < m.results.length; j++) {
+          if (j === sel) continue;
+          var alt = m.results[j];
+          html += '<button class="drive-alt" data-pick="' + i + '-' + j + '">';
+          if (alt.image_url) {
+            html += '<img class="drive-alt__img" src="' + esc(alt.image_url) +
+              '" alt="" width="40" height="40">';
+          }
+          html += '<span class="drive-alt__name">' + esc(alt.name) + '</span>';
+          if (alt.price !== null && alt.price !== undefined) {
+            html += '<span class="drive-alt__price">' +
+              alt.price.toFixed(2) + ' €</span>';
+          }
+          if (alt.nutriscore) html += ' ' + nutriscoreBadge(alt.nutriscore);
+          html += '</button>';
+        }
+      }
+      html += '<div class="drive-search-box">' +
+        '<input class="drive-search__input" type="text" ' +
+        'placeholder="Chercher un produit…" data-search-idx="' + i + '">' +
+        '</div>';
+      if (state.driveSearchResults && state.driveSearchResults.idx === i) {
+        var sr = state.driveSearchResults.products;
+        for (var k = 0; k < sr.length; k++) {
+          html += '<button class="drive-alt" data-search-pick="' + i + '-' + k + '">';
+          if (sr[k].image_url) {
+            html += '<img class="drive-alt__img" src="' + esc(sr[k].image_url) +
+              '" alt="" width="40" height="40">';
+          }
+          html += '<span class="drive-alt__name">' + esc(sr[k].name) + '</span>';
+          if (sr[k].price !== null && sr[k].price !== undefined) {
+            html += '<span class="drive-alt__price">' +
+              sr[k].price.toFixed(2) + ' €</span>';
+          }
+          html += '</button>';
+        }
+      }
+      html += '</div>';
+    }
+
+    html += '</li>';
+  }
+  html += '</ul>';
+
+  html += '<div class="drive-summary">' +
+    '<span class="drive-summary__count">' + matched + '/' + mappings.length +
+    ' trouvés</span>';
+  if (total > 0) {
+    html += '<span class="drive-summary__total">≈ ' +
+      total.toFixed(2) + ' €</span>';
+  }
+  html += '</div>';
+
+  html += '<div class="drive-actions">' +
+    '<button class="btn" onclick="location.hash=\'#/courses\'">← Courses</button>' +
+    '</div>';
+
+  render(html);
+}
+
+/* Drive event handlers — delegated from document.click */
+
+function _driveSwap(idx) {
+  state.driveExpanded = (state.driveExpanded === idx) ? null : idx;
+  state.driveSearchResults = null;
+  _renderDrive(state.shopping, state.driveMappings, state.driveStore || 'auchan');
+}
+
+function _drivePick(idx, altIdx) {
+  var m = state.driveMappings[idx];
+  if (m) m.selected = altIdx;
+  state.driveExpanded = null;
+  _renderDrive(state.shopping, state.driveMappings, state.driveStore || 'auchan');
+}
+
+function _driveSearchPick(idx, searchIdx) {
+  if (!state.driveSearchResults) return;
+  var product = state.driveSearchResults.products[searchIdx];
+  if (!product) return;
+  var m = state.driveMappings[idx];
+  if (m) {
+    m.results.push(product);
+    m.selected = m.results.length - 1;
+  }
+  state.driveExpanded = null;
+  state.driveSearchResults = null;
+  _renderDrive(state.shopping, state.driveMappings, state.driveStore || 'auchan');
+}
+
+var _driveSearchTimer = null;
+
+function _driveSearchKeyup(input) {
+  var idx = parseInt(input.getAttribute('data-search-idx'), 10);
+  var q = input.value.trim();
+  if (q.length < 2) return;
+  if (_driveSearchTimer) clearTimeout(_driveSearchTimer);
+  _driveSearchTimer = setTimeout(function () {
+    var store = state.driveStore || 'auchan';
+    api('/drives/' + encodeURIComponent(store) + '/search?q=' + encodeURIComponent(q))
+      .then(function (res) {
+        state.driveSearchResults = { idx: idx, products: res.products || [] };
+        _renderDrive(state.shopping, state.driveMappings, store);
+        var el = document.querySelector('[data-search-idx="' + idx + '"]');
+        if (el) { el.value = q; el.focus(); }
+      });
+  }, 400);
 }
 
 /* ── Vue : garde-manger ───────────────────────────────────────────── */
@@ -912,7 +1175,7 @@ async function expandSession(card) {
 
 var ROUTES = {
   menu: viewMenu, recettes: viewRecipes, courses: viewCourses,
-  'garde-manger': viewPantry, achats: viewShopping
+  'garde-manger': viewPantry, achats: viewShopping, drive: viewDrive
 };
 
 function currentRoute() {
@@ -964,6 +1227,39 @@ document.addEventListener('click', function (e) {
     return;
   }
 
+  var storePill = e.target.closest('.store-pill');
+  if (storePill) {
+    var sid = storePill.getAttribute('data-store');
+    if (sid && sid !== state.driveStore) {
+      state.driveStore = sid;
+      state.driveMappings = null;
+      state.driveExpanded = null;
+      state.driveSearchResults = null;
+      viewDrive();
+    }
+    return;
+  }
+
+  var swapBtn = e.target.closest('[data-swap]');
+  if (swapBtn) {
+    _driveSwap(parseInt(swapBtn.getAttribute('data-swap'), 10));
+    return;
+  }
+
+  var pickBtn = e.target.closest('[data-pick]');
+  if (pickBtn) {
+    var parts2 = pickBtn.getAttribute('data-pick').split('-');
+    _drivePick(parseInt(parts2[0], 10), parseInt(parts2[1], 10));
+    return;
+  }
+
+  var spickBtn = e.target.closest('[data-search-pick]');
+  if (spickBtn) {
+    var sp = spickBtn.getAttribute('data-search-pick').split('-');
+    _driveSearchPick(parseInt(sp[0], 10), parseInt(sp[1], 10));
+    return;
+  }
+
   var back = e.target.closest('[data-back]');
   if (back) { history.back(); return; }
 
@@ -977,6 +1273,12 @@ document.addEventListener('click', function (e) {
     });
     loadRecipes().then(function (d) { paintRecipes(d.total); });
   }
+});
+
+/* Recherche live dans la vue drive. */
+document.addEventListener('keyup', function (e) {
+  var input = e.target.closest('.drive-search__input');
+  if (input) _driveSearchKeyup(input);
 });
 
 /* Thème : pas de @media prefers-color-scheme (iOS 13) — attribut sur <html>. */

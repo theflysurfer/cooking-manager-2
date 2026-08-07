@@ -1391,3 +1391,252 @@ h1, h2, h3, .u-heading {
   opacity: 0.6;
   cursor: default;
 }
+
+
+/* ── Drive (courses → panier enseigne) ─────────────────────────────── */
+
+.drive-cta {
+  text-align: center;
+  margin-top: var(--sp-4);
+  margin-bottom: var(--sp-4);
+}
+
+.btn--accent {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  font-family: var(--font-heading);
+  font-weight: 400;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  font-size: 0.85rem;
+  padding: var(--sp-2) var(--sp-4);
+  border-radius: 6px;
+  min-height: var(--tap);
+  cursor: pointer;
+}
+
+.store-picker {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-gap: var(--sp-2);
+  margin-bottom: var(--sp-4);
+  max-width: 320px;
+}
+
+.store-pill {
+  font-family: var(--font-heading);
+  font-weight: 400;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-size: 0.8rem;
+  padding: var(--sp-2) var(--sp-3);
+  border: 2px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  min-height: var(--tap);
+  cursor: pointer;
+  text-align: center;
+}
+
+.store-pill--active {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
+
+.drive-loading {
+  padding: var(--sp-5) 0;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.drive-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.drive-row {
+  border-bottom: 1px solid var(--border);
+  padding: var(--sp-3) 0;
+}
+
+.drive-row--empty {
+  opacity: 0.7;
+}
+
+.drive-row__need {
+  margin-bottom: var(--sp-1);
+}
+
+.drive-row__ing {
+  font-family: var(--font-heading);
+  font-weight: 400;
+  color: var(--text-strong);
+  font-size: 0.95rem;
+}
+
+.drive-row__qty {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  margin-left: var(--sp-1);
+}
+
+.drive-row__recipes {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.drive-row__product {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  grid-gap: var(--sp-2);
+  align-items: center;
+  padding: var(--sp-2);
+  border-radius: 6px;
+  background: var(--surface);
+}
+
+.drive-row__product--miss {
+  grid-template-columns: 1fr auto;
+}
+
+.drive-row__thumb img {
+  display: block;
+  width: 56px;
+  height: 56px;
+  object-fit: contain;
+  border-radius: 4px;
+  background: var(--surface-alt);
+}
+
+.drive-row__detail {
+  min-width: 0;
+}
+
+.drive-row__pname {
+  display: block;
+  font-size: 0.85rem;
+  color: var(--text-strong);
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.drive-row__price {
+  font-family: var(--font-heading);
+  font-weight: 400;
+  font-size: 0.9rem;
+  color: var(--text-strong);
+  margin-right: var(--sp-1);
+}
+
+.drive-row__ppu {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.drive-row__miss {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.drive-row__swap {
+  white-space: nowrap;
+}
+
+/* Alternatives (expanded) */
+
+.drive-alts {
+  padding: var(--sp-2) 0 var(--sp-1);
+}
+
+.drive-alt {
+  display: grid;
+  grid-template-columns: 40px 1fr auto;
+  grid-gap: var(--sp-2);
+  align-items: center;
+  width: 100%;
+  padding: var(--sp-1) var(--sp-2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+  cursor: pointer;
+  text-align: left;
+  font-size: 0.8rem;
+  margin-bottom: var(--sp-1);
+}
+
+.drive-alt__img {
+  display: block;
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+  border-radius: 3px;
+}
+
+.drive-alt__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+}
+
+.drive-alt__price {
+  color: var(--text-strong);
+  font-family: var(--font-heading);
+  white-space: nowrap;
+}
+
+.drive-search-box {
+  margin-top: var(--sp-2);
+}
+
+.drive-search__input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: var(--sp-2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 16px;
+  font-family: var(--font-body);
+  background: var(--bg);
+  color: var(--text);
+}
+
+/* Summary */
+
+.drive-summary {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-gap: var(--sp-3);
+  align-items: center;
+  padding: var(--sp-3);
+  margin-top: var(--sp-3);
+  background: var(--surface);
+  border-radius: 6px;
+}
+
+.drive-summary__count {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.drive-summary__total {
+  font-family: var(--font-heading);
+  font-weight: 400;
+  font-size: 1.1rem;
+  color: var(--text-strong);
+  letter-spacing: 0.02em;
+}
+
+.drive-actions {
+  text-align: center;
+  margin-top: var(--sp-4);
+  margin-bottom: var(--sp-5);
+}
