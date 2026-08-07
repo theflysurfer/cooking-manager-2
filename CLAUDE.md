@@ -133,8 +133,7 @@ Pipeline : MediaRecorder (front) → `POST /api/audio` → Deepgram prerecorded 
 - **LLM intent** : Groq `qwen/qwen3.6-27b` (`reasoning_effort: "none"`, ~300 ms). Ollama cloud en fallback si `GROQ_API_KEY` absent
 - **Credentials** : credstore systemd (`cooking-deepgram-key`, `cooking-ollama-key`, `groq-key` partagé avec bibliotheque), lues par `deploy/run-with-cred.sh`
 - **MediaRecorder** exige Safari 14.5+ — le FAB micro est **masqué** sur Safari 12 (feature-detect). Le panneau vocal n'apparaît jamais sur l'iPad mini 2
-- **8 intents** : `search_recipe`, `adjust_servings`, `product_blacklist`, `recipe_note`, `recipe_edit_step`, `meal_feedback`, `pantry_leftover`, `swap_recipe`
-- **Câblés** (3/8) : `search_recipe`, `adjust_servings`, `swap_recipe` — les 5 autres sont reconnus mais pas exécutés
+- **9 intents** (tous câblés) : `search_recipe`, `adjust_servings`, `swap_recipe`, `pantry_bulk_update`, `product_blacklist`, `recipe_note`, `recipe_edit_step`, `meal_feedback`, `pantry_leftover`
 
 ## Gotchas
 

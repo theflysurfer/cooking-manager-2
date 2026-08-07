@@ -13,7 +13,7 @@ Live: `https://cooking.srv759970.hstgr.cloud`
 - **Shopping list** — auto-generated from menu recipes × covers, with "remaining items" toggle (filters past days)
 - **Auchan Drive** — search products, manage cart, persist purchases with nutritional enrichment (nutriscore, allergens, ingredients via Auchan scraping + Open Food Facts)
 - **Dietary compatibility** — checks who's at the table (custody schedule × school holidays × absences) against each person's constraints
-- **Voice commands** — speech-to-text (Deepgram) + LLM intent classification (Groq) for hands-free recipe search, servings adjustment, recipe swap (Safari 14.5+ only)
+- **Voice commands** — speech-to-text (Deepgram) + LLM intent classification (Groq) for hands-free recipe search, servings adjustment, recipe swap, product blacklisting, recipe notes, step editing, meal feedback, and pantry leftovers (Safari 14.5+ only)
 - **Pantry management** — track what's in stock, mark leftovers
 
 ## Stack
@@ -75,6 +75,8 @@ The vault is mounted read-only on the VPS via rclone. Ingestion: `POST /api/inge
 | GET | `/api/filters` | Available filter values |
 | GET | `/api/recipes/{slug}/executions` | Cooking history |
 | POST | `/api/recipes/{slug}/executions` | Log a cooking execution |
+| POST | `/api/recipes/{slug}/note` | Add a note to a recipe |
+| PATCH | `/api/recipes/{slug}/steps/{position}` | Edit a recipe step |
 
 ### Menus
 | Method | Endpoint | Description |
@@ -94,6 +96,7 @@ The vault is mounted read-only on the VPS via rclone. Ingestion: `POST /api/inge
 | POST | `/api/shopping/persist-cart` | Persist + enrich cart items (nutrition, nutriscore, allergens) |
 | GET | `/api/shopping/sessions` | List shopping sessions |
 | GET | `/api/shopping/preferences` | Product preferences (blacklist, favorites) |
+| POST | `/api/shopping/preferences` | Add a product preference (blacklist/favorite) |
 
 ### Auchan Drive
 | Method | Endpoint | Description |
@@ -101,11 +104,12 @@ The vault is mounted read-only on the VPS via rclone. Ingestion: `POST /api/inge
 | GET | `/api/auchan/product/{id}` | Product detail (scraped) |
 | POST | `/api/auchan/remove` | Remove item from cart |
 
-### Voice
+### Voice & Feedback
 | Method | Endpoint | Description |
 |---|---|---|
 | POST | `/api/audio` | Audio → STT → LLM intent → action |
 | POST | `/api/intent` | Text → LLM intent → action |
+| POST | `/api/feedback` | Log meal feedback (rating, comment) |
 
 ### Pantry (DB-backed)
 | Method | Endpoint | Description |
@@ -116,6 +120,7 @@ The vault is mounted read-only on the VPS via rclone. Ingestion: `POST /api/inge
 | PUT | `/api/pantry/items/{id}` | Update item (status, qty, notes) |
 | DELETE | `/api/pantry/items/{id}` | Remove item |
 | GET | `/api/pantry/search?q=` | Search items by name |
+| POST | `/api/pantry/leftover` | Mark a pantry item as leftover |
 | PATCH | `/api/pantry` | Update pantry (legacy Markdown writer) |
 
 ### Other
