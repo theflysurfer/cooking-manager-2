@@ -28,9 +28,9 @@ INSERT INTO recipe (
     applied_substitutions, mediterranean_criteria,
     construction_regime, execution_count, lieu_execution,
     macros_kcal, macros_protein, macros_carbs, macros_fat,
-    protein_density, photo_url, body, created, updated
+    protein_density, photo_url, sub_recipes, body, created, updated
 ) VALUES (
-    $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27
+    $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28
 )
 ON CONFLICT (slug) DO UPDATE SET
     title=$2, status=$3, recipe_type=$4, family=$5, servings=$6,
@@ -39,8 +39,8 @@ ON CONFLICT (slug) DO UPDATE SET
     applied_substitutions=$14, mediterranean_criteria=$15,
     construction_regime=$16, execution_count=$17, lieu_execution=$18,
     macros_kcal=$19, macros_protein=$20, macros_carbs=$21, macros_fat=$22,
-    protein_density=$23, photo_url=$24, body=$25,
-    created=$26, updated=$27,
+    protein_density=$23, photo_url=$24, sub_recipes=$25, body=$26,
+    created=$27, updated=$28,
     ingested_at=NOW()
 """
 
@@ -146,6 +146,7 @@ def _recipe_row(r: dict) -> tuple:
         macros.get("fat"),
         r.get("protein_density"),
         r.get("photo_url"),
+        r.get("sub_recipes", []),
         r.get("_body", ""),
         _parse_date(r.get("created")),
         _parse_date(r.get("updated")),

@@ -29,6 +29,7 @@ CREATE TABLE IF NOT EXISTS recipe (
     macros_fat    REAL,
     protein_density REAL,
     photo_url   TEXT,
+    sub_recipes TEXT[] DEFAULT '{}',
     body        TEXT,
     created     DATE,
     updated     DATE,
@@ -276,6 +277,7 @@ ALTER TABLE shopping_product ALTER COLUMN total_price  TYPE NUMERIC USING total_
 ALTER TABLE shopping_product ALTER COLUMN price_per_kg TYPE NUMERIC USING price_per_kg::numeric;
 ALTER TABLE shopping_product ADD COLUMN IF NOT EXISTS ean TEXT;
 ALTER TABLE menu_meal ADD COLUMN IF NOT EXISTS covers INTEGER;
+ALTER TABLE recipe ADD COLUMN IF NOT EXISTS sub_recipes TEXT[] DEFAULT '{}';
 """
 
 _pool: asyncpg.Pool | None = None

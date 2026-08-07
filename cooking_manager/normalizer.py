@@ -66,6 +66,7 @@ RECIPE_KEY_ALIASES: dict[str, str] = {
     "mediterranean_criteria_covered": "mediterranean_criteria",
     "executions": "execution_count",
     "recettes_liees": "linked_recipes",
+    "sous_recettes": "sub_recipes",
 }
 
 MENU_KEY_ALIASES: dict[str, str] = {
@@ -260,7 +261,7 @@ def normalize_recipe(raw: dict) -> tuple[dict, list[str]]:
     # List fields
     for field in ("tags", "compatible_constraints", "sources", "appreciated_by",
                    "applied_substitutions", "ingredients", "steps", "linked_recipes",
-                   "mediterranean_criteria"):
+                   "mediterranean_criteria", "sub_recipes"):
         if field in data:
             data[field] = _coerce_list(data[field])
 

@@ -1317,6 +1317,119 @@ async def list_shopping_sessions():
     return {"sessions": sessions}
 
 
+# ── Voice intent endpoints ─────────────────────────────────────────
+
+class BlacklistBody(BaseModel):
+    product: str
+    reason: str | None = None
+
+
+@app.post("/api/shopping/preferences")
+async def add_shopping_preference(body: BlacklistBody):
+    pool = await get_pool(DATABASE_DSN)
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """INSERT INTO shopping_preference (pref_type, key, value, reason)
+               VALUES ('blacklist', $1, $2, $3)
+               ON CONFLICT (pref_type, key) DO UPDATE
+               SET value = EXCLUDED.value, reason = EXCLUDED.reason,
+                   active = TRUE, updated_at = NOW()""",
+            body.product, body.reason or "vocal", body.reason,
+        )
+    return {"ok": True, "product": body.product}
+
+
+class RecipeNoteBody(BaseModel):
+    note: str
+
+
+@app.post("/api/recipes/{slug}/note")
+async def add_recipe_note(slug: str, body: RecipeNoteBody):
+    today = datetime.date.today()
+    pool = await get_pool(DATABASE_DSN)
+    async with pool.acquire() as conn:
+        recipe_id = await _get_recipe_id(conn, slug)
+        row = await conn.fetchrow(
+            """INSERT INTO recipe_execution (recipe_id, date, notes)
+               VALUES ($1, $2, $3)
+               RETURNING id""",
+            recipe_id, today, body.note,
+        )
+    return {"ok": True, "execution_id": row["id"]}
+
+
+class StepEditBody(BaseModel):
+    text: str
+
+
+@app.patch("/api/recipes/{slug}/steps/{position}")
+async def edit_recipe_step(slug: str, position: int, body: StepEditBody):
+    pool = await get_pool(DATABASE_DSN)
+    async with pool.acquire() as conn:
+        recipe_id = await _get_recipe_id(conn, slug)
+        result = await conn.execute(
+            "UPDATE recipe_step SET text = $1 WHERE recipe_id = $2 AND position = $3",
+            body.text, recipe_id, position,
+        )
+        if result == "UPDATE 0":
+            raise HTTPException(404, f"Step {position} not found")
+    return {"ok": True, "position": position}
+
+
+class FeedbackBody(BaseModel):
+    dish: str
+    convive: str | None = None
+    liked: bool = True
+    comment: str | None = None
+
+
+@app.post("/api/feedback")
+async def add_meal_feedback(body: FeedbackBody):
+    today = datetime.date.today()
+    pool = await get_pool(DATABASE_DSN)
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT id FROM recipe WHERE LOWER(title) LIKE '%' || LOWER($1) || '%' LIMIT 1",
+            body.dish,
+        )
+        if not row:
+            return {"ok": False, "reason": f"Aucune recette trouvée pour « {body.dish} »"}
+        recipe_id = row["id"]
+        appreciated_by = [body.convive] if body.convive and body.liked else []
+        notes = body.comment
+        if not body.liked and body.convive:
+            notes = (notes or "") + f" ({body.convive} n'a pas aimé)"
+        await conn.fetchrow(
+            """INSERT INTO recipe_execution (recipe_id, date, appreciated_by, appreciation_date, notes)
+               VALUES ($1, $2, $3, $4, $5)
+               RETURNING id""",
+            recipe_id, today, appreciated_by, today if appreciated_by else None, notes,
+        )
+    return {"ok": True, "dish": body.dish}
+
+
+class LeftoverBody(BaseModel):
+    ingredient: str
+    quantity: str | None = None
+    shelf_life_days: int | None = None
+
+
+@app.post("/api/pantry/leftover")
+async def add_pantry_leftover(body: LeftoverBody):
+    from cooking_manager.ingredients import normalize_name
+    normalized = normalize_name(body.ingredient)
+    pool = await get_pool(DATABASE_DSN)
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """INSERT INTO pantry_item (name, name_normalized, section, qty_text, status, source)
+               VALUES ($1, $2, 'Restes', $3, 'ok', 'voice')
+               ON CONFLICT (name_normalized, section) DO UPDATE
+               SET qty_text = EXCLUDED.qty_text, status = 'ok', updated_at = NOW()""",
+            body.ingredient, normalized, body.quantity or "",
+        )
+    return {"ok": True, "ingredient": body.ingredient}
+
+
 # ── Auchan Drive ───────────────────────────────────────────────────
 
 class AuchanRemove(BaseModel):

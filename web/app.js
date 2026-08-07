@@ -554,6 +554,15 @@ async function viewRecipe(slug) {
                        'Ajoutez une section « ## Ingrédients » puis relancez la synchronisation.');
   }
 
+  var subs = r.sub_recipes || [];
+  if (subs.length) {
+    html += '<h2 class="section-title">Sous-recettes</h2><ul class="sub-recipes">' +
+      subs.map(function (s) {
+        return '<li><a href="#/recette/' + encodeURIComponent(s) + '" class="sub-recipe__link">' +
+               esc(s.replace(/-/g, ' ')) + '</a></li>';
+      }).join('') + '</ul>';
+  }
+
   html += '<h2 class="section-title">Historique</h2><div id="exec">' +
           emptyState('Chargement…') + '</div>';
 
@@ -1112,6 +1121,13 @@ function findMealId(dayHint, slotHint) {
   return null;
 }
 
+function currentRecipeSlug() {
+  var h = location.hash.replace(/^#\/?/, '');
+  var parts = h.split('/');
+  if (parts[0] === 'recette' && parts[1]) return decodeURIComponent(parts[1]);
+  return null;
+}
+
 function handleVoiceResult(data) {
   var t = data.transcript || '';
   var intent = data.intent || {};
@@ -1168,6 +1184,95 @@ function handleVoiceResult(data) {
     if (items && items.length) {
       showBulkConfirm(items);
     }
+    return;
+  }
+
+  if (action === 'product_blacklist') {
+    api('/shopping/preferences', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ product: intent.product, reason: intent.reason || null })
+    }).then(function () {
+      showMicPanel('success', 'Produit blacklisté : ' + (intent.product || ''), intent);
+    }).catch(function () {
+      showMicPanel('error', 'Erreur lors du blacklist', null);
+    });
+    return;
+  }
+
+  if (action === 'recipe_note') {
+    var noteSlug = currentRecipeSlug();
+    if (!noteSlug) {
+      showMicPanel('error', 'Ouvrez une recette pour ajouter une note', null);
+      return;
+    }
+    api('/recipes/' + encodeURIComponent(noteSlug) + '/note', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ note: intent.note })
+    }).then(function () {
+      showMicPanel('success', 'Note ajoutée', intent);
+    }).catch(function () {
+      showMicPanel('error', 'Erreur lors de l\'ajout de la note', null);
+    });
+    return;
+  }
+
+  if (action === 'recipe_edit_step') {
+    var stepSlug = currentRecipeSlug();
+    if (!stepSlug) {
+      showMicPanel('error', 'Ouvrez une recette pour modifier une étape', null);
+      return;
+    }
+    api('/recipes/' + encodeURIComponent(stepSlug) + '/steps/' + (intent.step || 1), {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: intent.modification })
+    }).then(function () {
+      showMicPanel('success', 'Étape ' + (intent.step || 1) + ' modifiée', intent);
+      viewRecipe(stepSlug);
+    }).catch(function () {
+      showMicPanel('error', 'Erreur lors de la modification', null);
+    });
+    return;
+  }
+
+  if (action === 'meal_feedback') {
+    api('/feedback', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        dish: intent.dish,
+        convive: intent.convive || null,
+        liked: intent.liked !== false,
+        comment: intent.comment || null
+      })
+    }).then(function (res) {
+      if (res.ok) {
+        showMicPanel('success', 'Retour enregistré pour ' + (intent.dish || ''), intent);
+      } else {
+        showMicPanel('error', res.reason || 'Recette introuvable', null);
+      }
+    }).catch(function () {
+      showMicPanel('error', 'Erreur lors de l\'enregistrement', null);
+    });
+    return;
+  }
+
+  if (action === 'pantry_leftover') {
+    api('/pantry/leftover', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ingredient: intent.ingredient,
+        quantity: intent.quantity || null,
+        shelf_life_days: intent.shelf_life_days || null
+      })
+    }).then(function () {
+      showMicPanel('success', 'Reste enregistré : ' + (intent.ingredient || ''), intent);
+    }).catch(function () {
+      showMicPanel('error', 'Erreur lors de l\'enregistrement', null);
+    });
     return;
   }
 }
