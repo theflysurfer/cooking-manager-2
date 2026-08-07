@@ -1459,6 +1459,27 @@ async def auchan_remove_from_cart(body: AuchanRemove):
 
 # ── Multi-drive search ────────────────────────────────────────────
 
+@app.get("/api/drives/{store}/stores")
+async def drive_stores(store: str, postal_code: str = Query(..., min_length=4)):
+    """Find nearby stores for a given enseigne + postal code."""
+    from dataclasses import asdict
+
+    if store == "auchan":
+        from .auchan_stores import find_stores
+        stores = await find_stores(postal_code)
+        return {"stores": [asdict(s) for s in stores]}
+
+    if store == "leclerc":
+        try:
+            from leclerc_drive.stores import find_stores as leclerc_find  # type: ignore[import-untyped]
+        except ImportError:
+            raise HTTPException(501, "leclerc_drive not installed") from None
+        stores = await leclerc_find(postal_code)
+        return {"stores": [asdict(s) for s in stores]}
+
+    raise HTTPException(400, "Enseigne inconnue, choix : auchan, leclerc")
+
+
 @app.get("/api/drives/{store}/search")
 async def drive_search(store: str, q: str = Query(..., min_length=1)):
     from .drives import search_store, SUPPORTED_STORES
@@ -1481,6 +1502,39 @@ async def drive_map_ingredients(body: MapIngredientsBody):
         raise HTTPException(400, f"Enseigne inconnue, choix : {', '.join(SUPPORTED_STORES)}")
     mappings = await map_ingredients(body.store, body.ingredients)
     return {"mappings": mappings, "store": body.store}
+
+
+class CompareBody(BaseModel):
+    ingredients: list[dict]
+
+
+@app.post("/api/drives/compare")
+async def drive_compare(body: CompareBody):
+    """Map ingredients on both stores in parallel and return side-by-side."""
+    import asyncio
+    from .drives import map_ingredients
+
+    auchan_task = map_ingredients("auchan", body.ingredients)
+    leclerc_task = map_ingredients("leclerc", body.ingredients)
+    auchan_mappings, leclerc_mappings = await asyncio.gather(
+        auchan_task, leclerc_task,
+    )
+
+    def _total(mappings: list[dict]) -> float:
+        s = 0.0
+        for m in mappings:
+            sel = m.get("selected", -1)
+            results = m.get("results", [])
+            if 0 <= sel < len(results):
+                p = results[sel].get("price")
+                if p is not None:
+                    s += p
+        return round(s, 2)
+
+    return {
+        "auchan": {"mappings": auchan_mappings, "total": _total(auchan_mappings)},
+        "leclerc": {"mappings": leclerc_mappings, "total": _total(leclerc_mappings)},
+    }
 
 
 # ── Voice / STT ───────────────────────────────────────────────────

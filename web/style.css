@@ -1640,3 +1640,126 @@ h1, h2, h3, .u-heading {
   margin-top: var(--sp-4);
   margin-bottom: var(--sp-5);
 }
+
+/* ── Comparaison drive ───────────────────────────────────────────── */
+
+.compare-summary {
+  display: -webkit-box; display: flex;
+  -webkit-box-align: center; align-items: center;
+  -webkit-box-pack: center; justify-content: center;
+  margin: var(--sp-4) 0;
+}
+.compare-summary__store {
+  text-align: center;
+  padding: var(--sp-3);
+  min-width: 120px;
+}
+.compare-summary__store strong {
+  display: block;
+  font-family: var(--font-heading);
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  font-size: .85rem;
+  color: var(--text-muted);
+  margin-bottom: var(--sp-1);
+}
+.compare-summary__total {
+  display: block;
+  font-size: 1.6rem;
+  font-weight: 400;
+  font-family: var(--font-heading);
+  color: var(--text);
+}
+.compare-summary__total--cheap {
+  color: var(--ok);
+}
+.compare-summary__vs {
+  font-family: var(--font-heading);
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  font-size: .75rem;
+  color: var(--text-muted);
+  padding: 0 var(--sp-3);
+}
+.compare-winner {
+  text-align: center;
+  font-family: var(--font-heading);
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  font-size: .85rem;
+  color: var(--ok);
+  margin-bottom: var(--sp-4);
+}
+
+.compare-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.compare-row {
+  border-bottom: 1px solid var(--border);
+  padding: var(--sp-2) 0;
+}
+.compare-row__ing {
+  margin-bottom: var(--sp-1);
+}
+.compare-row__ing strong {
+  font-family: var(--font-heading);
+  letter-spacing: .04em;
+  font-size: .9rem;
+}
+.compare-row__stores {
+  display: -ms-grid; display: grid;
+  -ms-grid-columns: 1fr 8px 1fr;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--sp-1);
+}
+
+.compare-cell {
+  display: -webkit-box; display: flex;
+  -webkit-box-align: center; align-items: center;
+  padding: var(--sp-1);
+  border-radius: 4px;
+  background: var(--surface);
+  min-height: var(--tap);
+}
+.compare-cell--cheap {
+  background: #eaf7ed;
+}
+[data-theme="dark"] .compare-cell--cheap {
+  background: #1a3a20;
+}
+.compare-cell__label {
+  font-size: .7rem;
+  font-family: var(--font-heading);
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  min-width: 48px;
+  -webkit-box-flex: 0; flex-shrink: 0;
+}
+.compare-cell__img {
+  width: 40px; height: 40px;
+  object-fit: contain;
+  border-radius: 4px;
+  margin-right: var(--sp-1);
+  -webkit-box-flex: 0; flex-shrink: 0;
+}
+.compare-cell__name {
+  -webkit-box-flex: 1; flex: 1;
+  font-size: .8rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.compare-cell__price {
+  font-family: var(--font-heading);
+  font-size: .9rem;
+  -webkit-box-flex: 0; flex-shrink: 0;
+  margin-left: var(--sp-1);
+  white-space: nowrap;
+}
+.compare-cell__miss {
+  color: var(--text-muted);
+  font-size: .85rem;
+}

@@ -968,6 +968,7 @@ function _renderDrive(data, mappings, store) {
   html += '</div>';
 
   html += '<div class="drive-actions">' +
+    '<button class="btn btn--accent" onclick="_driveCompare()">Comparer Auchan vs Leclerc</button>' +
     '<button class="btn" onclick="location.hash=\'#/courses\'">← Courses</button>' +
     '</div>';
 
@@ -1020,6 +1021,135 @@ function _driveSearchKeyup(input) {
         if (el) { el.value = q; el.focus(); }
       });
   }, 400);
+}
+
+/* ── Vue : comparaison drive ──────────────────────────────────────── */
+
+async function _driveCompare() {
+  var data = state.shopping;
+  if (!data) return;
+
+  var toBuy = (data.lines || []).filter(function (l) {
+    return l.outcome === 'absent' || l.outcome === 'insuffisant';
+  });
+  if (!toBuy.length) return;
+
+  render('<h1 class="page__title">Comparaison des prix</h1>' +
+    '<p class="page__sub">' + esc(data.title) + ' · ' + toBuy.length + ' ingrédients</p>' +
+    '<div class="drive-loading"><p class="empty__title">Recherche en parallèle sur Auchan et Leclerc…</p></div>');
+
+  var payload = toBuy.map(function (l) {
+    return { name: l.name, name_normalized: l.name_normalized,
+             qty: l.qty, unit: l.unit, recipes: l.recipes };
+  });
+
+  try {
+    var result = await api('/drives/compare', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ingredients: payload })
+    });
+  } catch (e) {
+    render('<h1 class="page__title">Comparaison</h1>' +
+      '<div class="banner">Erreur : ' + esc(e.message) + '</div>' +
+      '<div class="drive-actions"><button class="btn" ' +
+      'onclick="location.hash=\'#/drive\'">Retour</button></div>');
+    return;
+  }
+
+  _renderCompare(result, data);
+}
+
+function _renderCompare(result, data) {
+  var auchan = result.auchan;
+  var leclerc = result.leclerc;
+  var diff = auchan.total - leclerc.total;
+  var cheaperLabel = diff > 0 ? 'Leclerc' : 'Auchan';
+  var saving = Math.abs(diff).toFixed(2);
+
+  var html = '<h1 class="page__title">Comparaison des prix</h1>' +
+    '<p class="page__sub">' + esc(data.title) + '</p>';
+
+  html += '<div class="compare-summary">' +
+    '<div class="compare-summary__store">' +
+      '<strong>Auchan</strong>' +
+      '<span class="compare-summary__total' +
+        (diff > 0 ? '' : ' compare-summary__total--cheap') + '">' +
+        auchan.total.toFixed(2) + ' €</span></div>' +
+    '<div class="compare-summary__vs">vs</div>' +
+    '<div class="compare-summary__store">' +
+      '<strong>Leclerc</strong>' +
+      '<span class="compare-summary__total' +
+        (diff > 0 ? ' compare-summary__total--cheap' : '') + '">' +
+        leclerc.total.toFixed(2) + ' €</span></div>' +
+    '</div>';
+
+  if (Math.abs(diff) >= 0.01) {
+    html += '<div class="compare-winner">' + esc(cheaperLabel) +
+      ' moins cher de ' + saving + ' €</div>';
+  }
+
+  html += '<ul class="compare-list">';
+  var len = Math.max(auchan.mappings.length, leclerc.mappings.length);
+  for (var i = 0; i < len; i++) {
+    var mA = auchan.mappings[i];
+    var mL = leclerc.mappings[i];
+    var pA = _selectedProduct(mA);
+    var pL = _selectedProduct(mL);
+    var priceA = pA && pA.price ? pA.price : null;
+    var priceL = pL && pL.price ? pL.price : null;
+    var cheaper = (priceA !== null && priceL !== null)
+      ? (priceA < priceL ? 'a' : priceL < priceA ? 'l' : '')
+      : '';
+
+    html += '<li class="compare-row">';
+    html += '<div class="compare-row__ing">' +
+      '<strong>' + esc((mA || mL).ingredient) + '</strong>';
+    var qty = (mA || mL).qty;
+    var unit = (mA || mL).unit;
+    if (qty !== null && qty !== undefined) {
+      html += ' <span class="drive-row__qty">' + qty +
+        (unit ? ' ' + esc(unit) : '') + '</span>';
+    }
+    html += '</div>';
+
+    html += '<div class="compare-row__stores">';
+    html += _compareCell(pA, 'Auchan', cheaper === 'a');
+    html += _compareCell(pL, 'Leclerc', cheaper === 'l');
+    html += '</div></li>';
+  }
+  html += '</ul>';
+
+  html += '<div class="drive-actions">' +
+    '<button class="btn" onclick="location.hash=\'#/drive\'">← Retour au drive</button></div>';
+
+  render(html);
+}
+
+function _selectedProduct(mapping) {
+  if (!mapping) return null;
+  var sel = mapping.selected;
+  if (sel < 0 || !mapping.results || sel >= mapping.results.length) return null;
+  return mapping.results[sel];
+}
+
+function _compareCell(product, label, isCheap) {
+  var html = '<div class="compare-cell' + (isCheap ? ' compare-cell--cheap' : '') + '">';
+  html += '<span class="compare-cell__label">' + esc(label) + '</span>';
+  if (product) {
+    if (product.image_url) {
+      html += '<img class="compare-cell__img" src="' + esc(product.image_url) +
+        '" alt="" width="40" height="40">';
+    }
+    html += '<span class="compare-cell__name">' + esc(product.name) + '</span>';
+    if (product.price !== null && product.price !== undefined) {
+      html += '<span class="compare-cell__price">' +
+        product.price.toFixed(2) + ' €</span>';
+    }
+  } else {
+    html += '<span class="compare-cell__miss">—</span>';
+  }
+  return html + '</div>';
 }
 
 /* ── Vue : garde-manger ───────────────────────────────────────────── */

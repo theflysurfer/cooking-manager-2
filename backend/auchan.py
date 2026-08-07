@@ -129,11 +129,7 @@ class AuchanClient:
             return r.json()
 
 
-BROWSE_HEADERS = {
-    "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/150.0.0.0",
-    "accept-language": "fr-FR,fr;q=0.9",
-    "cookie": "auchan_delivery_choice=DRIVE; auchan_store_reference=874",
-}
+_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/150.0.0.0"
 
 _PIPE_RE = re.compile(r"Pipe\.(?:start|end)\(\d+\)")
 
@@ -151,17 +147,115 @@ class SearchResult:
 _IMG_SIZE_RE = re.compile(r"width=\d+&height=\d+")
 
 
-async def search_products(query: str, page: int = 1) -> list[SearchResult]:
-    """Search Auchan Drive products via SSR scraping."""
-    async with httpx.AsyncClient(follow_redirects=True) as client:
-        r = await client.get(
-            "https://www.auchan.fr/recherche",
-            params={"text": query, "page": page},
-            headers=BROWSE_HEADERS,
+class AuchanSession:
+    """SSR session with journey — required for prices since mid-2026.
+
+    Prices are gated behind a server-side journey tied to connect.sid.
+    Without it, seller_type=NONE and all prices show "Afficher le prix".
+    Flow: GET homepage (→ connect.sid) → POST /journey/update → inject
+    lark-* cookies manually (JS-only cookies, never in Set-Cookie).
+    """
+
+    def __init__(
+        self,
+        store_reference: str = "874",
+        seller_id: str = "899a3667-614e-49f6-9203-1e03810d6120",
+        city: str = "Aubagne",
+        postal_code: str = "13400",
+        latitude: str = "43.292438",
+        longitude: str = "5.570303",
+    ):
+        self.store_reference = store_reference
+        self.seller_id = seller_id
+        self.city = city
+        self.postal_code = postal_code
+        self.latitude = latitude
+        self.longitude = longitude
+        self._client: httpx.AsyncClient | None = None
+        self._initialized = False
+
+    async def _ensure_init(self) -> None:
+        if self._initialized:
+            return
+
+        self._client = httpx.AsyncClient(follow_redirects=True)
+        await self._client.get(
+            "https://www.auchan.fr/",
+            headers={"user-agent": _UA, "accept-language": "fr-FR"},
+        )
+
+        r = await self._client.post(
+            "https://www.auchan.fr/journey/update",
+            data={
+                "offeringContext.seller.id": self.seller_id,
+                "offeringContext.storeReference": self.store_reference,
+                "offeringContext.sellerType": "GROCERY",
+                "offeringContext.deliveryChannel": "DRIVE",
+                "offeringContext.channels": "PICK_UP",
+                "address.city": self.city,
+                "address.zipcode": self.postal_code,
+                "location.latitude": self.latitude,
+                "location.longitude": self.longitude,
+            },
+            headers={
+                "user-agent": _UA,
+                "x-requested-with": "XMLHttpRequest",
+                "content-type": "application/x-www-form-urlencoded",
+            },
         )
         r.raise_for_status()
+        jdata = r.json()
+        journey_id = jdata["id"]
+        active_seller = jdata["activeContexts"][0]["context"]["seller"]["id"]
 
-    tree = HTMLParser(r.text)
+        self._client.cookies.set("lark-journey", journey_id, domain="www.auchan.fr")
+        self._client.cookies.set("lark-sellerId", active_seller, domain=".auchan.fr")
+        self._client.cookies.set("lark-deliveryChannel", "DRIVE", domain=".auchan.fr")
+        self._client.cookies.set("lark-sellerType", "GROCERY", domain=".auchan.fr")
+        self._client.cookies.set("auchan_store_reference", self.store_reference, domain=".auchan.fr")
+        self._client.cookies.set("auchan_delivery_choice", "DRIVE", domain=".auchan.fr")
+
+        self._initialized = True
+
+    async def search(self, query: str, page: int = 1) -> list[SearchResult]:
+        await self._ensure_init()
+        assert self._client is not None
+        r = await self._client.get(
+            "https://www.auchan.fr/recherche",
+            params={"text": query, "page": page},
+            headers={"user-agent": _UA, "accept-language": "fr-FR,fr;q=0.9"},
+        )
+        r.raise_for_status()
+        return _parse_search_results(r.text)
+
+    async def scrape_detail(self, auchan_url: str) -> "ProductDetail":
+        await self._ensure_init()
+        assert self._client is not None
+        r = await self._client.get(
+            auchan_url,
+            headers={"user-agent": _UA, "accept-language": "fr-FR,fr;q=0.9"},
+        )
+        r.raise_for_status()
+        return _parse_product_detail(r.text, auchan_url)
+
+
+_default_session: AuchanSession | None = None
+
+
+def _get_session() -> AuchanSession:
+    global _default_session
+    if _default_session is None:
+        _default_session = AuchanSession()
+    return _default_session
+
+
+async def search_products(query: str, page: int = 1) -> list[SearchResult]:
+    """Search Auchan Drive products via SSR scraping (with journey session)."""
+    return await _get_session().search(query, page)
+
+
+def _parse_search_results(html_text: str) -> list[SearchResult]:
+    tree = HTMLParser(html_text)
     results: list[SearchResult] = []
 
     for link in tree.css("a[href*='/pr-']"):
@@ -188,8 +282,16 @@ async def search_products(query: str, page: int = 1) -> list[SearchResult]:
             raw_url = meta_img.attributes.get("content") or ""
             image_url = _IMG_SIZE_RE.sub("width=200&height=200", raw_url)
 
-        price_el = link.css_first("[class*='price']")
-        price = price_el.text(strip=True) if price_el else ""
+        container = link.parent
+        price_meta = (
+            link.css_first("meta[itemprop='price']")
+            or (container.css_first("meta[itemprop='price']") if container else None)
+        )
+        if price_meta:
+            price = (price_meta.attributes.get("content") or "") + " €"
+        else:
+            price_el = link.css_first("[class*='price']")
+            price = price_el.text(strip=True) if price_el else ""
 
         url = f"https://www.auchan.fr{href}" if href.startswith("/") else href
         results.append(SearchResult(
@@ -197,8 +299,8 @@ async def search_products(query: str, page: int = 1) -> list[SearchResult]:
             price=price, url=url, image_url=image_url,
         ))
 
-    seen = set()
-    deduped = []
+    seen: set[str] = set()
+    deduped: list[SearchResult] = []
     for r in results:
         if r.auchan_id not in seen:
             seen.add(r.auchan_id)
@@ -231,49 +333,51 @@ _PRICE_KG_RE = re.compile(r"([\d,]+)\s*€\s*/\s*kg")
 
 async def scrape_product_detail(auchan_url: str) -> ProductDetail:
     """Scrape a product page for nutrition, ingredients, and characteristics."""
+    return await _get_session().scrape_detail(auchan_url)
+
+
+def _parse_product_detail(html_text: str, auchan_url: str) -> ProductDetail:
     detail = ProductDetail(url=auchan_url)
 
-    # Extract auchan_id from URL
     m = re.search(r"/pr-([A-Z0-9]+)", auchan_url)
     if m:
         detail.auchan_id = m.group(1)
 
-    async with httpx.AsyncClient(follow_redirects=True) as client:
-        r = await client.get(auchan_url, headers=BROWSE_HEADERS)
-        r.raise_for_status()
+    tree = HTMLParser(html_text)
 
-    tree = HTMLParser(r.text)
-
-    # Title
     title = tree.css_first("h1")
     if title:
         detail.name = title.text(strip=True)
 
-    # Brand
     brand_el = tree.css_first("[class*='product-description'] strong, [class*='brand']")
     if brand_el:
         detail.brand = brand_el.text(strip=True)
 
-    # Nutriscore — Auchan no longer displays it as an image;
-    # enriched later via Open Food Facts if EAN is found
-
-    # Photo
     img = tree.css_first("[class*='product-thumbnail'] img, [class*='product-media'] img")
     if img:
         detail.photo_url = img.attributes.get("src") or ""
 
-    # Price
-    price_el = tree.css_first("[class*='price--big'], [class*='product-price']")
-    if price_el:
-        txt = price_el.text(strip=True)
-        pm = _PRICE_RE.search(txt)
-        if pm:
-            detail.price = float(pm.group(1).replace(",", "."))
-        pkm = _PRICE_KG_RE.search(txt)
+    price_meta = tree.css_first("meta[itemprop='price']")
+    if price_meta:
+        raw = price_meta.attributes.get("content") or ""
+        try:
+            detail.price = float(raw)
+        except ValueError:
+            pass
+    if detail.price is None:
+        price_el = tree.css_first("[class*='price--big'], [class*='product-price']")
+        if price_el:
+            txt = price_el.text(strip=True)
+            pm = _PRICE_RE.search(txt)
+            if pm:
+                detail.price = float(pm.group(1).replace(",", "."))
+
+    price_kg_el = tree.css_first("[class*='price--big'], [class*='product-price']")
+    if price_kg_el:
+        pkm = _PRICE_KG_RE.search(price_kg_el.text(strip=True))
         if pkm:
             detail.price_per_kg = float(pkm.group(1).replace(",", "."))
 
-    # Nutrition table
     for row in tree.css("table tr"):
         cells = row.css("td, th")
         if len(cells) >= 2:
@@ -282,7 +386,6 @@ async def scrape_product_detail(auchan_url: str) -> ProductDetail:
             if label and "information" not in label and "pour" not in label:
                 detail.nutrition[label] = value
 
-    # Ingredients, allergens, EAN, and characteristics from feature groups
     for group in tree.css("[class*='feature-group-wrapper']"):
         label_el = group.css_first("[class*='feature-label']")
         values_el = group.css_first("[class*='feature-values']")
@@ -301,34 +404,26 @@ async def scrape_product_detail(auchan_url: str) -> ProductDetail:
         elif label and value:
             detail.characteristics[label_el.text(strip=True)] = value
 
-    # Extract allergens from CAPITALIZED words in ingredients text
-    # (Auchan marks allergens in uppercase per EU regulation)
     if detail.ingredients and not detail.allergens:
         caps = re.findall(r"\b([A-ZÀÂÉÈÊËÎÏÔÙÛÜÇ]{2,}(?:\s+[A-ZÀÂÉÈÊËÎÏÔÙÛÜÇ]{2,})*)\b",
                           detail.ingredients)
         if caps:
-            seen: set[str] = set()
+            seen_caps: set[str] = set()
             unique: list[str] = []
             for c in caps:
                 low = c.lower()
-                if low not in seen:
-                    seen.add(low)
+                if low not in seen_caps:
+                    seen_caps.add(low)
                     unique.append(c.capitalize())
             detail.allergens = ", ".join(unique)
 
-    # Description
     desc_el = tree.css_first("[class*='product-description__content']")
     if desc_el:
         detail.description = desc_el.text(strip=True)[:500]
 
-    # Weight from title
     wm = re.search(r"(\d+[x×]\d+\s*g|\d+\s*[gk]g?|\d+\s*[mc]l)", detail.name, re.IGNORECASE)
     if wm:
         detail.weight = wm.group(1)
-
-    # Enrich from Open Food Facts if we have an EAN and are missing data
-    if detail.ean and (not detail.nutriscore or not detail.allergens):
-        await _enrich_from_openfoodfacts(detail)
 
     return detail
 
@@ -407,4 +502,7 @@ async def find_product_detail(product_name: str, brand: str | None = None) -> Pr
                 best = r
                 break
 
-    return await scrape_product_detail(best.url)
+    detail = await scrape_product_detail(best.url)
+    if detail.ean and (not detail.nutriscore or not detail.allergens):
+        await _enrich_from_openfoodfacts(detail)
+    return detail
