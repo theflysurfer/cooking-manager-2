@@ -139,6 +139,7 @@ Pipeline : MediaRecorder (front) → `POST /api/audio` → Deepgram prerecorded 
 
 - Le token Auchan expire fréquemment — refresh via navigateur uniquement
 - `consentId` requis comme query param sur tous les appels cart
+- Les cookies de session Auchan (lark-*, connect.sid) sont liés à l'IP du VPS — ne pas router `search()`/`scrape_detail()` via un proxy (IP différente → session invalidée → prix `None`)
 - La recherche SSR nécessite le cookie `auchan_store_reference=874` (Aubagne)
 - Remove cart : l'`id` interne (UUID) ≠ `productId` — toujours GET cart d'abord
 - `httpx`/`selectolax`/`mcp` sont des dépendances déclarées dans `pyproject.toml` — un venv reconstruit à neuf (`pip install .`) est le test de vérité si ce fichier dérive
