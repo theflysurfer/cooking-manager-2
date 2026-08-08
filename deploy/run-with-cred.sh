@@ -11,6 +11,8 @@ if [ -n "$CREDENTIALS_DIRECTORY" ]; then
     export GROQ_API_KEY=$(cat "$CREDENTIALS_DIRECTORY/groq-key")
   [ -f "$CREDENTIALS_DIRECTORY/cooking-leclerc-cookies" ] && \
     export LECLERC_COOKIES=$(cat "$CREDENTIALS_DIRECTORY/cooking-leclerc-cookies")
+  [ -f "$CREDENTIALS_DIRECTORY/cooking-leclerc-proxy" ] && \
+    export LECLERC_HTTP_PROXY=$(cat "$CREDENTIALS_DIRECTORY/cooking-leclerc-proxy")
 fi
 
 exec /opt/cooking-manager-2/.venv/bin/python -m uvicorn backend.app:app --host 127.0.0.1 --port 8795
