@@ -3,38 +3,9 @@
 import asyncpg
 
 SCHEMA_SQL = """
-CREATE TABLE IF NOT EXISTS recipe (
-    id          SERIAL PRIMARY KEY,
-    slug        TEXT UNIQUE NOT NULL,
-    title       TEXT NOT NULL,
-    status      TEXT NOT NULL DEFAULT 'draft',
-    recipe_type TEXT,
-    family      TEXT,
-    servings    INTEGER,
-    total_time_min INTEGER,
-    prep_time_min  INTEGER,
-    cook_time_min  INTEGER,
-    tags        TEXT[] DEFAULT '{}',
-    compatible_constraints TEXT[] DEFAULT '{}',
-    sources     TEXT[] DEFAULT '{}',
-    appreciated_by TEXT[] DEFAULT '{}',
-    applied_substitutions TEXT[] DEFAULT '{}',
-    mediterranean_criteria INTEGER[] DEFAULT '{}',
-    construction_regime TEXT,
-    execution_count INTEGER DEFAULT 0,
-    lieu_execution TEXT,
-    macros_kcal   REAL,
-    macros_protein REAL,
-    macros_carbs  REAL,
-    macros_fat    REAL,
-    protein_density REAL,
-    photo_url   TEXT,
-    sub_recipes TEXT[] DEFAULT '{}',
-    body        TEXT,
-    created     DATE,
-    updated     DATE,
-    ingested_at TIMESTAMPTZ DEFAULT NOW()
-);
+-- recipe, recipe_ingredient, recipe_step, recipe_execution are owned by
+-- recipe-manager (port 8796). CM2 reads/writes them as a colocataire but
+-- does not create them. Requires: After=recipe-manager.service in systemd.
 
 CREATE TABLE IF NOT EXISTS menu (
     id          SERIAL PRIMARY KEY,
@@ -87,25 +58,6 @@ CREATE TABLE IF NOT EXISTS convive (
     notes       TEXT,
     ingested_at TIMESTAMPTZ DEFAULT NOW()
 );
-
-CREATE TABLE IF NOT EXISTS recipe_execution (
-    id          SERIAL PRIMARY KEY,
-    recipe_id   INTEGER NOT NULL REFERENCES recipe(id) ON DELETE CASCADE,
-    date        DATE NOT NULL,
-    cooked_by   TEXT,
-    rating      INTEGER CHECK (rating >= 1 AND rating <= 5),
-    appreciated_by TEXT[] DEFAULT '{}',
-    appreciation_date DATE,
-    notes       TEXT,
-    created_at  TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE INDEX IF NOT EXISTS idx_recipe_slug ON recipe(slug);
-CREATE INDEX IF NOT EXISTS idx_recipe_status ON recipe(status);
-CREATE INDEX IF NOT EXISTS idx_recipe_family ON recipe(family);
-CREATE INDEX IF NOT EXISTS idx_recipe_tags ON recipe USING GIN(tags);
-CREATE INDEX IF NOT EXISTS idx_execution_recipe ON recipe_execution(recipe_id);
-CREATE INDEX IF NOT EXISTS idx_execution_date ON recipe_execution(date DESC);
 
 CREATE TABLE IF NOT EXISTS shopping_session (
     id          SERIAL PRIMARY KEY,
@@ -164,37 +116,6 @@ CREATE TABLE IF NOT EXISTS shopping_preference (
 CREATE INDEX IF NOT EXISTS idx_shopping_product_session ON shopping_product(session_id);
 CREATE INDEX IF NOT EXISTS idx_shopping_preference_type ON shopping_preference(pref_type);
 
--- Ingrédients structurés, extraits du corps markdown des recettes.
--- `raw` est TOUJOURS conservé : une ligne que le parser n'a pas comprise reste
--- affichable telle quelle. Un ingrédient avalé en silence = un achat manqué.
--- `name_normalized` est la clé d'appariement avec le garde-manger.
-CREATE TABLE IF NOT EXISTS recipe_ingredient (
-    id          SERIAL PRIMARY KEY,
-    recipe_id   INTEGER NOT NULL REFERENCES recipe(id) ON DELETE CASCADE,
-    position    INTEGER NOT NULL,
-    raw         TEXT NOT NULL,
-    qty_min     NUMERIC,
-    qty_max     NUMERIC,
-    unit        TEXT,
-    name        TEXT NOT NULL,
-    name_normalized TEXT NOT NULL DEFAULT '',
-    is_optional BOOL NOT NULL DEFAULT FALSE,
-    parsed      BOOL NOT NULL DEFAULT FALSE,
-    UNIQUE (recipe_id, position)
-);
-
-CREATE TABLE IF NOT EXISTS recipe_step (
-    id          SERIAL PRIMARY KEY,
-    recipe_id   INTEGER NOT NULL REFERENCES recipe(id) ON DELETE CASCADE,
-    position    INTEGER NOT NULL,
-    text        TEXT NOT NULL,
-    UNIQUE (recipe_id, position)
-);
-
-CREATE INDEX IF NOT EXISTS idx_ingredient_recipe ON recipe_ingredient(recipe_id);
-CREATE INDEX IF NOT EXISTS idx_ingredient_norm ON recipe_ingredient(name_normalized);
-CREATE INDEX IF NOT EXISTS idx_step_recipe ON recipe_step(recipe_id);
-
 -- Garde-manger : la DB est la source de vérité (pas le vault Markdown, qui n'est
 -- qu'une source d'ingestion parmi d'autres — Auchan, voix, API).
 -- Contrainte UNIQUE sur (name_normalized, section) : un produit par rayon.
@@ -225,10 +146,9 @@ CREATE INDEX IF NOT EXISTS idx_pantry_item_section ON pantry_item(section);
 """
 
 MIGRATIONS_SQL = """
-ALTER TABLE recipe ADD COLUMN IF NOT EXISTS body TEXT;
+-- recipe column migrations are owned by recipe-manager.
 ALTER TABLE menu ADD COLUMN IF NOT EXISTS meals JSONB;
 ALTER TABLE menu ADD COLUMN IF NOT EXISTS body TEXT;
-ALTER TABLE recipe_execution ADD COLUMN IF NOT EXISTS appreciation_date DATE;
 
 -- menu.slug : clé naturelle, sans laquelle l'ingestion ne peut pas dédoublonner
 -- (elle se protégeait par un DELETE FROM menu qui détruisait les menus absents du vault).
@@ -263,21 +183,12 @@ ALTER TABLE shopping_product ADD COLUMN IF NOT EXISTS product_url TEXT;
 ALTER TABLE shopping_product ADD COLUMN IF NOT EXISTS weight TEXT;
 ALTER TABLE shopping_product ADD COLUMN IF NOT EXISTS price_per_kg REAL;
 
--- REAL = float4 : 3.8 stocké puis élargi en float8 à la lecture ressort en
--- 3.799999952316284, affiché tel quel dans l'UI. NUMERIC supprime la cause ;
--- l'arrondi à la sérialisation (_recipe_to_dict) couvre l'affichage.
-ALTER TABLE recipe ALTER COLUMN macros_kcal    TYPE NUMERIC USING macros_kcal::numeric;
-ALTER TABLE recipe ALTER COLUMN macros_protein TYPE NUMERIC USING macros_protein::numeric;
-ALTER TABLE recipe ALTER COLUMN macros_carbs   TYPE NUMERIC USING macros_carbs::numeric;
-ALTER TABLE recipe ALTER COLUMN macros_fat     TYPE NUMERIC USING macros_fat::numeric;
-ALTER TABLE recipe ALTER COLUMN protein_density TYPE NUMERIC USING protein_density::numeric;
 ALTER TABLE shopping_session ALTER COLUMN total TYPE NUMERIC USING total::numeric;
 ALTER TABLE shopping_product ALTER COLUMN price_unit   TYPE NUMERIC USING price_unit::numeric;
 ALTER TABLE shopping_product ALTER COLUMN total_price  TYPE NUMERIC USING total_price::numeric;
 ALTER TABLE shopping_product ALTER COLUMN price_per_kg TYPE NUMERIC USING price_per_kg::numeric;
 ALTER TABLE shopping_product ADD COLUMN IF NOT EXISTS ean TEXT;
 ALTER TABLE menu_meal ADD COLUMN IF NOT EXISTS covers INTEGER;
-ALTER TABLE recipe ADD COLUMN IF NOT EXISTS sub_recipes TEXT[] DEFAULT '{}';
 """
 
 _pool: asyncpg.Pool | None = None
