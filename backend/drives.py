@@ -115,7 +115,7 @@ async def _search_leclerc(query: str, limit: int = 5) -> list[StoreProduct]:
 
     from .stealth import fetch_html
     try:
-        html = await fetch_html(url, cookies=cookies)
+        html = await fetch_html(url, cookies=cookies, max_level=5)
     except Exception as exc:
         log.warning("Leclerc search error for %r: %s", query, exc)
         return []

@@ -217,22 +217,22 @@ class AuchanSession:
 
         self._initialized = True
 
-    def _export_cookies(self) -> dict[str, str]:
-        assert self._client is not None
-        return {name: value for name, value in self._client.cookies.items()}
-
     async def search(self, query: str, page: int = 1) -> list[SearchResult]:
         await self._ensure_init()
-        from .stealth import fetch_html
+        assert self._client is not None
         url = f"https://www.auchan.fr/recherche?text={query}&page={page}"
-        html = await fetch_html(url, cookies=self._export_cookies())
-        return _parse_search_results(html)
+        r = await self._client.get(
+            url, headers={"user-agent": _UA, "accept-language": "fr-FR"},
+        )
+        return _parse_search_results(r.text)
 
     async def scrape_detail(self, auchan_url: str) -> "ProductDetail":
         await self._ensure_init()
-        from .stealth import fetch_html
-        html = await fetch_html(auchan_url, cookies=self._export_cookies())
-        return _parse_product_detail(html, auchan_url)
+        assert self._client is not None
+        r = await self._client.get(
+            auchan_url, headers={"user-agent": _UA, "accept-language": "fr-FR"},
+        )
+        return _parse_product_detail(r.text, auchan_url)
 
 
 _default_session: AuchanSession | None = None
