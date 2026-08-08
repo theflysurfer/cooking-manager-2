@@ -18,7 +18,6 @@ LoadCredentialEncrypted=cooking-deepgram-key:/etc/credstore.encrypted/cooking-de
 LoadCredentialEncrypted=cooking-ollama-key:/etc/credstore.encrypted/cooking-ollama-key
 LoadCredentialEncrypted=groq-key:/etc/credstore.encrypted/bibliotheque-groq-key
 LoadCredentialEncrypted=cooking-leclerc-cookies:/etc/credstore.encrypted/cooking-leclerc-cookies
-LoadCredentialEncrypted=cooking-leclerc-proxy:/etc/credstore.encrypted/cooking-leclerc-proxy
 
 [Install]
 WantedBy=multi-user.target

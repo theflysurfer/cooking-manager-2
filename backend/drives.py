@@ -91,31 +91,36 @@ async def _search_auchan(query: str, limit: int = 5) -> list[StoreProduct]:
 
 async def _search_leclerc(query: str, limit: int = 5) -> list[StoreProduct]:
     try:
-        from leclerc_drive import LeclercClient  # type: ignore[import-untyped]
+        from leclerc_drive.client import _parse_search_results  # type: ignore[import-untyped]
         from leclerc_drive.cookies import load_leclerc_cookies  # type: ignore[import-untyped]
     except ImportError:
         log.warning("leclerc_drive not installed — Leclerc search unavailable")
         return []
 
-    cookies = load_leclerc_cookies()
-    if not cookies:
+    cookie_str = load_leclerc_cookies()
+    if not cookie_str:
         log.warning("No Leclerc cookies found")
         return []
 
-    client = LeclercClient(cookies=cookies)
-    last_exc: Exception | None = None
-    for attempt in range(3):
-        try:
-            results = await client.search(query)
-            break
-        except Exception as exc:
-            last_exc = exc
-            if attempt < 2:
-                await asyncio.sleep(0.5)
-    else:
-        log.warning("Leclerc search error for %r: %s", query, last_exc)
+    cookies = dict(
+        part.split("=", 1)
+        for part in cookie_str.split("; ")
+        if "=" in part
+    )
+    url = (
+        "https://fd4-courses.leclercdrive.fr/"
+        "magasin-997371-000011-Paris/recherche.aspx"
+        f"?TexteRecherche={query}"
+    )
+
+    from .stealth import fetch_html
+    try:
+        html = await fetch_html(url, cookies=cookies)
+    except Exception as exc:
+        log.warning("Leclerc search error for %r: %s", query, exc)
         return []
 
+    results = _parse_search_results(html)
     return [
         StoreProduct(
             product_id=str(r.product_id),
