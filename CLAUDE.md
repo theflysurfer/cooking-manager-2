@@ -7,7 +7,8 @@ Web app pour parcourir et filtrer les recettes familiales depuis le vault Obsidi
 - **Backend** : FastAPI + asyncpg (PostgreSQL)
 - **Frontend** : vanilla JS, **zéro build** — fichiers statiques servis par FastAPI
 - **DB** : `postgresql-shared` (Docker) → database `cooking_manager`, user `cooking`
-- **Deploy** : systemd `cooking-manager.service` + nginx sur srv759970, port 8795
+- **Recipe model** : propriété de `recipe-manager` (port 8796) — CM2 lit/écrit les tables recettes en direct (colocataire), ne les crée pas
+- **Deploy** : systemd `cooking-manager.service` (After=recipe-manager.service) + nginx sur srv759970, port 8795
 - **MCP** : `cooking-mcp.service` port 3868, `https://cooking-mcp.srv759970.hstgr.cloud/mcp`, user `mcp-run`, Google OAuth (`build_google_auth("cooking")` depuis `/home/automation/shared/mcp_auth.py`)
 
 ⚠️ **Cible : iPad mini 2 / Safari 12.5.8**, utilisé en cuisine. Ce n'est pas un
