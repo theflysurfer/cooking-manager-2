@@ -1,7 +1,8 @@
 [Unit]
 Description=Cooking Manager API
 After=network.target recipe-manager.service
-Wants=network.target recipe-manager.service
+Wants=network.target
+Requires=recipe-manager.service
 
 [Service]
 Type=simple
