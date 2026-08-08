@@ -103,10 +103,17 @@ async def _search_leclerc(query: str, limit: int = 5) -> list[StoreProduct]:
         return []
 
     client = LeclercClient(cookies=cookies)
-    try:
-        results = await client.search(query)
-    except Exception as exc:
-        log.warning("Leclerc search error for %r: %s", query, exc)
+    last_exc: Exception | None = None
+    for attempt in range(3):
+        try:
+            results = await client.search(query)
+            break
+        except Exception as exc:
+            last_exc = exc
+            if attempt < 2:
+                await asyncio.sleep(0.5)
+    else:
+        log.warning("Leclerc search error for %r: %s", query, last_exc)
         return []
 
     return [
