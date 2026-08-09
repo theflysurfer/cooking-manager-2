@@ -1,8 +1,6 @@
-"""Multi-store product search — Auchan + Leclerc behind a common interface.
+"""Multi-store product search — Leclerc behind a common interface.
 
-Search is auth-free for both stores (Auchan uses hardcoded store cookies,
-Leclerc cookies are loaded from credstore/env/Hydra profile).
-Cart operations need per-store auth tokens — wired but require setup.
+Auchan decommissioned from this project — now served by mcp-vps-auchan.
 """
 
 from __future__ import annotations
@@ -13,7 +11,7 @@ from dataclasses import dataclass, asdict
 
 log = logging.getLogger(__name__)
 
-SUPPORTED_STORES = ("auchan", "leclerc")
+SUPPORTED_STORES = ("leclerc",)
 
 
 @dataclass
@@ -30,8 +28,6 @@ class StoreProduct:
 
 
 async def search_store(store: str, query: str, limit: int = 5) -> list[StoreProduct]:
-    if store == "auchan":
-        return await _search_auchan(query, limit)
     if store == "leclerc":
         return await _search_leclerc(query, limit)
     raise ValueError(f"Enseigne inconnue : {store}")
@@ -63,28 +59,6 @@ async def map_ingredients(
         }
 
     return list(await asyncio.gather(*[_one(i) for i in ingredients]))
-
-
-# ── Auchan ────────────────────────────────────────────────────────────
-
-async def _search_auchan(query: str, limit: int = 5) -> list[StoreProduct]:
-    from .auchan import search_products
-
-    results = await search_products(query)
-    out: list[StoreProduct] = []
-    for r in results[:limit]:
-        price = _parse_price(r.price) if r.price else None
-        out.append(StoreProduct(
-            product_id=r.auchan_id,
-            name=r.name,
-            brand=r.brand,
-            image_url=r.image_url,
-            price=price,
-            price_per_unit="",
-            nutriscore="",
-            store="auchan",
-        ))
-    return out
 
 
 # ── Leclerc ───────────────────────────────────────────────────────────

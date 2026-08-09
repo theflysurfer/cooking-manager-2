@@ -1148,17 +1148,11 @@ class ShoppingSessionMeta(BaseModel):
 class PersistCartRequest(BaseModel):
     meta: ShoppingSessionMeta
     items: list[ShoppingItemIn]
-    enrich_nutrition: bool = True
 
 
 @app.post("/api/shopping/persist-cart")
 async def persist_cart_with_nutrition(body: PersistCartRequest):
-    """Persist a cart/order into shopping_session + shopping_product, enriching
-    each item with nutrition/nutriscore/ingredients/allergens/characteristics
-    fetched live from the Auchan public catalog (search + SSR product scrape) —
-    the same reverse-engineered client used by backend/auchan_mcp.py.
-    """
-    from .auchan import find_product_detail
+    """Persist a cart/order into shopping_session + shopping_product."""
 
     pool = await get_pool(DATABASE_DSN)
     async with pool.acquire() as conn:
@@ -1172,20 +1166,7 @@ async def persist_cart_with_nutrition(body: PersistCartRequest):
         )
         session_id = row["id"]
 
-        enriched_count = 0
-        failed: list[str] = []
         for item in body.items:
-            detail = None
-            if body.enrich_nutrition:
-                try:
-                    detail = await find_product_detail(item.product_name, item.brand)
-                except Exception:
-                    detail = None
-                if detail is None:
-                    failed.append(item.product_name)
-                else:
-                    enriched_count += 1
-
             await conn.execute(
                 """INSERT INTO shopping_product
                    (session_id, item_requested, product_name, brand, product_id,
@@ -1200,24 +1181,12 @@ async def persist_cart_with_nutrition(body: PersistCartRequest):
                 item.total_price, item.status, item.rationale,
                 item.quantity_rationale, json.dumps(item.alternatives),
                 item.lesson_learned,
-                detail.auchan_id if detail else None,
-                detail.nutriscore if detail else None,
-                json.dumps(detail.nutrition) if detail else None,
-                detail.ingredients if detail else None,
-                detail.allergens if detail else None,
-                json.dumps(detail.characteristics) if detail else None,
-                detail.photo_url if detail else None,
-                detail.url if detail else None,
-                detail.weight if detail else None,
-                detail.price_per_kg if detail else None,
-                detail.ean if detail else None,
+                None, None, None, None, None, None, None, None, None, None, None,
             )
 
     return {
         "session_id": session_id,
         "items_persisted": len(body.items),
-        "items_enriched": enriched_count,
-        "enrichment_failed": failed,
     }
 
 
@@ -1240,56 +1209,6 @@ async def list_session_products(session_id: int):
             d["nutrition"] = json.loads(d["nutrition"])
         products.append(d)
     return {"products": products, "total": len(products)}
-
-
-@app.post("/api/shopping/backfill-nutrition")
-async def backfill_nutrition(session_id: int | None = None):
-    """Re-enrich products that have no nutriscore/allergens/ean."""
-    from .auchan import find_product_detail
-
-    pool = await get_pool(DATABASE_DSN)
-    async with pool.acquire() as conn:
-        where = "WHERE (nutriscore IS NULL OR nutriscore = '') AND (allergens IS NULL OR allergens = '')"
-        params: list = []
-        if session_id is not None:
-            where += " AND session_id = $1"
-            params.append(session_id)
-        rows = await conn.fetch(
-            "SELECT id, product_name, brand FROM shopping_product " + where,
-            *params,
-        )
-
-    enriched = 0
-    failed: list[str] = []
-    async with pool.acquire() as conn:
-        for row in rows:
-            try:
-                detail = await find_product_detail(row["product_name"], row["brand"])
-            except Exception:
-                detail = None
-            if detail is None:
-                failed.append(row["product_name"])
-                continue
-            await conn.execute(
-                """UPDATE shopping_product
-                      SET nutriscore = $1, nutrition = $2, ingredients = $3,
-                          allergens = $4, characteristics = $5, photo_url = $6,
-                          product_url = $7, weight = $8, price_per_kg = $9, ean = $10
-                    WHERE id = $11""",
-                detail.nutriscore,
-                json.dumps(detail.nutrition) if detail.nutrition else None,
-                detail.ingredients, detail.allergens,
-                json.dumps(detail.characteristics) if detail.characteristics else None,
-                detail.photo_url, detail.url, detail.weight, detail.price_per_kg,
-                detail.ean, row["id"],
-            )
-            enriched += 1
-
-    return {
-        "total_candidates": len(rows),
-        "enriched": enriched,
-        "failed": failed,
-    }
 
 
 @app.get("/api/shopping/preferences")
@@ -1430,44 +1349,12 @@ async def add_pantry_leftover(body: LeftoverBody):
     return {"ok": True, "ingredient": body.ingredient}
 
 
-# ── Auchan Drive ───────────────────────────────────────────────────
-
-class AuchanRemove(BaseModel):
-    product_id: str
-    token: str
-    cart_id: str
-
-
-@app.get("/api/auchan/product/{auchan_id}")
-async def auchan_product_detail(auchan_id: str):
-    from .auchan import scrape_product_detail
-    from dataclasses import asdict
-    url = f"https://www.auchan.fr/p/pr-{auchan_id}"
-    detail = await scrape_product_detail(url)
-    return asdict(detail)
-
-
-@app.post("/api/auchan/remove")
-async def auchan_remove_from_cart(body: AuchanRemove):
-    from .auchan import AuchanClient
-    client = AuchanClient(token=body.token, cart_id=body.cart_id)
-    result = await client.remove_from_cart(body.product_id)
-    if "error" in result:
-        raise HTTPException(404, result["error"])
-    return {"removed": body.product_id, "cart": result}
-
-
 # ── Multi-drive search ────────────────────────────────────────────
 
 @app.get("/api/drives/{store}/stores")
 async def drive_stores(store: str, postal_code: str = Query(..., min_length=4)):
     """Find nearby stores for a given enseigne + postal code."""
     from dataclasses import asdict
-
-    if store == "auchan":
-        from .auchan_stores import find_stores
-        stores = await find_stores(postal_code)
-        return {"stores": [asdict(s) for s in stores]}
 
     if store == "leclerc":
         try:
@@ -1477,7 +1364,7 @@ async def drive_stores(store: str, postal_code: str = Query(..., min_length=4)):
         stores = await leclerc_find(postal_code)
         return {"stores": [asdict(s) for s in stores]}
 
-    raise HTTPException(400, "Enseigne inconnue, choix : auchan, leclerc")
+    raise HTTPException(400, "Enseigne inconnue, choix : leclerc")
 
 
 @app.get("/api/drives/{store}/search")
@@ -1510,15 +1397,10 @@ class CompareBody(BaseModel):
 
 @app.post("/api/drives/compare")
 async def drive_compare(body: CompareBody):
-    """Map ingredients on both stores in parallel and return side-by-side."""
-    import asyncio
+    """Map ingredients on available stores and return results."""
     from .drives import map_ingredients
 
-    auchan_task = map_ingredients("auchan", body.ingredients)
-    leclerc_task = map_ingredients("leclerc", body.ingredients)
-    auchan_mappings, leclerc_mappings = await asyncio.gather(
-        auchan_task, leclerc_task,
-    )
+    leclerc_mappings = await map_ingredients("leclerc", body.ingredients)
 
     def _total(mappings: list[dict]) -> float:
         s = 0.0
@@ -1532,7 +1414,6 @@ async def drive_compare(body: CompareBody):
         return round(s, 2)
 
     return {
-        "auchan": {"mappings": auchan_mappings, "total": _total(auchan_mappings)},
         "leclerc": {"mappings": leclerc_mappings, "total": _total(leclerc_mappings)},
     }
 
