@@ -95,7 +95,7 @@ function renderDay(meal, compatIdx, today, mealIndex) {
     var check = compatIdx[meal.day + '/' + s.key];
     var conflicts = (check && check.conflicts) ? check.conflicts : [];
     var atHome = check ? check.at_home : true;
-    if (!atHome) { away = true; return; }
+    if (!atHome) { away = true; }
 
     var slug = meal[s.key + '_slug'];
     var isLeftovers = meal[s.key + '_leftovers'];
