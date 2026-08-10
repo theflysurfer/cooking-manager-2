@@ -143,6 +143,137 @@ CREATE TABLE IF NOT EXISTS pantry_item (
 CREATE INDEX IF NOT EXISTS idx_pantry_item_status ON pantry_item(status);
 CREATE INDEX IF NOT EXISTS idx_pantry_item_norm ON pantry_item(name_normalized);
 CREATE INDEX IF NOT EXISTS idx_pantry_item_section ON pantry_item(section);
+
+-- ═══════════════════════════════════════════════════════════════════════
+-- Tablée — qui mange à quel repas
+--
+-- Remplace le booléen at_home et les constantes ADULTS/CHILDREN en dur
+-- dans presence.py. La table `convive` reste pour rétrocompatibilité ;
+-- `person` en est le successeur fonctionnel.
+-- ═══════════════════════════════════════════════════════════════════════
+
+-- person : registre universel de quiconque peut s'asseoir à table.
+-- Un seul registre, quel que soit le cercle (foyer, famille, ami, ponctuel).
+CREATE TABLE IF NOT EXISTS person (
+    id                  SERIAL PRIMARY KEY,
+    name                TEXT NOT NULL,
+    full_name           TEXT,
+    circle              TEXT NOT NULL DEFAULT 'occasional'
+                        CHECK (circle IN ('household', 'extended_family', 'friend', 'occasional')),
+    role                TEXT NOT NULL DEFAULT 'adult'
+                        CHECK (role IN ('adult', 'child', 'caregiver')),
+    diet                TEXT NOT NULL DEFAULT 'omnivore',
+    dislikes            TEXT[] DEFAULT '{}',
+    forbidden           TEXT[] DEFAULT '{}',
+    notes               TEXT,
+    default_attendance  TEXT NOT NULL DEFAULT 'never'
+                        CHECK (default_attendance IN ('always', 'never', 'scheduled')),
+    is_active           BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at          TIMESTAMPTZ DEFAULT NOW(),
+    updated_at          TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE (name, circle)
+);
+
+-- relationship : liens entre personnes (parent/enfant, conjoint, fratrie).
+-- Stocké dans un seul sens : parent_of = person_id est le parent.
+-- L'inverse se déduit (« les enfants de Paul » = WHERE type='parent_of'
+-- AND person_id = Paul).
+CREATE TABLE IF NOT EXISTS relationship (
+    id          SERIAL PRIMARY KEY,
+    person_id   INTEGER NOT NULL REFERENCES person(id) ON DELETE CASCADE,
+    related_id  INTEGER NOT NULL REFERENCES person(id) ON DELETE CASCADE,
+    type        TEXT NOT NULL CHECK (type IN ('parent_of', 'partner', 'sibling')),
+    UNIQUE (person_id, related_id, type),
+    CHECK (person_id != related_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_relationship_person ON relationship(person_id);
+CREATE INDEX IF NOT EXISTS idx_relationship_related ON relationship(related_id);
+
+-- household : un foyer = un groupe de personnes qui vivent ensemble.
+-- Le foyer principal (is_primary) fournit les résidents par défaut.
+-- D'autres foyers (« chez Paul ») servent à modéliser la garde croisée
+-- et les séjours (« vacances chez les grands-parents »).
+CREATE TABLE IF NOT EXISTS household (
+    id          SERIAL PRIMARY KEY,
+    name        TEXT NOT NULL,
+    is_primary  BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at  TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS household_member (
+    household_id INTEGER NOT NULL REFERENCES household(id) ON DELETE CASCADE,
+    person_id    INTEGER NOT NULL REFERENCES person(id) ON DELETE CASCADE,
+    role         TEXT NOT NULL DEFAULT 'resident'
+                 CHECK (role IN ('resident', 'regular_guest')),
+    PRIMARY KEY (household_id, person_id)
+);
+
+-- person_group : raccourci nommé pour ajouter plusieurs personnes d'un coup
+-- (« la famille Martin » = 4 person_id). auto_generated = créé depuis les
+-- relations (ex. « les grands-parents » = tous les person avec
+-- relationship parent_of vers un adulte du foyer principal).
+CREATE TABLE IF NOT EXISTS person_group (
+    id              SERIAL PRIMARY KEY,
+    name            TEXT UNIQUE NOT NULL,
+    auto_generated  BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at      TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS person_group_member (
+    group_id    INTEGER NOT NULL REFERENCES person_group(id) ON DELETE CASCADE,
+    person_id   INTEGER NOT NULL REFERENCES person(id) ON DELETE CASCADE,
+    PRIMARY KEY (group_id, person_id)
+);
+
+-- custody_schedule : garde alternée par enfant. Remplace les constantes
+-- CUSTODY_REFERENCE_WEEK et CHILDREN en dur dans presence.py.
+-- Chaque enfant peut avoir son propre rythme et sa propre date de référence
+-- (garde croisée : les enfants du conjoint viennent les semaines inverses).
+CREATE TABLE IF NOT EXISTS custody_schedule (
+    id                  SERIAL PRIMARY KEY,
+    person_id           INTEGER NOT NULL REFERENCES person(id) ON DELETE CASCADE,
+    pattern             TEXT NOT NULL DEFAULT 'alternating_weeks'
+                        CHECK (pattern IN ('alternating_weeks', 'specific_days', 'always')),
+    reference_date      DATE NOT NULL,
+    reference_present   BOOLEAN NOT NULL DEFAULT TRUE,
+    weekday_override    JSONB,
+    notes               TEXT,
+    UNIQUE (person_id)
+);
+
+-- canteen_schedule : cantine par enfant et par jour. Remplace le test
+-- « day.weekday() in (1, 3, 4) » en dur dans presence.py.
+-- active_outside_holidays = TRUE signifie que la cantine n'existe QUE
+-- hors vacances scolaires (le comportement actuel pour tous les enfants).
+CREATE TABLE IF NOT EXISTS canteen_schedule (
+    id                      SERIAL PRIMARY KEY,
+    person_id               INTEGER NOT NULL REFERENCES person(id) ON DELETE CASCADE,
+    weekday                 INTEGER NOT NULL CHECK (weekday >= 0 AND weekday <= 6),
+    slot                    TEXT NOT NULL DEFAULT 'lunch',
+    active_outside_holidays BOOLEAN NOT NULL DEFAULT TRUE,
+    UNIQUE (person_id, weekday, slot)
+);
+
+-- meal_attendance : la tablée effective — qui mange quoi quand.
+-- Calculée automatiquement depuis les schedules (source='computed'),
+-- modifiable manuellement ('manual') ou par commande vocale ('voice').
+-- extra_headcount couvre les « +3 anonymes sans profil ».
+-- person_id est nullable : un extra_headcount sans person_id = invités anonymes.
+CREATE TABLE IF NOT EXISTS meal_attendance (
+    id              SERIAL PRIMARY KEY,
+    menu_id         INTEGER REFERENCES menu(id) ON DELETE CASCADE,
+    day             DATE NOT NULL,
+    slot            TEXT NOT NULL CHECK (slot IN ('breakfast', 'lunch', 'snack', 'dinner')),
+    person_id       INTEGER REFERENCES person(id) ON DELETE SET NULL,
+    source          TEXT NOT NULL DEFAULT 'computed'
+                    CHECK (source IN ('computed', 'manual', 'voice')),
+    extra_headcount INTEGER NOT NULL DEFAULT 0,
+    created_at      TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_meal_attendance_menu_day ON meal_attendance(menu_id, day, slot);
+CREATE INDEX IF NOT EXISTS idx_meal_attendance_person ON meal_attendance(person_id);
 """
 
 MIGRATIONS_SQL = """
@@ -189,6 +320,43 @@ ALTER TABLE shopping_product ALTER COLUMN total_price  TYPE NUMERIC USING total_
 ALTER TABLE shopping_product ALTER COLUMN price_per_kg TYPE NUMERIC USING price_per_kg::numeric;
 ALTER TABLE shopping_product ADD COLUMN IF NOT EXISTS ean TEXT;
 ALTER TABLE menu_meal ADD COLUMN IF NOT EXISTS covers INTEGER;
+
+-- ═══════════════════════════════════════════════════════════════════════
+-- Migration tablée : convive → person + seed données initiales
+-- ═══════════════════════════════════════════════════════════════════════
+
+-- Migrer les convives existants vers person (idempotent).
+-- Le champ constraints stocke « diet:X », « avoid:Y », « dislike:Z ».
+INSERT INTO person (name, circle, role, diet, dislikes, forbidden, notes, default_attendance)
+SELECT
+    c.name,
+    CASE WHEN c.notes = 'invité récurrent' THEN 'extended_family' ELSE 'household' END,
+    'adult',
+    COALESCE((
+        SELECT REPLACE(unnest, 'diet:', '')
+        FROM unnest(c.constraints)
+        WHERE unnest LIKE 'diet:%'
+        LIMIT 1
+    ), 'omnivore'),
+    ARRAY(SELECT REPLACE(unnest, 'dislike:', '') FROM unnest(c.constraints) WHERE unnest LIKE 'dislike:%'),
+    ARRAY(SELECT REPLACE(unnest, 'avoid:', '') FROM unnest(c.constraints) WHERE unnest LIKE 'avoid:%'),
+    c.notes,
+    CASE WHEN c.notes = 'invité récurrent' THEN 'never' ELSE 'always' END
+FROM convive c
+WHERE NOT EXISTS (SELECT 1 FROM person p WHERE p.name = c.name)
+ON CONFLICT DO NOTHING;
+
+-- Seed le foyer principal (idempotent).
+INSERT INTO household (name, is_primary)
+SELECT 'Foyer', TRUE
+WHERE NOT EXISTS (SELECT 1 FROM household WHERE is_primary);
+
+-- Rattacher les membres du foyer au household principal.
+INSERT INTO household_member (household_id, person_id, role)
+SELECT h.id, p.id, 'resident'
+FROM household h, person p
+WHERE h.is_primary AND p.circle = 'household' AND p.default_attendance = 'always'
+ON CONFLICT DO NOTHING;
 """
 
 _pool: asyncpg.Pool | None = None
