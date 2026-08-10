@@ -27,8 +27,6 @@ cooking_manager/   # Domaine pur, sans I/O réseau
   presence.py      # qui est à table (garde alternée × vacances × absences)
 backend/           # FastAPI + schéma DB + ingestion
   stt.py           # pipeline vocal : Deepgram (STT) + Groq LLM (intent)
-  auchan.py        # client Auchan Drive (reverse-engineered)
-  auchan_mcp.py    # serveur FastMCP (stdio) — panier Auchan
   cooking_mcp.py   # serveur FastMCP (stdio) — garde-manger, recettes, menus
 web/               # Front : index.html + style.css + app.js (+ media/recipes/)
 tests/             # unitaires · gate compat iOS 12 · e2e (opt-in)
@@ -115,18 +113,6 @@ dessus donne une réponse fausse avec l'aplomb d'une règle écrite.
 L'agenda Google **ne suffit pas** comme source : mesuré le 2026-08-04, la semaine
 ne portait qu'un seul événement. Il apporte les exceptions, jamais la trame.
 
-## Auchan Drive API
-
-Client reverse-engineered (`backend/auchan.py`). Auth : Bearer JWT Keycloak + `x-gravitee-api-key`. Catalogue : SSR scraping (pas d'API produit). Cart : `POST api.auchan.fr/checkout/v1/carts/{cartId}/items` (add/update/remove via `desiredQuantity`). Remove nécessite l'`id` interne (GET cart d'abord). MCP local : `python -m backend.auchan_mcp` (stdio) — expose aussi `grocery_persist_cart`, qui persiste et enrichit un panier via `POST /api/shopping/persist-cart`.
-
-⚠️ Le connecteur **claude.ai** `Auchan Drive` (hébergé, pas ce repo) n'expose que l'ajout au panier — `quantity=0` pour supprimer y échoue systématiquement en 500 (refs #13). Toute suppression/mise à jour de quantité doit passer par `backend/auchan_mcp.py` ou un appel direct à `AuchanClient`.
-
-## Persistance + enrichissement nutritionnel
-
-`POST /api/shopping/persist-cart` persiste chaque article dans `shopping_product` et l'enrichit en direct (nutrition, nutriscore, ingrédients, allergènes, caractéristiques, photo, prix/kg) via `backend/auchan.py::find_product_detail()` — pont entre l'UUID interne du panier et l'ID public catalogue (recherche par nom, puis scrape de la fiche produit). Séquentiel, un item peut prendre plusieurs secondes — le timeout nginx `/api/` est à 300s pour cette raison (`deploy/cooking-manager.nginx.conf`).
-
-Le nutriscore est enrichi via **Open Food Facts** (`/api/v2/product/{ean}`) quand le scraping Auchan ne le fournit pas (Auchan n'affiche plus le nutriscore en image). L'EAN est extrait du groupe "Réf / EAN" de la fiche produit. Les allergènes sont d'abord extraits des MAJUSCULES dans le texte d'ingrédients (norme UE), puis complétés par OFF si absent.
-
 ## Commande vocale (STT + LLM)
 
 Pipeline : MediaRecorder (front) → `POST /api/audio` → Deepgram prerecorded (STT) → Groq LLM (intent JSON) → exécution. Panneau `#mic-panel` affiche la transcription et l'action interprétée.
@@ -138,17 +124,12 @@ Pipeline : MediaRecorder (front) → `POST /api/audio` → Deepgram prerecorded 
 
 ## Gotchas
 
-- Le token Auchan expire fréquemment — refresh via navigateur uniquement
-- `consentId` requis comme query param sur tous les appels cart
-- Les cookies de session Auchan (lark-*, connect.sid) sont liés à l'IP du VPS — ne pas router `search()`/`scrape_detail()` via un proxy (IP différente → session invalidée → prix `None`)
-- La recherche SSR nécessite le cookie `auchan_store_reference=874` (Aubagne)
-- Remove cart : l'`id` interne (UUID) ≠ `productId` — toujours GET cart d'abord
 - `httpx`/`selectolax`/`mcp` sont des dépendances déclarées dans `pyproject.toml` — un venv reconstruit à neuf (`pip install .`) est le test de vérité si ce fichier dérive
 - Toute nouvelle colonne dans un CREATE TABLE doit aussi etre dans MIGRATIONS_SQL (`ALTER TABLE ADD COLUMN IF NOT EXISTS`) — le VPS a deja les tables, `CREATE TABLE IF NOT EXISTS` ne rajoute rien
 - `menu_meal.position` est **1-based** en DB (`enumerate(meals, start=1)`) — tout consommateur JS doit faire `position - 1` pour indexer le tableau `menu.meals[]`
 - Après un `rclone copy` vers Dropbox, le mount VPS (`/mnt/dropbox-full`) peut avoir un délai de propagation (~30 s) — relancer `POST /api/ingest` si une recette n'apparaît pas
 - `_pantry_from_db()` remplace `_load_pantry()` — le différentiel courses lit désormais la DB, plus le Markdown
-- Pour le garde-manger, la **DB est la source de vérité** (pas le vault). Le vault est une source d'ingestion parmi d'autres (API, voix, Auchan). Les items `source != 'vault'` survivent à la ré-ingestion
+- Pour le garde-manger, la **DB est la source de vérité** (pas le vault). Le vault est une source d'ingestion parmi d'autres (API, voix). Les items `source != 'vault'` survivent à la ré-ingestion
 - `cooking_mcp.py` importe `from fastmcp import FastMCP` (pas `from mcp.server.fastmcp`) — seul le package `fastmcp` (v3.4+) expose `host`/`port`/`allowed_hosts` dans `run()`. Le package `mcp` v2 a un `FastMCP.run()` minimaliste
 - Tout MCP VPS derrière nginx avec `Host $host` doit passer `allowed_hosts=[<domaine>]` à `mcp.run()`, sinon Starlette retourne 421
 

@@ -1,6 +1,6 @@
 # Cooking Manager 2
 
-Web app to browse and filter family recipes from an Obsidian vault, plan weekly menus, generate shopping lists, and order groceries on Auchan Drive.
+Web app to browse and filter family recipes from an Obsidian vault, plan weekly menus, and generate shopping lists.
 
 Designed for kitchen use on iPad mini 2 (Safari 12.5.8).
 
@@ -11,7 +11,6 @@ Live: `https://cooking.srv759970.hstgr.cloud`
 - **Recipe browser** — filter by type, family, tags, dietary constraints; view photos, macros, ingredients, steps
 - **Weekly menus** — ingested from Obsidian vault, with per-meal recipe linking and covers adjustment
 - **Shopping list** — auto-generated from menu recipes × covers, with "remaining items" toggle (filters past days)
-- **Auchan Drive** — search products, manage cart, persist purchases with nutritional enrichment (nutriscore, allergens, ingredients via Auchan scraping + Open Food Facts)
 - **Dietary compatibility** — checks who's at the table (custody schedule × school holidays × absences) against each person's constraints
 - **Voice commands** — speech-to-text (Deepgram) + LLM intent classification (Groq) for hands-free recipe search, servings adjustment, recipe swap, product blacklisting, recipe notes, step editing, meal feedback, and pantry leftovers (Safari 14.5+ only)
 - **Pantry management** — track what's in stock, mark leftovers
@@ -47,8 +46,6 @@ Environment variables:
 |---|---|---|
 | `DATABASE_URL` | Yes | PostgreSQL DSN (`postgresql://cooking:...@localhost/cooking_manager`) |
 | `VAULT_PATH` | Yes | Path to Obsidian vault `Noyau/Cuisine/` directory |
-| `AUCHAN_TOKEN` | For shopping | Bearer JWT from Auchan Drive (expires frequently) |
-| `AUCHAN_CART_ID` | For shopping | Cart UUID from Auchan Drive |
 | `DEEPGRAM_API_KEY` | For voice | Deepgram STT API key |
 | `GROQ_API_KEY` | For voice | Groq LLM API key |
 
@@ -98,12 +95,6 @@ The vault is mounted read-only on the VPS via rclone. Ingestion: `POST /api/inge
 | GET | `/api/shopping/preferences` | Product preferences (blacklist, favorites) |
 | POST | `/api/shopping/preferences` | Add a product preference (blacklist/favorite) |
 
-### Auchan Drive
-| Method | Endpoint | Description |
-|---|---|---|
-| GET | `/api/auchan/product/{id}` | Product detail (scraped) |
-| POST | `/api/auchan/remove` | Remove item from cart |
-
 ### Voice & Feedback
 | Method | Endpoint | Description |
 |---|---|---|
@@ -142,16 +133,6 @@ python -m backend.cooking_mcp  # stdio transport
 
 10 tools: `pantry_list`, `pantry_search`, `pantry_add`, `pantry_update`, `pantry_remove`, `shopping_list`, `recipe_search`, `recipe_detail`, `menu_current`, `pantry_ingest`.
 
-### Auchan Drive MCP
-
-Local MCP server for Auchan Drive cart management:
-
-```bash
-python -m backend.auchan_mcp  # stdio transport
-```
-
-Exposes tools: product search, cart management, and `grocery_persist_cart` (persist + enrich via the API).
-
 ## Deploy
 
 ```bash
@@ -169,8 +150,6 @@ cooking_manager/       # Pure domain — no network I/O
   presence.py          # Who's at the table (custody × holidays × absences)
 backend/               # FastAPI + DB schema + ingestion
   stt.py               # Voice pipeline: Deepgram STT + Groq LLM intent
-  auchan.py            # Auchan Drive client (reverse-engineered)
-  auchan_mcp.py        # FastMCP server (stdio) — Auchan cart
   cooking_mcp.py       # FastMCP server (stdio) — pantry, recipes, menus
 web/                   # Frontend: index.html + style.css + app.js
 tests/                 # Unit tests · iOS 12 compat gate · e2e (opt-in)
