@@ -154,15 +154,20 @@ async function viewMenu() {
   render(emptyState('Chargement de la semaine…'));
   var data = await api('/menus');
   var menus = data.menus || [];
+  var withMeals = menus.filter(function (m) { return m.meals && m.meals.length; });
+  var chosen = state.active.menu;
   var menu = null;
-  for (var i = 0; i < menus.length; i++) {
-    if (menus[i].status === 'active' && menus[i].meals) { menu = menus[i]; break; }
-  }
-  if (!menu) {
-    for (var j = 0; j < menus.length; j++) {
-      if (menus[j].meals && menus[j].meals.length) { menu = menus[j]; break; }
+  if (chosen) {
+    for (var i = 0; i < withMeals.length; i++) {
+      if (withMeals[i].slug === chosen) { menu = withMeals[i]; break; }
     }
   }
+  if (!menu) {
+    for (var i = 0; i < withMeals.length; i++) {
+      if (withMeals[i].status === 'active') { menu = withMeals[i]; break; }
+    }
+  }
+  if (!menu && withMeals.length) { menu = withMeals[0]; }
 
   if (!menu) {
     render(emptyState(
@@ -199,7 +204,20 @@ async function viewMenu() {
   var today = todayISO();
   var conflicts = compat ? compat.conflicts : 0;
 
-  var html = '<h1 class="page__title">' + esc(menu.title) + '</h1>' +
+  var picker = '';
+  if (withMeals.length > 1) {
+    picker = '<select id="menu-picker" class="menu-picker">';
+    for (var p = 0; p < withMeals.length; p++) {
+      var m = withMeals[p];
+      var sel = m.slug === menu.slug ? ' selected' : '';
+      picker += '<option value="' + esc(m.slug) + '"' + sel + '>' +
+        esc(m.title) + '</option>';
+    }
+    picker += '</select>';
+  }
+
+  var html = picker +
+    '<h1 class="page__title">' + esc(menu.title) + '</h1>' +
     '<p class="page__sub">' + esc(menu.week_start || '') + ' → ' + esc(menu.week_end || '') +
     (menu.configuration ? ' · ' + esc(label(menu.configuration)) : '') + '</p>';
 
@@ -222,6 +240,14 @@ async function viewMenu() {
     '</div></div>';
 
   render(html);
+
+  var menuPicker = document.getElementById('menu-picker');
+  if (menuPicker) {
+    menuPicker.addEventListener('change', function () {
+      state.active.menu = this.value;
+      viewMenu();
+    });
+  }
 
   app.addEventListener('click', function (e) {
     var btn = e.target.closest('.swap-btn');

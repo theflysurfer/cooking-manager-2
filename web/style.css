@@ -182,6 +182,25 @@ h1, h2, h3, .u-heading {
   padding: var(--sp-5) var(--sp-3) var(--sp-7);
 }
 
+.menu-picker {
+  display: block;
+  width: 100%;
+  padding: 10px 12px;
+  margin-bottom: var(--sp-2);
+  font-size: 0.85rem;
+  font-family: inherit;
+  letter-spacing: 0.5px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  -webkit-appearance: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%238A8A8A' fill='none' stroke-width='1.5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+}
+
 .page__title { font-size: 1.4rem; letter-spacing: 1px; }
 .page__sub {
   font-size: 0.8rem;
