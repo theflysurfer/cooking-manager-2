@@ -11,6 +11,8 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
+from cooking_manager.presence import HouseholdConfig, CustodyInfo, CanteenEntry
+
 from .config import DATABASE_DSN, VAULT_ROOT
 from .db import get_pool, init_schema, close_pool
 from .ingest import ingest
@@ -286,8 +288,9 @@ async def menu_compatibility(slug: str):
     pool = await get_pool(DATABASE_DSN)
     async with pool.acquire() as conn:
         row = await conn.fetchrow("SELECT slug, title, meals FROM menu WHERE slug = $1", slug)
-    if not row:
-        raise HTTPException(404, f"Menu introuvable : {slug}")
+        if not row:
+            raise HTTPException(404, f"Menu introuvable : {slug}")
+        household = await load_household_config(conn)
 
     meals = row["meals"]
     if isinstance(meals, str):
@@ -304,7 +307,7 @@ async def menu_compatibility(slug: str):
             except (ValueError, TypeError):
                 day = None
 
-            present = attendees(day, slot, referential) if day else list(convives)
+            present = attendees(day, slot, referential, household) if day else list(convives)
             conflicts = check_meal(dish, [convives[n] for n in present if n in convives])
             conflict_count += len(conflicts)
             checked.append({
@@ -1471,6 +1474,415 @@ def _recipe_to_dict(row) -> dict:
         d["macros"] = macros
     _serialize_dates(d, ("created", "updated"))
     return d
+
+
+# ── Tablée : person, household, relationship ───────────────────────
+
+class PersonCreate(BaseModel):
+    name: str
+    full_name: str | None = None
+    circle: str = "occasional"
+    role: str = "adult"
+    diet: str = "omnivore"
+    dislikes: list[str] = []
+    forbidden: list[str] = []
+    notes: str | None = None
+    default_attendance: str = "never"
+
+class PersonUpdate(BaseModel):
+    full_name: str | None = None
+    circle: str | None = None
+    role: str | None = None
+    diet: str | None = None
+    dislikes: list[str] | None = None
+    forbidden: list[str] | None = None
+    notes: str | None = None
+    default_attendance: str | None = None
+    is_active: bool | None = None
+
+class RelationshipCreate(BaseModel):
+    person_id: int
+    related_id: int
+    type: str
+
+class CustodyScheduleCreate(BaseModel):
+    person_id: int
+    pattern: str = "alternating_weeks"
+    reference_date: str
+    reference_present: bool = True
+    notes: str | None = None
+
+class CanteenScheduleCreate(BaseModel):
+    person_id: int
+    weekday: int
+    slot: str = "lunch"
+    active_outside_holidays: bool = True
+
+
+@app.get("/api/persons")
+async def list_persons(circle: str | None = None, active_only: bool = True):
+    pool = await get_pool(DATABASE_DSN)
+    async with pool.acquire() as conn:
+        where, params = ["1=1"], []
+        if circle:
+            params.append(circle)
+            where.append(f"circle = ${len(params)}")
+        if active_only:
+            where.append("is_active")
+        rows = await conn.fetch(
+            f"SELECT * FROM person WHERE {' AND '.join(where)} ORDER BY circle, name",
+            *params,
+        )
+    return [_round_numeric(dict(r)) for r in rows]
+
+
+@app.post("/api/persons", status_code=201)
+async def create_person(body: PersonCreate):
+    pool = await get_pool(DATABASE_DSN)
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """INSERT INTO person (name, full_name, circle, role, diet, dislikes,
+                                   forbidden, notes, default_attendance)
+               VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *""",
+            body.name, body.full_name, body.circle, body.role, body.diet,
+            body.dislikes, body.forbidden, body.notes, body.default_attendance,
+        )
+    return dict(row)
+
+
+@app.get("/api/persons/{person_id}")
+async def get_person(person_id: int):
+    pool = await get_pool(DATABASE_DSN)
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT * FROM person WHERE id = $1", person_id)
+    if not row:
+        raise HTTPException(404, "Person not found")
+    return dict(row)
+
+
+@app.patch("/api/persons/{person_id}")
+async def update_person(person_id: int, body: PersonUpdate):
+    sets, params = [], [person_id]
+    for fld, val in body.model_dump(exclude_unset=True).items():
+        params.append(val)
+        sets.append(f"{fld} = ${len(params)}")
+    if not sets:
+        raise HTTPException(400, "Nothing to update")
+    sets.append("updated_at = NOW()")
+    pool = await get_pool(DATABASE_DSN)
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            f"UPDATE person SET {', '.join(sets)} WHERE id = $1 RETURNING *", *params,
+        )
+    if not row:
+        raise HTTPException(404, "Person not found")
+    return dict(row)
+
+
+@app.delete("/api/persons/{person_id}", status_code=204)
+async def delete_person(person_id: int):
+    pool = await get_pool(DATABASE_DSN)
+    async with pool.acquire() as conn:
+        result = await conn.execute("DELETE FROM person WHERE id = $1", person_id)
+    if result == "DELETE 0":
+        raise HTTPException(404, "Person not found")
+
+
+# ── Households ──
+
+@app.get("/api/households")
+async def list_households():
+    pool = await get_pool(DATABASE_DSN)
+    async with pool.acquire() as conn:
+        households = await conn.fetch("SELECT * FROM household ORDER BY is_primary DESC, name")
+        result = []
+        for h in households:
+            members = await conn.fetch(
+                """SELECT hm.membership, p.id, p.name, p.role, p.circle
+                   FROM household_member hm JOIN person p ON p.id = hm.person_id
+                   WHERE hm.household_id = $1""",
+                h["id"],
+            )
+            d = dict(h)
+            d["members"] = [dict(m) for m in members]
+            result.append(d)
+    return result
+
+
+@app.post("/api/households/{household_id}/members", status_code=201)
+async def add_household_member(
+    household_id: int, person_id: int = Query(...), membership: str = "resident",
+):
+    pool = await get_pool(DATABASE_DSN)
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """INSERT INTO household_member (household_id, person_id, membership)
+               VALUES ($1, $2, $3) ON CONFLICT DO NOTHING""",
+            household_id, person_id, membership,
+        )
+    return {"ok": True}
+
+
+@app.delete("/api/households/{household_id}/members/{person_id}", status_code=204)
+async def remove_household_member(household_id: int, person_id: int):
+    pool = await get_pool(DATABASE_DSN)
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "DELETE FROM household_member WHERE household_id = $1 AND person_id = $2",
+            household_id, person_id,
+        )
+
+
+# ── Relationships ──
+
+@app.get("/api/relationships")
+async def list_relationships():
+    pool = await get_pool(DATABASE_DSN)
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """SELECT r.*, p1.name AS person_name, p2.name AS related_name
+               FROM relationship r
+               JOIN person p1 ON p1.id = r.person_id
+               JOIN person p2 ON p2.id = r.related_id""",
+        )
+    return [dict(r) for r in rows]
+
+
+@app.post("/api/relationships", status_code=201)
+async def create_relationship(body: RelationshipCreate):
+    pool = await get_pool(DATABASE_DSN)
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """INSERT INTO relationship (person_id, related_id, type)
+               VALUES ($1, $2, $3)
+               ON CONFLICT (person_id, related_id, type) DO NOTHING
+               RETURNING *""",
+            body.person_id, body.related_id, body.type,
+        )
+    return dict(row) if row else {"ok": True, "note": "already exists"}
+
+
+@app.delete("/api/relationships/{rel_id}", status_code=204)
+async def delete_relationship(rel_id: int):
+    pool = await get_pool(DATABASE_DSN)
+    async with pool.acquire() as conn:
+        await conn.execute("DELETE FROM relationship WHERE id = $1", rel_id)
+
+
+# ── Custody & canteen schedules ──
+
+@app.get("/api/custody-schedules")
+async def list_custody_schedules():
+    pool = await get_pool(DATABASE_DSN)
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """SELECT cs.*, p.name AS person_name
+               FROM custody_schedule cs JOIN person p ON p.id = cs.person_id""",
+        )
+    return [_round_numeric(dict(r)) for r in rows]
+
+
+@app.post("/api/custody-schedules", status_code=201)
+async def create_custody_schedule(body: CustodyScheduleCreate):
+    pool = await get_pool(DATABASE_DSN)
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """INSERT INTO custody_schedule (person_id, pattern, reference_date,
+                                            reference_present, notes)
+               VALUES ($1, $2, $3, $4, $5)
+               ON CONFLICT (person_id) DO UPDATE SET
+                   pattern = EXCLUDED.pattern, reference_date = EXCLUDED.reference_date,
+                   reference_present = EXCLUDED.reference_present, notes = EXCLUDED.notes
+               RETURNING *""",
+            body.person_id, body.pattern,
+            datetime.date.fromisoformat(body.reference_date),
+            body.reference_present, body.notes,
+        )
+    return dict(row)
+
+
+@app.get("/api/canteen-schedules")
+async def list_canteen_schedules():
+    pool = await get_pool(DATABASE_DSN)
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """SELECT cs.*, p.name AS person_name
+               FROM canteen_schedule cs JOIN person p ON p.id = cs.person_id""",
+        )
+    return [dict(r) for r in rows]
+
+
+@app.post("/api/canteen-schedules", status_code=201)
+async def create_canteen_schedule(body: CanteenScheduleCreate):
+    pool = await get_pool(DATABASE_DSN)
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """INSERT INTO canteen_schedule (person_id, weekday, slot, active_outside_holidays)
+               VALUES ($1, $2, $3, $4)
+               ON CONFLICT (person_id, weekday, slot) DO UPDATE SET
+                   active_outside_holidays = EXCLUDED.active_outside_holidays
+               RETURNING *""",
+            body.person_id, body.weekday, body.slot, body.active_outside_holidays,
+        )
+    return dict(row)
+
+
+# ── HouseholdConfig from DB (bridge to presence.py) ──
+
+async def load_household_config(conn) -> HouseholdConfig:
+
+    adults_rows = await conn.fetch(
+        "SELECT name FROM person WHERE circle = 'household' AND role = 'adult' AND is_active",
+    )
+    children_rows = await conn.fetch(
+        """SELECT p.name, cs.pattern, cs.reference_date, cs.reference_present
+           FROM person p LEFT JOIN custody_schedule cs ON cs.person_id = p.id
+           WHERE p.circle = 'household' AND p.role = 'child' AND p.is_active""",
+    )
+    canteen_rows = await conn.fetch(
+        """SELECT p.name, cs.weekday, cs.slot, cs.active_outside_holidays
+           FROM canteen_schedule cs JOIN person p ON p.id = cs.person_id
+           WHERE p.is_active""",
+    )
+
+    adults = tuple(r["name"] for r in adults_rows)
+    children = []
+    for r in children_rows:
+        kwargs: dict = {"name": r["name"]}
+        if r["pattern"]:
+            kwargs["pattern"] = r["pattern"]
+            kwargs["reference_date"] = r["reference_date"]
+            kwargs["reference_present"] = r["reference_present"]
+        children.append(CustodyInfo(**kwargs))
+
+    canteen = [
+        CanteenEntry(name=r["name"], weekday=r["weekday"],
+                     slot=r["slot"], active_outside_holidays=r["active_outside_holidays"])
+        for r in canteen_rows
+    ]
+
+    if not adults:
+        return HouseholdConfig()
+    return HouseholdConfig(adults=adults, children=children, canteen=canteen)
+
+
+# ── Seed données initiales ──
+
+SEED_PERSONS = [
+    {"name": "Julien",   "circle": "household", "role": "adult", "default_attendance": "always"},
+    {"name": "Clémence", "circle": "household", "role": "adult", "default_attendance": "always",
+     "diet": "pescetarian", "forbidden": ["oeuf dur", "oeuf poché", "oeuf au plat", "oeuf mollet"]},
+    {"name": "Léa",      "circle": "household", "role": "child", "default_attendance": "scheduled",
+     "forbidden": ["oeuf dur", "oeuf poché", "oeuf au plat", "oeuf mollet"], "dislikes": ["mais"]},
+    {"name": "Titouan",  "circle": "household", "role": "child", "default_attendance": "scheduled"},
+]
+
+SEED_RELATIONSHIPS = [
+    ("Julien", "Léa",      "parent_of"),
+    ("Julien", "Titouan",  "parent_of"),
+    ("Clémence", "Léa",    "parent_of"),
+    ("Clémence", "Titouan","parent_of"),
+    ("Julien", "Clémence", "partner"),
+    ("Léa",    "Titouan",  "sibling"),
+]
+
+SEED_CUSTODY_REFERENCE = datetime.date(2026, 3, 3)
+SEED_CANTEEN_WEEKDAYS = [1, 3, 4]  # mardi, jeudi, vendredi
+
+
+@app.post("/api/seed")
+async def seed_household():
+    pool = await get_pool(DATABASE_DSN)
+    async with pool.acquire() as conn:
+        created_persons = 0
+        for p in SEED_PERSONS:
+            result = await conn.execute(
+                """INSERT INTO person (name, circle, role, diet, dislikes, forbidden,
+                                       default_attendance)
+                   VALUES ($1, $2, $3, $4, $5, $6, $7)
+                   ON CONFLICT (name, circle) DO UPDATE SET
+                       role = EXCLUDED.role, diet = EXCLUDED.diet,
+                       dislikes = EXCLUDED.dislikes, forbidden = EXCLUDED.forbidden,
+                       default_attendance = EXCLUDED.default_attendance, updated_at = NOW()""",
+                p["name"], p["circle"], p["role"],
+                p.get("diet", "omnivore"), p.get("dislikes", []),
+                p.get("forbidden", []), p["default_attendance"],
+            )
+            if "INSERT" in result:
+                created_persons += 1
+
+        hh = await conn.fetchrow(
+            "INSERT INTO household (name, is_primary) VALUES ('Foyer', TRUE) "
+            "ON CONFLICT DO NOTHING RETURNING id",
+        )
+        hh_id = hh["id"] if hh else (
+            await conn.fetchval("SELECT id FROM household WHERE is_primary")
+        )
+
+        for p in SEED_PERSONS:
+            pid = await conn.fetchval(
+                "SELECT id FROM person WHERE name = $1 AND circle = 'household'", p["name"],
+            )
+            if pid:
+                await conn.execute(
+                    "INSERT INTO household_member (household_id, person_id, membership) "
+                    "VALUES ($1, $2, 'resident') ON CONFLICT DO NOTHING",
+                    hh_id, pid,
+                )
+
+        created_rels = 0
+        for name1, name2, rel_type in SEED_RELATIONSHIPS:
+            p1 = await conn.fetchval("SELECT id FROM person WHERE name=$1 AND circle='household'", name1)
+            p2 = await conn.fetchval("SELECT id FROM person WHERE name=$1 AND circle='household'", name2)
+            if p1 and p2:
+                r = await conn.execute(
+                    "INSERT INTO relationship (person_id, related_id, type) "
+                    "VALUES ($1,$2,$3) ON CONFLICT DO NOTHING", p1, p2, rel_type,
+                )
+                if "INSERT" in r:
+                    created_rels += 1
+
+        created_custody = 0
+        for p in SEED_PERSONS:
+            if p["role"] != "child":
+                continue
+            pid = await conn.fetchval(
+                "SELECT id FROM person WHERE name=$1 AND circle='household'", p["name"],
+            )
+            if pid:
+                r = await conn.execute(
+                    "INSERT INTO custody_schedule (person_id, pattern, reference_date, reference_present) "
+                    "VALUES ($1, 'alternating_weeks', $2, TRUE) ON CONFLICT (person_id) DO NOTHING",
+                    pid, SEED_CUSTODY_REFERENCE,
+                )
+                if "INSERT" in r:
+                    created_custody += 1
+
+        created_canteen = 0
+        for p in SEED_PERSONS:
+            if p["role"] != "child":
+                continue
+            pid = await conn.fetchval(
+                "SELECT id FROM person WHERE name=$1 AND circle='household'", p["name"],
+            )
+            if not pid:
+                continue
+            for wd in SEED_CANTEEN_WEEKDAYS:
+                r = await conn.execute(
+                    "INSERT INTO canteen_schedule (person_id, weekday, slot, active_outside_holidays) "
+                    "VALUES ($1, $2, 'lunch', TRUE) ON CONFLICT DO NOTHING",
+                    pid, wd,
+                )
+                if "INSERT" in r:
+                    created_canteen += 1
+
+    return {
+        "persons": created_persons,
+        "household_id": hh_id,
+        "relationships": created_rels,
+        "custody_schedules": created_custody,
+        "canteen_schedules": created_canteen,
+    }
 
 
 # ── Static files (must be last) ────────────────────────────────────

@@ -201,11 +201,14 @@ CREATE TABLE IF NOT EXISTS household (
     created_at  TIMESTAMPTZ DEFAULT NOW()
 );
 
+CREATE UNIQUE INDEX IF NOT EXISTS idx_household_one_primary
+    ON household (is_primary) WHERE is_primary;
+
 CREATE TABLE IF NOT EXISTS household_member (
     household_id INTEGER NOT NULL REFERENCES household(id) ON DELETE CASCADE,
     person_id    INTEGER NOT NULL REFERENCES person(id) ON DELETE CASCADE,
-    role         TEXT NOT NULL DEFAULT 'resident'
-                 CHECK (role IN ('resident', 'regular_guest')),
+    membership   TEXT NOT NULL DEFAULT 'resident'
+                 CHECK (membership IN ('resident', 'regular_guest')),
     PRIMARY KEY (household_id, person_id)
 );
 
@@ -274,6 +277,8 @@ CREATE TABLE IF NOT EXISTS meal_attendance (
 
 CREATE INDEX IF NOT EXISTS idx_meal_attendance_menu_day ON meal_attendance(menu_id, day, slot);
 CREATE INDEX IF NOT EXISTS idx_meal_attendance_person ON meal_attendance(person_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_meal_attendance_unique
+    ON meal_attendance(menu_id, day, slot, person_id) WHERE person_id IS NOT NULL;
 """
 
 MIGRATIONS_SQL = """
@@ -321,6 +326,22 @@ ALTER TABLE shopping_product ALTER COLUMN price_per_kg TYPE NUMERIC USING price_
 ALTER TABLE shopping_product ADD COLUMN IF NOT EXISTS ean TEXT;
 ALTER TABLE menu_meal ADD COLUMN IF NOT EXISTS covers INTEGER;
 
+-- household_member: rename role → membership (avoids confusion with person.role)
+DO $rename_hm$
+BEGIN
+    ALTER TABLE household_member RENAME COLUMN role TO membership;
+EXCEPTION
+    WHEN undefined_column THEN NULL;
+END $rename_hm$;
+
+-- household: guarantee at most one primary
+CREATE UNIQUE INDEX IF NOT EXISTS idx_household_one_primary
+    ON household (is_primary) WHERE is_primary;
+
+-- meal_attendance: prevent duplicate person per meal slot
+CREATE UNIQUE INDEX IF NOT EXISTS idx_meal_attendance_unique
+    ON meal_attendance(menu_id, day, slot, person_id) WHERE person_id IS NOT NULL;
+
 -- ═══════════════════════════════════════════════════════════════════════
 -- Migration tablée : convive → person + seed données initiales
 -- ═══════════════════════════════════════════════════════════════════════
@@ -352,10 +373,10 @@ SELECT 'Foyer', TRUE
 WHERE NOT EXISTS (SELECT 1 FROM household WHERE is_primary);
 
 -- Rattacher les membres du foyer au household principal.
-INSERT INTO household_member (household_id, person_id, role)
+INSERT INTO household_member (household_id, person_id, membership)
 SELECT h.id, p.id, 'resident'
 FROM household h, person p
-WHERE h.is_primary AND p.circle = 'household' AND p.default_attendance = 'always'
+WHERE h.is_primary AND p.circle = 'household'
 ON CONFLICT DO NOTHING;
 """
 

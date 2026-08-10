@@ -29,9 +29,8 @@ from dataclasses import dataclass, field
 from datetime import date, timedelta
 
 # ── Garde alternée ───────────────────────────────────────────────────
-# Cycle d'une semaine sur deux, ancré sur une semaine de référence AVEC enfants.
-# Source : Convives.md §Garde alternée.
-CUSTODY_REFERENCE_WEEK = date(2026, 3, 3)   # semaine du 3 mars 2026 = AVEC
+# Constantes historiques — fallback quand aucune HouseholdConfig n'est fournie.
+CUSTODY_REFERENCE_WEEK = date(2026, 3, 3)
 ADULTS = ("Julien", "Clémence")
 CHILDREN = ("Léa", "Titouan")
 
@@ -46,7 +45,6 @@ _DAY_NAMES = list(_DAY_INDEX)
 
 @dataclass
 class SchoolPeriod:
-    """Une période de vacances scolaires — pendant laquelle il n'y a PAS de cantine."""
     label: str
     start: date
     end: date
@@ -57,7 +55,6 @@ class SchoolPeriod:
 
 @dataclass
 class Absence:
-    """Absence déclarée d'une personne (voyage, déplacement…)."""
     who: str
     start: date
     end: date
@@ -71,7 +68,7 @@ class Absence:
 class Referential:
     school_holidays: list[SchoolPeriod] = field(default_factory=list)
     absences: list[Absence] = field(default_factory=list)
-    overrides: dict[str, list[str]] = field(default_factory=dict)  # "2026-08-04/lunch" -> noms
+    overrides: dict[str, list[str]] = field(default_factory=dict)
 
     def is_school_holiday(self, day: date) -> bool:
         return any(p.covers(day) for p in self.school_holidays)
@@ -83,49 +80,98 @@ class Referential:
         return None
 
 
+# ── Configuration du foyer (données DB ou fallback constantes) ──────
+
+@dataclass
+class CustodyInfo:
+    name: str
+    pattern: str = "alternating_weeks"
+    reference_date: date = CUSTODY_REFERENCE_WEEK
+    reference_present: bool = True
+
+@dataclass
+class CanteenEntry:
+    name: str
+    weekday: int
+    slot: str = "lunch"
+    active_outside_holidays: bool = True
+
+@dataclass
+class HouseholdConfig:
+    adults: tuple[str, ...] = ADULTS
+    children: list[CustodyInfo] = field(default_factory=lambda: [
+        CustodyInfo(name=n) for n in CHILDREN
+    ])
+    canteen: list[CanteenEntry] = field(default_factory=lambda: [
+        CanteenEntry(name=n, weekday=wd) for n in CHILDREN for wd in (1, 3, 4)
+    ])
+
+
 def children_present_this_week(day: date, reference: date = CUSTODY_REFERENCE_WEEK) -> bool:
-    """Semaine AVEC enfants ? Cycle déterministe d'une semaine sur deux."""
     monday = day - timedelta(days=day.weekday())
     ref_monday = reference - timedelta(days=reference.weekday())
     return ((monday - ref_monday).days // 7) % 2 == 0
 
 
-def attendees(day: date, slot: str, ref: Referential | None = None) -> list[str]:
-    """Qui mange, ce jour-là, à ce créneau.
+def _child_present(day: date, custody: CustodyInfo) -> bool:
+    if custody.pattern == "always":
+        return True
+    if custody.pattern == "alternating_weeks":
+        is_ref_week = children_present_this_week(day, custody.reference_date)
+        return is_ref_week == custody.reference_present
+    return True
 
-    La cantine n'existe QUE hors vacances scolaires — c'est précisément l'oubli
-    qui a produit l'erreur du 2026-08-04.
-    """
+
+def _child_at_canteen(
+    child_name: str, day: date, slot: str,
+    canteen: list[CanteenEntry], ref: Referential,
+) -> bool:
+    for ce in canteen:
+        if ce.name != child_name or ce.weekday != day.weekday() or ce.slot != slot:
+            continue
+        if ce.active_outside_holidays and ref.is_school_holiday(day):
+            return False
+        return True
+    return False
+
+
+def attendees(
+    day: date, slot: str,
+    ref: Referential | None = None,
+    household: HouseholdConfig | None = None,
+) -> list[str]:
     ref = ref or Referential()
+    hh = household or HouseholdConfig()
 
     override = ref.overrides.get(f"{day.isoformat()}/{slot}")
     if override is not None:
         return list(override)
 
-    people = list(ADULTS)
-    if children_present_this_week(day):
-        at_school_canteen = (
-            slot == "lunch"
-            and day.weekday() in (1, 3, 4)          # mardi, jeudi, vendredi
-            and not ref.is_school_holiday(day)      # ⚠️ la condition qui manquait
-        )
-        if not at_school_canteen:
-            people += list(CHILDREN)
+    people = list(hh.adults)
+
+    for child in hh.children:
+        if not _child_present(day, child):
+            continue
+        if _child_at_canteen(child.name, day, slot, hh.canteen, ref):
+            continue
+        people.append(child.name)
 
     present = [p for p in people if not any(a.who == p and a.covers(day) for a in ref.absences)]
 
-    # Un repas maison suppose au moins un adulte. Si tous sont absents, le repas
-    # n'a pas lieu ici — mieux vaut le dire que de rendre une table composée des
-    # seuls enfants, qui se lirait comme un repas à préparer.
-    if not any(p in ADULTS for p in present):
+    adult_names = set(hh.adults)
+    if not any(p in adult_names for p in present):
         return []
 
     return present
 
 
-def week_grid(monday: date, ref: Referential | None = None) -> list[dict]:
-    """Grille de présence de la semaine, prête à afficher ou à ingérer."""
+def week_grid(
+    monday: date,
+    ref: Referential | None = None,
+    household: HouseholdConfig | None = None,
+) -> list[dict]:
     ref = ref or Referential()
+    hh = household or HouseholdConfig()
     out = []
     for offset in range(7):
         day = monday + timedelta(days=offset)
@@ -133,10 +179,12 @@ def week_grid(monday: date, ref: Referential | None = None) -> list[dict]:
             "day": _DAY_NAMES[offset],
             "date": day.isoformat(),
             "school_holiday": ref.holiday_label(day),
-            "children_week": children_present_this_week(day),
+            "children_week": any(
+                _child_present(day, c) for c in hh.children
+            ),
         }
         for slot in SLOTS:
-            row[slot] = attendees(day, slot, ref)
+            row[slot] = attendees(day, slot, ref, hh)
         out.append(row)
     return out
 
@@ -155,7 +203,6 @@ _H2 = re.compile(r"^##\s+(.+?)\s*$", re.MULTILINE)
 
 
 def _section(body: str, keyword: str) -> str:
-    """Corps de la section `## …keyword…`."""
     heads = list(_H2.finditer(body))
     for idx, head in enumerate(heads):
         if keyword.lower() in head.group(1).lower():
@@ -165,8 +212,6 @@ def _section(body: str, keyword: str) -> str:
 
 
 def parse_referential(body: str) -> Referential:
-    """`Presences.md` → référentiel exploitable. Tolérant : une section absente
-    n'est pas une erreur, elle laisse simplement la trame déterministe s'appliquer."""
     ref = Referential()
 
     for row in _PERIOD_ROW.finditer(_section(body, "vacances")):

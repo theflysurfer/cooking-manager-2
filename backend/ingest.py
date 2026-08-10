@@ -279,6 +279,20 @@ async def ingest(vault_root: Path, dsn: str) -> dict:
                 + [f"dislike:{t}" for t in convive.dislikes],
                 "invité récurrent" if convive.is_guest else "foyer",
             )
+            circle = "extended_family" if convive.is_guest else "household"
+            attendance = "never" if convive.is_guest else "always"
+            await conn.execute(
+                """INSERT INTO person (name, circle, diet, dislikes, forbidden,
+                                      notes, default_attendance)
+                   VALUES ($1, $2, $3, $4, $5, $6, $7)
+                   ON CONFLICT (name, circle) DO UPDATE SET
+                       diet = EXCLUDED.diet, dislikes = EXCLUDED.dislikes,
+                       forbidden = EXCLUDED.forbidden, notes = EXCLUDED.notes,
+                       updated_at = NOW()""",
+                convive.name, circle, convive.diet,
+                convive.dislikes, convive.forbidden,
+                convive.notes or None, attendance,
+            )
 
         # PAS de DELETE FROM menu : l'upsert par slug suffit désormais à dédoublonner.
         # Le DELETE détruisait tout menu absent du vault — y compris ceux créés via
@@ -296,6 +310,7 @@ async def ingest(vault_root: Path, dsn: str) -> dict:
         "meals_linked": meals_linked,
         "meals_orphan": meals_orphan,
         "convives_ingested": len(convives),
+        "persons_ingested": len(convives),
         "pantry_items": pantry_count,
         "photos_linked": photos_linked,
         "ingredients_parsed": parsed_ingredients,
