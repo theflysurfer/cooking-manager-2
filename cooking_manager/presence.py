@@ -59,6 +59,29 @@ class Absence:
     start: date
     end: date
     reason: str = ""
+    slot: str | None = None  # None = toute la journée ; sinon un seul créneau
+
+    def covers(self, day: date, slot: str | None = None) -> bool:
+        if not (self.start <= day <= self.end):
+            return False
+        return self.slot is None or slot is None or self.slot == slot
+
+
+@dataclass
+class Stay:
+    """Un séjour hors domicile — le modèle qui corrige le bug Bègles (F.30).
+
+    Ses membres sont à table pour tous les repas de la période, quelle que soit
+    la trame de garde/cantine et quelles que soient les absences déclarées.
+    `cooking` distingue « on cuisine sur place » (location, F.30) de « pas de
+    cuisine » (hôtel, F.31).
+    """
+    label: str
+    start: date
+    end: date
+    members: list[str] = field(default_factory=list)
+    cooking: bool = True
+    location: str = ""
 
     def covers(self, day: date) -> bool:
         return self.start <= day <= self.end
@@ -69,6 +92,7 @@ class Referential:
     school_holidays: list[SchoolPeriod] = field(default_factory=list)
     absences: list[Absence] = field(default_factory=list)
     overrides: dict[str, list[str]] = field(default_factory=dict)
+    stays: list[Stay] = field(default_factory=list)
 
     def is_school_holiday(self, day: date) -> bool:
         return any(p.covers(day) for p in self.school_holidays)
@@ -77,6 +101,12 @@ class Referential:
         for p in self.school_holidays:
             if p.covers(day):
                 return p.label
+        return None
+
+    def stay_covering(self, day: date) -> Stay | None:
+        for s in self.stays:
+            if s.covers(day):
+                return s
         return None
 
 
@@ -143,12 +173,20 @@ def attendees(
     ref = ref or Referential()
     hh = household or HouseholdConfig()
 
+    # 1. Override manuel/vocal explicite — gagne toujours.
     override = ref.overrides.get(f"{day.isoformat()}/{slot}")
     if override is not None:
         return list(override)
 
-    people = list(hh.adults)
+    # 2. Séjour : ses membres sont à table, quelle que soit la trame et les
+    #    absences. C'est le correctif du bug Bègles (F.30) — une « absence » du
+    #    foyer principal ne doit plus vider la tablée quand on cuisine sur place.
+    stay = ref.stay_covering(day)
+    if stay is not None:
+        return list(stay.members)
 
+    # 3. Trame déterministe (garde alternée × cantine × vacances).
+    people = list(hh.adults)
     for child in hh.children:
         if not _child_present(day, child):
             continue
@@ -156,7 +194,11 @@ def attendees(
             continue
         people.append(child.name)
 
-    present = [p for p in people if not any(a.who == p and a.covers(day) for a in ref.absences)]
+    # 4. Absences déclarées (par jour, ou par créneau si `slot` renseigné).
+    present = [
+        p for p in people
+        if not any(a.who == p and a.covers(day, slot) for a in ref.absences)
+    ]
 
     adult_names = set(hh.adults)
     if not any(p in adult_names for p in present):

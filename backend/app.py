@@ -11,7 +11,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from cooking_manager.presence import HouseholdConfig, CustodyInfo, CanteenEntry
+from cooking_manager.presence import HouseholdConfig, CustodyInfo, CanteenEntry, Referential
 
 from .config import DATABASE_DSN, VAULT_ROOT
 from .db import get_pool, init_schema, close_pool
@@ -273,24 +273,19 @@ async def menu_compatibility(slug: str):
     """
     from datetime import date as _date
 
-    from cooking_manager.convives import check_meal, parse_convives
-    from cooking_manager.presence import attendees, parse_referential
-    from cooking_manager.vault import _parse_frontmatter, read_convives
+    from cooking_manager.convives import check_meal
 
-    vault = Path(VAULT_ROOT)
-    convives = {c.name: c for c in parse_convives(read_convives(vault).get("_body", ""))}
-
-    presences = vault / "Presences.md"
-    referential = parse_referential(
-        _parse_frontmatter(presences)[1] if presences.exists() else ""
-    )
+    from cooking_manager.presence import attendees
 
     pool = await get_pool(DATABASE_DSN)
     async with pool.acquire() as conn:
         row = await conn.fetchrow("SELECT slug, title, meals FROM menu WHERE slug = $1", slug)
         if not row:
             raise HTTPException(404, f"Menu introuvable : {slug}")
+        # Tout depuis la DB — plus aucune lecture de Presences.md / Convives.md.
         household = await load_household_config(conn)
+        referential = await load_referential_from_db(conn)
+        convives = await load_convives_from_db(conn)
 
     meals = row["meals"]
     if isinstance(meals, str):
@@ -1518,6 +1513,26 @@ class CanteenScheduleCreate(BaseModel):
     slot: str = "lunch"
     active_outside_holidays: bool = True
 
+class SchoolPeriodCreate(BaseModel):
+    label: str
+    start_date: str
+    end_date: str
+
+class AbsenceCreate(BaseModel):
+    person_id: int
+    start_date: str
+    end_date: str
+    slot: str | None = None
+    reason: str | None = None
+
+class StayCreate(BaseModel):
+    label: str
+    start_date: str
+    end_date: str
+    location: str | None = None
+    cooking: bool = True
+    member_ids: list[int] = []
+
 
 @app.get("/api/persons")
 async def list_persons(circle: str | None = None, active_only: bool = True):
@@ -1727,6 +1742,155 @@ async def create_canteen_schedule(body: CanteenScheduleCreate):
     return dict(row)
 
 
+# ── school_period CRUD ──
+
+@app.get("/api/school-periods")
+async def list_school_periods():
+    pool = await get_pool(DATABASE_DSN)
+    async with pool.acquire() as conn:
+        rows = await conn.fetch("SELECT * FROM school_period ORDER BY start_date")
+    return [dict(r) for r in rows]
+
+
+@app.post("/api/school-periods", status_code=201)
+async def create_school_period(body: SchoolPeriodCreate):
+    pool = await get_pool(DATABASE_DSN)
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "INSERT INTO school_period (label, start_date, end_date) "
+            "VALUES ($1, $2::date, $3::date) RETURNING *",
+            body.label, body.start_date, body.end_date,
+        )
+    return dict(row)
+
+
+@app.delete("/api/school-periods/{period_id}", status_code=204)
+async def delete_school_period(period_id: int):
+    pool = await get_pool(DATABASE_DSN)
+    async with pool.acquire() as conn:
+        await conn.execute("DELETE FROM school_period WHERE id=$1", period_id)
+
+
+# ── absence CRUD ──
+
+@app.get("/api/absences")
+async def list_absences():
+    pool = await get_pool(DATABASE_DSN)
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """SELECT a.*, p.name AS person_name FROM absence a
+               JOIN person p ON p.id = a.person_id ORDER BY a.start_date""",
+        )
+    return [dict(r) for r in rows]
+
+
+@app.post("/api/absences", status_code=201)
+async def create_absence(body: AbsenceCreate):
+    pool = await get_pool(DATABASE_DSN)
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """INSERT INTO absence (person_id, start_date, end_date, slot, reason)
+               VALUES ($1, $2::date, $3::date, $4, $5) RETURNING *""",
+            body.person_id, body.start_date, body.end_date, body.slot, body.reason,
+        )
+    return dict(row)
+
+
+@app.delete("/api/absences/{absence_id}", status_code=204)
+async def delete_absence(absence_id: int):
+    pool = await get_pool(DATABASE_DSN)
+    async with pool.acquire() as conn:
+        await conn.execute("DELETE FROM absence WHERE id=$1", absence_id)
+
+
+# ── stay CRUD (le modèle F.30 — correctif Bègles) ──
+
+@app.get("/api/stays")
+async def list_stays():
+    pool = await get_pool(DATABASE_DSN)
+    async with pool.acquire() as conn:
+        rows = await conn.fetch("SELECT * FROM stay ORDER BY start_date")
+        out = []
+        for s in rows:
+            members = await conn.fetch(
+                """SELECT p.id, p.name FROM stay_member sm
+                   JOIN person p ON p.id = sm.person_id WHERE sm.stay_id=$1""", s["id"],
+            )
+            d = dict(s)
+            d["members"] = [dict(m) for m in members]
+            out.append(d)
+    return out
+
+
+@app.post("/api/stays", status_code=201)
+async def create_stay(body: StayCreate):
+    pool = await get_pool(DATABASE_DSN)
+    async with pool.acquire() as conn:
+        stay_id = await conn.fetchval(
+            """INSERT INTO stay (label, start_date, end_date, location, cooking)
+               VALUES ($1, $2::date, $3::date, $4, $5) RETURNING id""",
+            body.label, body.start_date, body.end_date, body.location, body.cooking,
+        )
+        for mid in body.member_ids:
+            await conn.execute(
+                "INSERT INTO stay_member (stay_id, person_id) VALUES ($1,$2) "
+                "ON CONFLICT DO NOTHING", stay_id, mid,
+            )
+    return {"id": stay_id, "members": len(body.member_ids)}
+
+
+@app.post("/api/stays/{stay_id}/members/{person_id}", status_code=201)
+async def add_stay_member(stay_id: int, person_id: int):
+    pool = await get_pool(DATABASE_DSN)
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "INSERT INTO stay_member (stay_id, person_id) VALUES ($1,$2) "
+            "ON CONFLICT DO NOTHING", stay_id, person_id,
+        )
+    return {"stay_id": stay_id, "person_id": person_id}
+
+
+@app.delete("/api/stays/{stay_id}", status_code=204)
+async def delete_stay(stay_id: int):
+    pool = await get_pool(DATABASE_DSN)
+    async with pool.acquire() as conn:
+        await conn.execute("DELETE FROM stay WHERE id=$1", stay_id)
+
+
+# ── Résolution de présence — qui mange, un jour donné ──
+
+@app.get("/api/attendance")
+async def resolve_attendance(day: str, slot: str = ""):
+    """Qui est à table le `day` (YYYY-MM-DD), pour un `slot` ou tous les créneaux.
+
+    Résolution 100 % DB : override manuel > séjour > trame (garde × cantine ×
+    vacances) > absences. Expose la source de la décision pour le débogage.
+    """
+    from datetime import date as _date
+
+    from cooking_manager.presence import SLOTS, attendees
+
+    try:
+        d = _date.fromisoformat(day)
+    except ValueError as e:
+        raise HTTPException(422, f"Date invalide : {day}") from e
+
+    pool = await get_pool(DATABASE_DSN)
+    async with pool.acquire() as conn:
+        household = await load_household_config(conn)
+        ref = await load_referential_from_db(conn)
+
+    stay = ref.stay_covering(d)
+    slots = [slot] if slot else list(SLOTS)
+    result = {
+        "date": day,
+        "school_holiday": ref.holiday_label(d),
+        "stay": {"label": stay.label, "cooking": stay.cooking} if stay else None,
+        "slots": {s: attendees(d, s, ref, household) for s in slots},
+    }
+    return result
+
+
 # ── HouseholdConfig from DB (bridge to presence.py) ──
 
 async def load_household_config(conn) -> HouseholdConfig:
@@ -1766,6 +1930,80 @@ async def load_household_config(conn) -> HouseholdConfig:
     return HouseholdConfig(adults=adults, children=children, canteen=canteen)
 
 
+async def load_referential_from_db(conn) -> "Referential":
+    """Construit le référentiel de présence ENTIÈREMENT depuis la DB.
+
+    Remplace `parse_referential(Presences.md)` : plus aucune lecture de Markdown.
+    Sources : `school_period` (vacances), `absence`, `stay`+`stay_member`
+    (séjours — le correctif Bègles), et `meal_attendance` source manual/voice
+    (overrides explicites par créneau).
+    """
+    from cooking_manager.presence import Absence, Referential, SchoolPeriod, Stay
+
+    ref = Referential()
+
+    for r in await conn.fetch("SELECT label, start_date, end_date FROM school_period"):
+        ref.school_holidays.append(SchoolPeriod(
+            label=r["label"], start=r["start_date"], end=r["end_date"],
+        ))
+
+    for r in await conn.fetch(
+        """SELECT p.name, a.start_date, a.end_date, a.slot, a.reason
+           FROM absence a JOIN person p ON p.id = a.person_id""",
+    ):
+        ref.absences.append(Absence(
+            who=r["name"], start=r["start_date"], end=r["end_date"],
+            reason=r["reason"] or "", slot=r["slot"],
+        ))
+
+    for s in await conn.fetch(
+        "SELECT id, label, start_date, end_date, cooking, location FROM stay",
+    ):
+        members = [
+            m["name"] for m in await conn.fetch(
+                """SELECT p.name FROM stay_member sm JOIN person p ON p.id = sm.person_id
+                   WHERE sm.stay_id = $1""", s["id"],
+            )
+        ]
+        ref.stays.append(Stay(
+            label=s["label"], start=s["start_date"], end=s["end_date"],
+            members=members, cooking=s["cooking"], location=s["location"] or "",
+        ))
+
+    for r in await conn.fetch(
+        """SELECT ma.day, ma.slot, p.name
+           FROM meal_attendance ma JOIN person p ON p.id = ma.person_id
+           WHERE ma.source IN ('manual', 'voice')""",
+    ):
+        ref.overrides.setdefault(f"{r['day'].isoformat()}/{r['slot']}", []).append(r["name"])
+
+    return ref
+
+
+async def load_convives_from_db(conn) -> dict:
+    """Profils alimentaires depuis `person` — remplace parse_convives(Convives.md).
+
+    Toute personne active (foyer + invités récurrents connus) devient un
+    `Convive` exploitable par `check_meal`.
+    """
+    from cooking_manager.convives import Convive
+
+    rows = await conn.fetch(
+        """SELECT name, diet, dislikes, forbidden, circle
+           FROM person WHERE is_active""",
+    )
+    convives = {}
+    for r in rows:
+        convives[r["name"]] = Convive(
+            name=r["name"],
+            diet=r["diet"] or "standard",
+            dislikes=list(r["dislikes"] or []),
+            forbidden=list(r["forbidden"] or []),
+            is_guest=(r["circle"] != "household"),
+        )
+    return convives
+
+
 # ── Seed données initiales ──
 
 SEED_PERSONS = [
@@ -1788,6 +2026,24 @@ SEED_RELATIONSHIPS = [
 
 SEED_CUSTODY_REFERENCE = datetime.date(2026, 3, 3)
 SEED_CANTEEN_WEEKDAYS = [1, 3, 4]  # mardi, jeudi, vendredi
+
+# Vacances scolaires d'été 2026 (zone A — Bordeaux). Remplace le tableau
+# §Vacances de Presences.md, désormais en DB.
+SEED_SCHOOL_PERIODS = [
+    ("Vacances d'été", datetime.date(2026, 7, 4), datetime.date(2026, 8, 31)),
+]
+
+# Séjour Bègles — le correctif du bug fondateur (F.30) : la famille cuisine
+# sur place en location de vacances. Sans ce stay, les adultes marqués absents
+# vidaient la tablée. Membres = le foyer (Julien peut ajouter les invités).
+SEED_STAYS = [
+    {
+        "label": "Semaine à Bègles",
+        "start": datetime.date(2026, 8, 8), "end": datetime.date(2026, 8, 16),
+        "location": "Bègles (location de vacances)", "cooking": True,
+        "members": ["Julien", "Clémence", "Léa", "Titouan"],
+    },
+]
 
 
 @app.post("/api/seed")
@@ -1876,12 +2132,46 @@ async def seed_household():
                 if "INSERT" in r:
                     created_canteen += 1
 
+        created_periods = 0
+        for label, start, end in SEED_SCHOOL_PERIODS:
+            r = await conn.execute(
+                """INSERT INTO school_period (label, start_date, end_date)
+                   SELECT $1, $2, $3
+                   WHERE NOT EXISTS (
+                       SELECT 1 FROM school_period WHERE label=$1 AND start_date=$2)""",
+                label, start, end,
+            )
+            if "INSERT 0 1" in r:
+                created_periods += 1
+
+        created_stays = 0
+        for s in SEED_STAYS:
+            stay_id = await conn.fetchval(
+                "SELECT id FROM stay WHERE label=$1 AND start_date=$2", s["label"], s["start"],
+            )
+            if not stay_id:
+                stay_id = await conn.fetchval(
+                    """INSERT INTO stay (label, start_date, end_date, location, cooking)
+                       VALUES ($1, $2, $3, $4, $5) RETURNING id""",
+                    s["label"], s["start"], s["end"], s["location"], s["cooking"],
+                )
+                created_stays += 1
+            for member in s["members"]:
+                mid = await conn.fetchval("SELECT id FROM person WHERE name=$1", member)
+                if mid:
+                    await conn.execute(
+                        "INSERT INTO stay_member (stay_id, person_id) VALUES ($1,$2) "
+                        "ON CONFLICT DO NOTHING", stay_id, mid,
+                    )
+
     return {
         "persons": created_persons,
         "household_id": hh_id,
         "relationships": created_rels,
         "custody_schedules": created_custody,
         "canteen_schedules": created_canteen,
+        "school_periods": created_periods,
+        "stays": created_stays,
     }
 
 

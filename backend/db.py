@@ -279,6 +279,60 @@ CREATE INDEX IF NOT EXISTS idx_meal_attendance_menu_day ON meal_attendance(menu_
 CREATE INDEX IF NOT EXISTS idx_meal_attendance_person ON meal_attendance(person_id);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_meal_attendance_unique
     ON meal_attendance(menu_id, day, slot, person_id) WHERE person_id IS NOT NULL;
+
+-- school_period : vacances scolaires. Remplace le tableau §Vacances de
+-- Presences.md — la trame de présence (cantine) en dépend, donc la DB doit
+-- en être la source, pas un Markdown lu à la volée.
+CREATE TABLE IF NOT EXISTS school_period (
+    id          SERIAL PRIMARY KEY,
+    label       TEXT NOT NULL,
+    start_date  DATE NOT NULL,
+    end_date    DATE NOT NULL,
+    created_at  TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- absence : une personne absente sur une période. slot NULL = toute la
+-- journée ; slot renseigné = un seul créneau (« déjeune au bureau ce midi »).
+-- Remplace le tableau §Absences de Presences.md.
+CREATE TABLE IF NOT EXISTS absence (
+    id          SERIAL PRIMARY KEY,
+    person_id   INTEGER NOT NULL REFERENCES person(id) ON DELETE CASCADE,
+    start_date  DATE NOT NULL,
+    end_date    DATE NOT NULL,
+    slot        TEXT CHECK (slot IN ('breakfast', 'lunch', 'snack', 'dinner')),
+    reason      TEXT,
+    created_at  TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_absence_person ON absence(person_id);
+CREATE INDEX IF NOT EXISTS idx_absence_dates ON absence(start_date, end_date);
+
+-- stay : un séjour hors du domicile principal (vacances, week-end).
+-- C'est le modèle qui MANQUAIT et qui causait le bug Bègles (F.30) : une
+-- « absence » du foyer principal était lue comme « pas de repas à préparer »,
+-- alors qu'on cuisine sur place. Un stay dit : ces personnes sont présentes
+-- et à table sur cette période, quelle que soit la trame de garde/cantine.
+--   cooking = TRUE  → on cuisine sur place (location, camping) — F.30
+--   cooking = FALSE → pas de cuisine (hôtel, club vacances) — F.31
+-- Un stay avec cooking=TRUE court-circuite la trame ET les absences : ses
+-- membres sont à table pour tous les repas du séjour.
+CREATE TABLE IF NOT EXISTS stay (
+    id          SERIAL PRIMARY KEY,
+    label       TEXT NOT NULL,
+    start_date  DATE NOT NULL,
+    end_date    DATE NOT NULL,
+    location    TEXT,
+    cooking     BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at  TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_stay_dates ON stay(start_date, end_date);
+
+CREATE TABLE IF NOT EXISTS stay_member (
+    stay_id     INTEGER NOT NULL REFERENCES stay(id) ON DELETE CASCADE,
+    person_id   INTEGER NOT NULL REFERENCES person(id) ON DELETE CASCADE,
+    PRIMARY KEY (stay_id, person_id)
+);
 """
 
 MIGRATIONS_SQL = """

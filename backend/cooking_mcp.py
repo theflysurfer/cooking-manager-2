@@ -188,6 +188,145 @@ async def pantry_ingest() -> str:
     return json.dumps(data, ensure_ascii=False, indent=2)
 
 
+# ═══════════════════════════════════════════════════════════════════════
+# Tablée — qui mange à quel repas (100 % DB, découplé des .md)
+# ═══════════════════════════════════════════════════════════════════════
+
+
+@mcp.tool()
+async def people_list(circle: str = "") -> str:
+    """List people who can be at the table (household, family, friends, guests).
+
+    circle: filter by 'household', 'extended_family', 'friend', 'occasional'.
+    Each person carries diet, dislikes, forbidden foods — used by compatibility.
+    """
+    path = "/api/persons"
+    if circle:
+        path += f"?circle={circle}"
+    data = await _api("GET", path)
+    return json.dumps(data, ensure_ascii=False, indent=2)
+
+
+@mcp.tool()
+async def person_add(
+    name: str,
+    circle: str = "occasional",
+    role: str = "adult",
+    diet: str = "omnivore",
+    dislikes: str = "",
+    forbidden: str = "",
+) -> str:
+    """Add a person (guest, family member) to the roster.
+
+    circle: household | extended_family | friend | occasional
+    role: adult | child | caregiver
+    diet: omnivore | pescetarian | vegetarian | vegan | semi-vegetarian
+    dislikes / forbidden: comma-separated food terms (e.g. "maïs, céleri").
+    """
+    body = {
+        "name": name, "circle": circle, "role": role, "diet": diet,
+        "dislikes": [t.strip() for t in dislikes.split(",") if t.strip()],
+        "forbidden": [t.strip() for t in forbidden.split(",") if t.strip()],
+    }
+    data = await _api("POST", "/api/persons", body)
+    return json.dumps(data, ensure_ascii=False, indent=2)
+
+
+@mcp.tool()
+async def whos_eating(day: str, slot: str = "") -> str:
+    """Who eats on a given day — resolves the table from the DB.
+
+    day: YYYY-MM-DD. slot: breakfast|lunch|snack|dinner (empty = all slots).
+    Resolution order: manual override > stay (holiday) > custody/canteen frame
+    > absences. Returns the school-holiday label and any covering stay too.
+    """
+    path = f"/api/attendance?day={day}"
+    if slot:
+        path += f"&slot={slot}"
+    data = await _api("GET", path)
+    return json.dumps(data, ensure_ascii=False, indent=2)
+
+
+@mcp.tool()
+async def menu_compatibility(menu_slug: str) -> str:
+    """Dietary-compatibility check of a menu, meal by meal.
+
+    Crosses who is actually at each meal (custody, holidays, absences, stays)
+    with what each person cannot eat (diet, dislikes, forbidden). Flags every
+    conflict. All data comes from the DB — no Markdown.
+    """
+    data = await _api("GET", f"/api/menus/{menu_slug}/compatibility")
+    return json.dumps(data, ensure_ascii=False, indent=2)
+
+
+@mcp.tool()
+async def stays_list() -> str:
+    """List holiday stays (periods away from home where the table changes).
+
+    A stay with cooking=true means the listed members eat every meal there —
+    this is what keeps a holiday week from showing an empty table.
+    """
+    data = await _api("GET", "/api/stays")
+    return json.dumps(data, ensure_ascii=False, indent=2)
+
+
+@mcp.tool()
+async def stay_add(
+    label: str,
+    start_date: str,
+    end_date: str,
+    member_ids: str,
+    location: str = "",
+    cooking: bool = True,
+) -> str:
+    """Declare a holiday stay — fixes the "empty table on holidays" case (F.30).
+
+    start_date/end_date: YYYY-MM-DD. member_ids: comma-separated person IDs
+    (from people_list). cooking=true: we cook on site; false: hotel/no cooking.
+    Its members are at the table for every meal of the period, overriding the
+    custody/canteen frame and any absences.
+    """
+    body = {
+        "label": label, "start_date": start_date, "end_date": end_date,
+        "location": location or None, "cooking": cooking,
+        "member_ids": [int(x) for x in member_ids.split(",") if x.strip()],
+    }
+    data = await _api("POST", "/api/stays", body)
+    return json.dumps(data, ensure_ascii=False, indent=2)
+
+
+@mcp.tool()
+async def absence_add(
+    person_id: int,
+    start_date: str,
+    end_date: str,
+    slot: str = "",
+    reason: str = "",
+) -> str:
+    """Declare that a person is away — removes them from the table.
+
+    start_date/end_date: YYYY-MM-DD. slot empty = whole day(s); or a single
+    slot (breakfast|lunch|snack|dinner) for "eats at the office this lunch".
+    """
+    body = {
+        "person_id": person_id, "start_date": start_date, "end_date": end_date,
+        "slot": slot or None, "reason": reason or None,
+    }
+    data = await _api("POST", "/api/absences", body)
+    return json.dumps(data, ensure_ascii=False, indent=2)
+
+
+@mcp.tool()
+async def household_seed() -> str:
+    """Seed/refresh the household roster and schedules in the DB (idempotent).
+
+    Populates the resident people, custody and canteen schedules, school
+    holidays, and known stays. Safe to re-run.
+    """
+    data = await _api("POST", "/api/seed")
+    return json.dumps(data, ensure_ascii=False, indent=2)
+
+
 if __name__ == "__main__":
     import argparse
 

@@ -12,6 +12,7 @@ from cooking_manager.presence import (
     Absence,
     Referential,
     SchoolPeriod,
+    Stay,
     attendees,
     children_present_this_week,
     parse_referential,
@@ -87,6 +88,63 @@ class TestAbsences:
         assert attendees(date(2026, 8, 10), "dinner", ref) == []
 
 
+class TestStays:
+    """Le correctif du bug fondateur (F.30, Bègles 2026-08-10) : en location de
+    vacances on cuisine sur place, donc les membres du séjour sont à table —
+    même s'ils sont par ailleurs marqués absents du foyer principal."""
+
+    BEGLES = Stay(
+        label="Semaine à Bègles",
+        start=date(2026, 8, 8), end=date(2026, 8, 16),
+        members=["Julien", "Clémence", "Léa", "Titouan"],
+        cooking=True, location="Bègles",
+    )
+
+    def test_stay_members_are_at_the_table(self):
+        ref = Referential(school_holidays=[SUMMER], stays=[self.BEGLES])
+        assert attendees(date(2026, 8, 10), "dinner", ref) == [
+            "Julien", "Clémence", "Léa", "Titouan"
+        ]
+
+    def test_stay_beats_absence(self):
+        """Le bug exact : les adultes marqués 'à Bordeaux/absents' vidaient la
+        tablée. Le séjour l'emporte sur l'absence."""
+        ref = Referential(
+            school_holidays=[SUMMER],
+            absences=[
+                Absence("Julien", date(2026, 8, 8), date(2026, 8, 16), "Bordeaux"),
+                Absence("Clémence", date(2026, 8, 8), date(2026, 8, 16), "Bordeaux"),
+            ],
+            stays=[self.BEGLES],
+        )
+        assert attendees(date(2026, 8, 10), "lunch", ref) == [
+            "Julien", "Clémence", "Léa", "Titouan"
+        ]
+
+    def test_stay_ignores_canteen_frame(self):
+        """Un mardi midi de séjour : pas de cantine, tout le monde à table."""
+        ref = Referential(school_holidays=[SUMMER], stays=[self.BEGLES])
+        assert "Léa" in attendees(date(2026, 8, 11), "lunch", ref)
+
+    def test_outside_the_stay_the_frame_applies(self):
+        """Hors période de séjour, le stay n'a aucun effet : la trame reprend."""
+        day = date(2026, 8, 20)  # hors séjour (fini le 16)
+        with_stay = Referential(school_holidays=[SUMMER], stays=[self.BEGLES])
+        without_stay = Referential(school_holidays=[SUMMER])
+        assert attendees(day, "dinner", with_stay) == attendees(day, "dinner", without_stay)
+
+
+class TestSlotAbsence:
+    def test_absence_limited_to_one_slot(self):
+        """« déjeune au bureau ce midi » — absent au déjeuner, présent au dîner."""
+        ref = Referential(
+            absences=[Absence("Julien", date(2026, 3, 3), date(2026, 3, 3),
+                              "bureau", slot="lunch")],
+        )
+        assert "Julien" not in attendees(date(2026, 3, 3), "lunch", ref)
+        assert "Julien" in attendees(date(2026, 3, 3), "dinner", ref)
+
+
 class TestOverrides:
     def test_override_wins_over_everything(self):
         ref = Referential(
@@ -94,6 +152,13 @@ class TestOverrides:
             overrides={"2026-08-04/lunch": ["Julien"]},
         )
         assert attendees(date(2026, 8, 4), "lunch", ref) == ["Julien"]
+
+    def test_override_wins_over_stay(self):
+        ref = Referential(
+            stays=[TestStays.BEGLES],
+            overrides={"2026-08-10/lunch": ["Julien"]},
+        )
+        assert attendees(date(2026, 8, 10), "lunch", ref) == ["Julien"]
 
 
 class TestParseReferential:
