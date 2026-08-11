@@ -124,6 +124,7 @@ Pipeline : MediaRecorder (front) → `POST /api/audio` → Deepgram prerecorded 
 
 ## Gotchas
 
+- **Auchan Drive : une seule voie de connexion — le MCP VPS** (`mcp-vps-auchan`, port 3854 ; décision 2026-08-12, refs #60). `backend/auchan_mcp.py` **n'existe pas** (jamais créé — la skill `cooking-manager-auchan-drive` le référence à tort) ; `backend/auchan.py` est un client httpx legacy voué à l'abandon. HydraSpecter = outil de diagnostic, pas une voie de connexion
 - **Tablée (person) pas encore câblée** : les 8 tables `person`, `relationship`, `household`, `household_member`, `person_group`, `person_group_member`, `custody_schedule`, `canteen_schedule`, `meal_attendance` sont créées dans `db.py` mais **aucun code applicatif ne les lit**. `convives.py` lit toujours le vault, `presence.py` utilise toujours les constantes en dur (`ADULTS`, `CHILDREN`, `CUSTODY_REFERENCE_WEEK`). Deux sources de vérité coexistent (`convive` et `person`) le temps de la transition
 - `httpx`/`selectolax`/`mcp` sont des dépendances déclarées dans `pyproject.toml` — un venv reconstruit à neuf (`pip install .`) est le test de vérité si ce fichier dérive
 - Toute nouvelle colonne dans un CREATE TABLE doit aussi etre dans MIGRATIONS_SQL (`ALTER TABLE ADD COLUMN IF NOT EXISTS`) — le VPS a deja les tables, `CREATE TABLE IF NOT EXISTS` ne rajoute rien
