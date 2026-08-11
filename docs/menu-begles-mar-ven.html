@@ -1,0 +1,496 @@
+<title>Menu Bègles — Mar 12 → Jeu 14 midi</title>
+<style>
+  :root {
+    --bg: #FAF7F2;
+    --surface: #FFFFFF;
+    --text: #2C2C2C;
+    --text-muted: #6B6560;
+    --heading: #3D5A3A;
+    --accent: #C94C4C;
+    --border: #E8E2DA;
+    --day-bg: #EDE8E0;
+    --badge-bg: #F0EDE7;
+    --badge-text: #5B7553;
+    --slot-lunch: #D4A843;
+    --slot-dinner: #7B6BA5;
+    --table-stripe: #F7F4EE;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #1A1917;
+      --surface: #242320;
+      --text: #E0DCD4;
+      --text-muted: #9A9590;
+      --heading: #8FBF8A;
+      --accent: #E07070;
+      --border: #3A3835;
+      --day-bg: #2A2826;
+      --badge-bg: #33312E;
+      --badge-text: #8FBF8A;
+      --slot-lunch: #D4A843;
+      --slot-dinner: #A898D0;
+      --table-stripe: #2E2D2A;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #1A1917;
+    --surface: #242320;
+    --text: #E0DCD4;
+    --text-muted: #9A9590;
+    --heading: #8FBF8A;
+    --accent: #E07070;
+    --border: #3A3835;
+    --day-bg: #2A2826;
+    --badge-bg: #33312E;
+    --badge-text: #8FBF8A;
+    --slot-lunch: #D4A843;
+    --slot-dinner: #A898D0;
+    --table-stripe: #2E2D2A;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 24px 16px 60px;
+    line-height: 1.5;
+  }
+
+  header {
+    text-align: center;
+    margin-bottom: 36px;
+    padding-bottom: 20px;
+    border-bottom: 2px solid var(--border);
+  }
+  header h1 {
+    font-size: 1.6rem;
+    font-weight: 600;
+    color: var(--heading);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    margin: 0 0 6px;
+    text-wrap: balance;
+  }
+  header p {
+    font-size: 0.9rem;
+    color: var(--text-muted);
+    margin: 0;
+  }
+
+  .day-block {
+    margin-bottom: 32px;
+  }
+  .day-header {
+    background: var(--day-bg);
+    padding: 10px 16px;
+    border-radius: 6px;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+  }
+  .day-name {
+    font-size: 1.15rem;
+    font-weight: 600;
+    color: var(--heading);
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+  }
+  .day-date {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+  }
+
+  .meal-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px 20px;
+    margin-bottom: 12px;
+  }
+  .meal-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+  .slot-badge {
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 2px 8px;
+    border-radius: 3px;
+    color: #fff;
+  }
+  .slot-badge.lunch { background: var(--slot-lunch); }
+  .slot-badge.dinner { background: var(--slot-dinner); }
+  .meal-title {
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: var(--text);
+    margin: 0;
+  }
+  .meal-meta {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+  }
+  .meta-chip {
+    font-size: 0.75rem;
+    color: var(--badge-text);
+    background: var(--badge-bg);
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .ingredients-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.88rem;
+    margin-bottom: 10px;
+  }
+  .ingredients-table thead th {
+    text-align: left;
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+    padding: 4px 8px 6px;
+    border-bottom: 1px solid var(--border);
+  }
+  .ingredients-table thead th:first-child { width: 30%; }
+  .ingredients-table tbody tr:nth-child(even) {
+    background: var(--table-stripe);
+  }
+  .ingredients-table td {
+    padding: 5px 8px;
+    vertical-align: top;
+  }
+  .ingredients-table .qty {
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    font-weight: 500;
+  }
+  .ingredients-table .unit {
+    color: var(--text-muted);
+    white-space: nowrap;
+  }
+
+  .steps {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    counter-reset: step;
+  }
+  .steps li {
+    counter-increment: step;
+    padding: 3px 0 3px 28px;
+    position: relative;
+  }
+  .steps li::before {
+    content: counter(step);
+    position: absolute;
+    left: 0;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--badge-bg);
+    color: var(--heading);
+    font-size: 0.72rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    top: 4px;
+  }
+
+  .scale-note {
+    font-size: 0.78rem;
+    color: var(--accent);
+    font-style: italic;
+    margin-bottom: 8px;
+  }
+
+  .alert-section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    border-radius: 4px;
+    padding: 12px 16px;
+    margin-top: 24px;
+  }
+  .alert-section h3 {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--accent);
+    margin: 0 0 8px;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+  }
+  .alert-section table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.82rem;
+  }
+  .alert-section th {
+    text-align: left;
+    font-weight: 600;
+    padding: 3px 8px;
+    color: var(--text-muted);
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    border-bottom: 1px solid var(--border);
+  }
+  .alert-section td {
+    padding: 4px 8px;
+    vertical-align: top;
+  }
+
+  @media print {
+    body { max-width: 100%; padding: 12px; }
+    .meal-card { break-inside: avoid; }
+    .day-block { break-inside: avoid; }
+  }
+  @media (max-width: 600px) {
+    body { padding: 12px 10px 40px; }
+    .meal-header { flex-wrap: wrap; }
+    .meal-meta { gap: 8px; }
+  }
+</style>
+
+<header>
+  <h1>Menu Bègles</h1>
+  <p>Mardi 12 → Jeudi 14 midi &middot; 10 couverts</p>
+</header>
+
+<!-- MARDI 12 -->
+<div class="day-block">
+  <div class="day-header">
+    <span class="day-name">Mardi</span>
+    <span class="day-date">12 août</span>
+  </div>
+
+  <div class="meal-card">
+    <div class="meal-header">
+      <span class="slot-badge lunch">Midi</span>
+      <h2 class="meal-title">Tagliatelles carbonara végétariennes</h2>
+    </div>
+    <div class="meal-meta">
+      <span class="meta-chip">30 min</span>
+      <span class="meta-chip">10 portions</span>
+    </div>
+    <div style="overflow-x:auto">
+    <table class="ingredients-table">
+      <thead><tr><th>Quantité</th><th>Ingrédient</th></tr></thead>
+      <tbody>
+        <tr><td class="qty">750 <span class="unit">g</span></td><td>Tagliatelles (pâtes sèches)</td></tr>
+        <tr><td class="qty">4 <span class="unit">pièces</span></td><td>Courgettes, taillées en tagliatelles</td></tr>
+        <tr><td class="qty">300 <span class="unit">g</span></td><td>Lardons végétariens</td></tr>
+        <tr><td class="qty">6 <span class="unit">pièces</span></td><td>Jaunes d'oeufs</td></tr>
+        <tr><td class="qty">400 <span class="unit">ml</span></td><td>Crème fraîche épaisse</td></tr>
+        <tr><td class="qty">200 <span class="unit">g</span></td><td>Parmesan ou pecorino, râpé</td></tr>
+        <tr><td class="qty">&mdash;</td><td>Poivre noir, sel</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <ol class="steps">
+      <li>Cuire les tagliatelles al dente. Égoutter en réservant 1 louche d'eau de cuisson.</li>
+      <li>Tailler les courgettes en rubans longs (spiraliseur ou économe large).</li>
+      <li>Faire revenir les lardons végétariens à sec 5 min jusqu'à ce qu'ils soient dorés.</li>
+      <li>Fouetter jaunes d'oeufs + crème + parmesan râpé + poivre.</li>
+      <li>Feu coupé, mélanger pâtes + courgettes + lardons, verser la sauce, mélanger vivement.</li>
+      <li>Servir immédiatement avec parmesan supplémentaire.</li>
+    </ol>
+  </div>
+
+  <div class="meal-card">
+    <div class="meal-header">
+      <span class="slot-badge dinner">Soir</span>
+      <h2 class="meal-title">Mafé au poulet (+ crevettes Clémence)</h2>
+    </div>
+    <div class="meal-meta">
+      <span class="meta-chip">60 min</span>
+      <span class="meta-chip">10 portions</span>
+    </div>
+    <div style="overflow-x:auto">
+    <table class="ingredients-table">
+      <thead><tr><th>Quantité</th><th>Ingrédient</th></tr></thead>
+      <tbody>
+        <tr><td class="qty">1,2 <span class="unit">kg</span></td><td>Cuisses de poulet, désossées, en morceaux</td></tr>
+        <tr><td class="qty">300 <span class="unit">g</span></td><td>Crevettes décortiquées (part Clémence)</td></tr>
+        <tr><td class="qty">250 <span class="unit">g</span></td><td>Pâte d'arachide (100 %, sans sucre)</td></tr>
+        <tr><td class="qty">400 <span class="unit">g</span></td><td>Tomates concassées (1 grosse boîte)</td></tr>
+        <tr><td class="qty">3 <span class="unit">c.s.</span></td><td>Concentré de tomate</td></tr>
+        <tr><td class="qty">2 <span class="unit">pièces</span></td><td>Oignons, émincés</td></tr>
+        <tr><td class="qty">4 <span class="unit">gousses</span></td><td>Ail, hachées</td></tr>
+        <tr><td class="qty">500 <span class="unit">ml</span></td><td>Eau ou bouillon de volaille + 1 cube</td></tr>
+        <tr><td class="qty">3 <span class="unit">pièces</span></td><td>Patates douces, en cubes</td></tr>
+        <tr><td class="qty">2 <span class="unit">pièces</span></td><td>Aubergines, en cubes</td></tr>
+        <tr><td class="qty">3 <span class="unit">pièces</span></td><td>Courgettes, en rondelles épaisses</td></tr>
+        <tr><td class="qty">800 <span class="unit">g</span></td><td>Riz basmati</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <ol class="steps">
+      <li>Faire revenir oignons 5 min, ajouter ail + concentré de tomate 2 min.</li>
+      <li>Ajouter tomates concassées, eau, cube de bouillon. Porter à ébullition.</li>
+      <li>Délayer la pâte d'arachide avec du bouillon chaud, incorporer à la sauce.</li>
+      <li>Ajouter patates douces + aubergines. Couvrir, cuire 15 min.</li>
+      <li>Ajouter courgettes, cuire 10 min.</li>
+      <li>Poser le poulet sur les légumes, couvrir, cuire 12-15 min.</li>
+      <li>Saisir les crevettes à part 2-3 min par face pour la part de Clémence.</li>
+      <li>Cuire le riz à part. Servir le mafé sur un lit de riz.</li>
+    </ol>
+  </div>
+</div>
+
+<!-- MERCREDI 13 -->
+<div class="day-block">
+  <div class="day-header">
+    <span class="day-name">Mercredi</span>
+    <span class="day-date">13 août</span>
+  </div>
+
+  <div class="meal-card">
+    <div class="meal-header">
+      <span class="slot-badge lunch">Midi</span>
+      <h2 class="meal-title">Salade vietnamienne (bún)</h2>
+    </div>
+    <div class="meal-meta">
+      <span class="meta-chip">25 min</span>
+      <span class="meta-chip">10 portions</span>
+    </div>
+    <div style="overflow-x:auto">
+    <table class="ingredients-table">
+      <thead><tr><th>Quantité</th><th>Ingrédient</th></tr></thead>
+      <tbody>
+        <tr><td class="qty">600 <span class="unit">g</span></td><td>Vermicelles de riz</td></tr>
+        <tr><td class="qty">1 <span class="unit">kg</span></td><td>Carottes, râpées en julienne</td></tr>
+        <tr><td class="qty">1 <span class="unit">kg</span></td><td>Concombre, en bâtonnets (à part pour Léa)</td></tr>
+        <tr><td class="qty">10 <span class="unit">cm</span></td><td>Gingembre frais, râpé</td></tr>
+        <tr><td class="qty">3 <span class="unit">pièces</span></td><td>Citrons verts</td></tr>
+        <tr><td class="qty">10 <span class="unit">c.s.</span></td><td>Sauce soja salée</td></tr>
+        <tr><td class="qty">100 <span class="unit">g</span></td><td>Cacahuètes, concassées</td></tr>
+        <tr><td class="qty">2 <span class="unit">bottes</span></td><td>Menthe (facultatif)</td></tr>
+        <tr><td class="qty">10 <span class="unit">c.s.</span></td><td>Huile d'olive</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <ol class="steps">
+      <li>Cuire les vermicelles 3-4 min dans l'eau bouillante. Rincer à l'eau froide, égoutter.</li>
+      <li>Râper les carottes en julienne. Couper le concombre en bâtonnets.</li>
+      <li>Sauce : mélanger sauce soja, jus de citrons verts, gingembre râpé et huile d'olive.</li>
+      <li>Réunir vermicelles + carottes dans un grand saladier, verser la sauce.</li>
+      <li>Concombre à part (libre-service pour Léa).</li>
+      <li>Parsemer de cacahuètes et de menthe.</li>
+    </ol>
+  </div>
+
+  <div class="meal-card">
+    <div class="meal-header">
+      <span class="slot-badge dinner">Soir</span>
+      <h2 class="meal-title">Sandwiches saumon fumé samouraï</h2>
+    </div>
+    <div class="meal-meta">
+      <span class="meta-chip">15 min</span>
+      <span class="meta-chip">10 portions</span>
+    </div>
+    <div style="overflow-x:auto">
+    <table class="ingredients-table">
+      <thead><tr><th>Quantité</th><th>Ingrédient</th></tr></thead>
+      <tbody>
+        <tr><td class="qty">3 <span class="unit">pièces</span></td><td>Baguettes tradition (boulangerie)</td></tr>
+        <tr><td class="qty">500 <span class="unit">g</span></td><td>Saumon fumé (~3 paquets)</td></tr>
+        <tr><td class="qty">300 <span class="unit">g</span></td><td>Saint Moret (2 pots)</td></tr>
+        <tr><td class="qty">3 <span class="unit">pièces</span></td><td>Concombres, en rondelles (libre-service)</td></tr>
+        <tr><td class="qty">4 <span class="unit">pièces</span></td><td>Tomates, en rondelles</td></tr>
+        <tr><td class="qty">100 <span class="unit">g</span></td><td>Câpres (bocal, libre-service)</td></tr>
+        <tr><td class="qty">200 <span class="unit">g</span></td><td>Cornichons (libre-service)</td></tr>
+        <tr><td class="qty">1 <span class="unit">pièce</span></td><td>Laitue</td></tr>
+        <tr><td class="qty">2 <span class="unit">pièces</span></td><td>Citrons</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <ol class="steps">
+      <li>Couper les baguettes en portions.</li>
+      <li>Tartiner de Saint Moret.</li>
+      <li>Disposer saumon fumé, salade, tomates.</li>
+      <li>Concombres, câpres et cornichons en libre-service.</li>
+      <li>Citron pressé sur le saumon.</li>
+    </ol>
+  </div>
+</div>
+
+<!-- JEUDI 14 -->
+<div class="day-block">
+  <div class="day-header">
+    <span class="day-name">Jeudi</span>
+    <span class="day-date">14 août</span>
+  </div>
+
+  <div class="meal-card">
+    <div class="meal-header">
+      <span class="slot-badge lunch">Midi</span>
+      <h2 class="meal-title">Assiette froide (crevettes, houmous, crudités)</h2>
+    </div>
+    <div class="meal-meta">
+      <span class="meta-chip">15 min</span>
+      <span class="meta-chip">10 portions</span>
+    </div>
+    <p class="scale-note">Recette de base : 4 portions &times; 2,5</p>
+    <div style="overflow-x:auto">
+    <table class="ingredients-table">
+      <thead><tr><th>Quantité</th><th>Ingrédient</th></tr></thead>
+      <tbody>
+        <tr><td class="qty">750 <span class="unit">g</span></td><td>Crevettes décortiquées</td></tr>
+        <tr><td class="qty">500 <span class="unit">g</span></td><td>Houmous</td></tr>
+        <tr><td class="qty">5 <span class="unit">pièces</span></td><td>Tomates</td></tr>
+        <tr><td class="qty">2-3 <span class="unit">pièces</span></td><td>Concombres</td></tr>
+        <tr><td class="qty">5 <span class="unit">pièces</span></td><td>Carottes</td></tr>
+        <tr><td class="qty">2-3 <span class="unit">pièces</span></td><td>Citrons jaunes</td></tr>
+        <tr><td class="qty">2-3 <span class="unit">c.s.</span></td><td>Huile d'olive</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <ol class="steps">
+      <li>Tailler tomates, concombre et carottes en bâtonnets et quartiers.</li>
+      <li>Disposer le houmous en dôme au centre, filet d'huile d'olive dessus.</li>
+      <li>Répartir crevettes et crudités autour, citron en quartiers.</li>
+    </ol>
+  </div>
+
+  <div class="meal-card" style="border-left: 3px solid var(--text-muted); background: var(--day-bg);">
+    <div class="meal-header">
+      <span class="slot-badge dinner" style="opacity: 0.6;">Soir</span>
+      <h2 class="meal-title" style="color: var(--text-muted);">Restes</h2>
+    </div>
+    <p style="font-size: 0.88rem; color: var(--text-muted); margin: 0;">Jeudi soir et vendredi : repas composés avec les restes de la semaine.</p>
+  </div>
+</div>
+
+<!-- ALERTES -->
+<div class="alert-section">
+  <h3>Alertes compatibilité</h3>
+  <div style="overflow-x:auto">
+  <table>
+    <thead><tr><th>Repas</th><th>Convive</th><th>Alerte</th><th>Parade</th></tr></thead>
+    <tbody>
+      <tr><td>Mafé</td><td>Béatrice</td><td>Épices fortes</td><td>Version douce, pas de piment</td></tr>
+      <tr><td>Mafé + salade viet</td><td>Tous</td><td>Arachide (allergène)</td><td>Vérifier allergies</td></tr>
+      <tr><td>Salade vietnamienne</td><td>Béatrice</td><td>Nuoc mam fort</td><td>Sauce à part</td></tr>
+      <tr><td>Sandwiches saumon</td><td>Léa</td><td>Concombre, cornichons, câpres</td><td>Libre-service</td></tr>
+      <tr><td>Sandwiches saumon</td><td>Titouan</td><td>Câpres</td><td>Libre-service</td></tr>
+      <tr><td>Assiette froide</td><td>&mdash;</td><td>Aucune alerte</td><td>&mdash;</td></tr>
+    </tbody>
+  </table>
+  </div>
+</div>
