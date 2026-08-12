@@ -126,6 +126,16 @@ Pipeline : MediaRecorder (front) → `POST /api/audio` → Deepgram prerecorded 
 
 - **Auchan Drive : une seule voie de connexion — le MCP VPS** (`mcp-vps-auchan`, port 3854 ; décision 2026-08-12, refs #60). `backend/auchan.py`, `backend/auchan_mcp.py` et `backend/auchan_stores.py` ont été **décommissionnés le 2026-08-09** (commit `0d36988`) — leur logique de contexte magasin (`POST /journey/update`) a été portée dans le MCP VPS le 2026-08-12 (`grocery_find_stores`/`grocery_set_store`, mcp-vps#171). La session Auchan du VPS est gérée par le seul **Cookie Health VPS**. HydraSpecter = outil de diagnostic, pas une voie de connexion
 - **Tablée : câblée et 100 % DB depuis 2026-08-12 (refs #33)**. `/api/menus/<slug>/compatibility` ne lit **plus** `Presences.md` ni `Convives.md` — tout vient de la DB via `load_referential_from_db()` (school_period, absence, stay, overrides) et `load_convives_from_db()` (profils depuis `person`). Résolution de présence à 4 niveaux dans `presence.py::attendees()` : **override manuel > séjour (`stay`) > trame garde/cantine > absences**. Le modèle **`stay`+`stay_member`** (tables ajoutées 2026-08-12) corrige le bug fondateur F.30 (Bègles) : en location de vacances on cuisine sur place, donc les membres du séjour sont à table quels que soient les absences et la trame. Endpoint résolveur : `GET /api/attendance?day=&slot=`. Les constantes `ADULTS`/`CHILDREN`/`CUSTODY_REFERENCE_WEEK` restent en **fallback** quand aucune `HouseholdConfig` DB n'est fournie. `convive` (legacy) et `person` coexistent encore ; `person` fait autorité pour la compatibilité. ⚠️ **Après `POST /api/seed`, relancer si besoin — idempotent** ; le séjour Bègles y est seedé (membres = foyer, Julien ajoute les invités via `stay_add`/`POST /api/stays/<id>/members/<pid>`)
+- **Une photo qui n'est pas un fichier local est une photo en sursis.** `_scrape_photo()`
+  reconstruit `photo_url` à chaque ingestion depuis un site tiers (timeout 8 s) : l'upsert
+  écrivait `photo_url=$24` sans condition, donc **un scraping qui échoue effaçait la photo**,
+  sans erreur ni warning (le 2026-08-12 : 11 recettes d'un coup, 9 au menu). Corrigé par
+  `photo_url=COALESCE($24, recipe.photo_url)`. La parade de fond reste le **fichier local** :
+  `web/media/recipes/<slug>.jpg` → rattachement déterministe, prioritaire sur le scraping,
+  insensible au réseau. Générer les manquantes avec le prompt **versionné**
+  `data/photo-prompt.md` (v1.1) via le MCP NanoBanana — jamais un prompt improvisé, sinon le
+  parc perd son unité visuelle et la grille se disloque. Extension **`.jpg` obligatoire** :
+  `ingest.py` ne scanne que celle-là, un `.png` déposé n'est jamais rattaché
 - `httpx`/`selectolax`/`mcp` sont des dépendances déclarées dans `pyproject.toml` — un venv reconstruit à neuf (`pip install .`) est le test de vérité si ce fichier dérive
 - Toute nouvelle colonne dans un CREATE TABLE doit aussi etre dans MIGRATIONS_SQL (`ALTER TABLE ADD COLUMN IF NOT EXISTS`) — le VPS a deja les tables, `CREATE TABLE IF NOT EXISTS` ne rajoute rien
 - `menu_meal.position` est **1-based** en DB (`enumerate(meals, start=1)`) — tout consommateur JS doit faire `position - 1` pour indexer le tableau `menu.meals[]`
