@@ -20,6 +20,11 @@ from .db import get_pool, init_schema
 log = logging.getLogger(__name__)
 
 
+# photo_url est en COALESCE : c'est la seule colonne dont la valeur ne vient pas
+# toujours du vault. Quand aucun fichier local n'existe, elle est reconstruite à
+# chaque ingestion par _scrape_photo(), qui dépend d'un site tiers joignable en
+# 8 s. Écrire $24 sans condition efface donc la photo d'une recette dès qu'un
+# scraping échoue — la grille du menu perdait ses images sans erreur ni trace.
 UPSERT_RECIPE = """
 INSERT INTO recipe (
     slug, title, status, recipe_type, family, servings,
@@ -39,7 +44,8 @@ ON CONFLICT (slug) DO UPDATE SET
     applied_substitutions=$14, mediterranean_criteria=$15,
     construction_regime=$16, execution_count=$17, lieu_execution=$18,
     macros_kcal=$19, macros_protein=$20, macros_carbs=$21, macros_fat=$22,
-    protein_density=$23, photo_url=$24, sub_recipes=$25, body=$26,
+    protein_density=$23, photo_url=COALESCE($24, recipe.photo_url),
+    sub_recipes=$25, body=$26,
     created=$27, updated=$28,
     ingested_at=NOW()
 """
