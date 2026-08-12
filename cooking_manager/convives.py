@@ -36,6 +36,18 @@ DAIRY = ("lait", "fromage", "beurre", "creme", "crème", "yaourt", "skyr",
          "ricotta", "feta", "mozzarella", "parmesan")
 EGG = ("oeuf", "œuf")
 
+# Plats dont le NOM implique la viande sans la nommer (carbonara → guanciale,
+# bolognaise → bœuf haché). Un marqueur « végétarien/vegan » dans le libellé
+# annule l'implication — « Tagliatelles carbonara végétarienne » est sans
+# viande PAR DÉCLARATION (faux positif réel du menu Bègles, refs #61) — alors
+# qu'un ingrédient explicite (« bacon », « lardon ») continue d'alerter même
+# à côté du marqueur : mieux vaut une alerte de trop.
+MEAT_IMPLIED_DISHES = frozenset({"bolognaise", "carbonara", "hachis"})
+
+_VEGGIE_MARKER = re.compile(
+    r"(?<!\w)(?:vegetarien(?:ne)?s?|vegetalien(?:ne)?s?|vegan|veggie)(?!\w)"
+)
+
 DIETS: dict[str, tuple[str, ...]] = {
     # pescétarien : pas de viande ni volaille, poisson et fruits de mer OK
     "pescetarian": MEAT + POULTRY,
@@ -252,9 +264,14 @@ def check_meal(description: str, convives: list[Convive]) -> list[Conflict]:
     if not description:
         return conflicts
     folded = _fold(description)
+    # « végétarienne » dans le libellé annule les implications de plat
+    # (carbonara, bolognaise…) — pas les ingrédients explicites.
+    veggie_declared = _VEGGIE_MARKER.search(folded) is not None
 
     for convive in convives:
         for term in DIETS.get(convive.diet, ()):
+            if veggie_declared and _fold(term) in MEAT_IMPLIED_DISHES:
+                continue
             if _contains_term(folded, _fold(term)):
                 conflicts.append(Conflict(convive.name, f"régime {convive.diet}", term))
                 break  # une alerte par personne et par motif suffit

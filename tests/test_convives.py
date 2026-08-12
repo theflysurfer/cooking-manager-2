@@ -141,6 +141,29 @@ class TestCheckMeal:
     def test_absent_convive_raises_nothing(self):
         assert not check_meal("Wraps poulet", [self.by_name["Julien"]])
 
+    def test_veggie_marker_cancels_dish_name_implication(self):
+        """Faux positif réel du menu Bègles (refs #61) : « carbonara » implique
+        la viande par son NOM, mais « végétarienne » dans le libellé annule
+        l'implication — le plat est sans viande par déclaration."""
+        assert not check_meal("Tagliatelles carbonara végétarienne",
+                              [self.by_name["Clémence"]])
+
+    def test_veggie_marker_keeps_explicit_ingredient_alert(self):
+        """Le marqueur n'annule QUE l'implication de nom de plat : un ingrédient
+        carné explicite continue d'alerter — mieux vaut une alerte de trop."""
+        conflicts = check_meal("Burger végétarien au bacon",
+                               [self.by_name["Clémence"]])
+        assert len(conflicts) == 1
+        assert conflicts[0].matched == "bacon"
+
+    def test_plain_carbonara_still_alerts(self):
+        """Sans marqueur, l'implication tient : une carbonara classique porte
+        du guanciale/lardon même si le libellé ne les nomme pas."""
+        conflicts = check_meal("Tagliatelles carbonara",
+                               [self.by_name["Clémence"]])
+        assert len(conflicts) == 1
+        assert conflicts[0].matched == "carbonara"
+
     def test_empty_description_is_safe(self):
         assert check_meal("", self.people) == []
 
