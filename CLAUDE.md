@@ -132,9 +132,12 @@ Pipeline : MediaRecorder (front) → `POST /api/audio` → Deepgram prerecorded 
   sans erreur ni warning (le 2026-08-12 : 11 recettes d'un coup, 9 au menu). Corrigé par
   `photo_url=COALESCE($24, recipe.photo_url)`. La parade de fond reste le **fichier local** :
   `web/media/recipes/<slug>.jpg` → rattachement déterministe, prioritaire sur le scraping,
-  insensible au réseau. Générer les manquantes avec le prompt **versionné**
-  `data/photo-prompt.md` (v1.1) via le MCP NanoBanana — jamais un prompt improvisé, sinon le
-  parc perd son unité visuelle et la grille se disloque. Extension **`.jpg` obligatoire** :
+  insensible au réseau. Générer les manquantes via **recipe-manager**
+  (`POST /recipes/<slug>/generate-image`, port 8796), qui porte le prompt v1.1 — jamais un
+  prompt improvisé, sinon le parc perd son unité visuelle et la grille se disloque. Le
+  fichier écrit vit sur la box : récupérer avec `?inline=true` → `image_base64`, écrire dans
+  `web/media/recipes/`, **committer**. `data/photo-prompt.md` documente le pourquoi mais ne
+  pilote plus rien. Extension **`.jpg` obligatoire** :
   `ingest.py` ne scanne que celle-là, un `.png` déposé n'est jamais rattaché
 - `httpx`/`selectolax`/`mcp` sont des dépendances déclarées dans `pyproject.toml` — un venv reconstruit à neuf (`pip install .`) est le test de vérité si ce fichier dérive
 - Toute nouvelle colonne dans un CREATE TABLE doit aussi etre dans MIGRATIONS_SQL (`ALTER TABLE ADD COLUMN IF NOT EXISTS`) — le VPS a deja les tables, `CREATE TABLE IF NOT EXISTS` ne rajoute rien

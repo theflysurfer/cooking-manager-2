@@ -1,10 +1,26 @@
 ---
 title: Prompt photo — recettes
-version: 1.0.0
+version: 1.1.0
 created: 2026-08-04
+updated: 2026-08-14
 ---
 
 # Prompt de génération des photos de recettes
+
+> ⚠️ **L'implémentation fait foi depuis le 2026-08-14** :
+> `recipe_manager/images.py` (`PROMPT_VERSION`), exécuté par
+> `POST /recipes/<slug>/generate-image` sur recipe-manager (port 8796).
+> Ce fichier documente le **pourquoi** ; il ne pilote plus rien. Modifier l'un
+> sans l'autre les fait diverger — et la divergence ne se voit qu'au moment où
+> une image générée dans six mois ne ressemble plus aux autres.
+>
+> ```bash
+> curl -X POST "localhost:8796/recipes/<slug>/generate-image?inline=true"
+> ```
+>
+> Le fichier écrit vit sur la box et n'est **pas versionné** : récupérer
+> `image_base64`, écrire dans `web/media/recipes/<slug>.jpg`, committer.
+> La procédure manuelle NanoBanana ci-dessous reste valable en dépannage.
 
 ## Pourquoi il est versionné ici
 
