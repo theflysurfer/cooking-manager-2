@@ -268,6 +268,15 @@ async def ingest(vault_root: Path, dsn: str) -> dict:
             # aucune ligne. C'est ce trou qui a laissé 5 recettes sans le moindre
             # ingrédient sans un mot dans les logs (#58) — une liste de courses
             # amputée ne se découvre qu'en cuisine.
+            # Deux fichiers du vault déclarent le même slug : un seul survit à
+            # l'upsert. Le dire, sinon la fiche perdue n'existe nulle part.
+            for shadowed in r.get("_duplicate_paths", []):
+                warnings.append(
+                    f"{r.get('slug')}: slug en DOUBLE — « {Path(shadowed).name} » est "
+                    f"ignoré au profit de « {Path(str(r.get('_source_path', ''))).name} » "
+                    "(date déclarée plus récente). Renommer le slug ou supprimer le doublon."
+                )
+
             if not content.ingredients:
                 warnings.append(
                     f"{r.get('slug')}: AUCUN ingrédient parsé — la section "

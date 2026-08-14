@@ -78,6 +78,16 @@ doublons par un `DELETE FROM menu` qui effaçait tout menu absent du vault — u
 menu créé via l'API disparaissait à la première ingestion de recettes, sans
 erreur ni trace. Ne jamais réintroduire ce DELETE.
 
+⚠️ **Le `slug` est la clé, pas le nom de fichier — deux fiches peuvent le déclarer
+en double.** L'upsert n'en garde alors qu'une, et laquelle dépendait de l'ordre
+alphabétique du glob : `<slug>-v2.md` trie AVANT `<slug>.md` (`-` < `.`), donc la
+version **périmée** écrasait la bonne, sans un mot. Mesuré sur le journal Creami :
+la prod servait l'état du 08/07 pendant que le vault décrivait celui du 06/08.
+`read_recipes()` tranche désormais sur la date **déclarée** (`updated`/`created`)
+et expose `_duplicate_paths`, qu'`ingest.py` remonte en warning. ⚠️ **Ne jamais
+départager au `_mtime`** : sur le VPS le vault est un mount rclone, le mtime date
+la *copie*, pas la donnée.
+
 ### Relier un repas à sa recette — deux marqueurs dans `meals:`
 
 Chaque repas est éclaté en une ligne `menu_meal` (menu × jour × créneau) à

@@ -19,12 +19,35 @@ def _parse_frontmatter(path: Path) -> tuple[dict, str]:
     return fm, m.group(2)
 
 
+def _declared_date(fm: dict) -> str:
+    """Date que le fichier DÉCLARE — jamais son mtime.
+
+    ⚠️ Le mtime ne peut pas servir à départager deux fiches : sur le VPS, le
+    vault est un mount rclone, donc le mtime date la COPIE, pas la donnée. Deux
+    fichiers transférés le même jour y sont indiscernables, et le plus récent
+    des deux peut porter le mtime le plus ancien.
+    """
+    return str(fm.get("updated") or fm.get("created") or "")
+
+
 def read_recipes(vault_root: Path) -> list[dict]:
-    """Read all recipe .md files under Cuisine/Recettes/."""
+    """Read all recipe .md files under Cuisine/Recettes/.
+
+    Deux fichiers peuvent déclarer le MÊME `slug` — le slug est la clé, pas le
+    nom de fichier. L'upsert d'ingestion n'en garde alors qu'un, et lequel
+    dépendait de l'ordre alphabétique du glob : `<slug>-v2.md` étant lu AVANT
+    `<slug>.md`, c'est la version périmée qui écrasait la bonne. Silencieusement,
+    et à rebours de l'intention (constaté sur le journal Creami : la prod servait
+    l'état du 08/07 alors que le vault décrivait celui du 06/08).
+
+    On tranche donc sur la date DÉCLARÉE, et on garde trace du perdant pour que
+    l'ingestion puisse le dire.
+    """
     recipes_dir = vault_root / "Recettes"
     if not recipes_dir.is_dir():
         return []
-    results = []
+    by_slug: dict[str, dict] = {}
+    results: list[dict] = []
     for p in sorted(recipes_dir.glob("*.md")):
         if p.name.startswith("_"):
             continue
@@ -34,7 +57,29 @@ def read_recipes(vault_root: Path) -> list[dict]:
         fm["_source_path"] = str(p)
         fm["_body"] = body
         fm["_mtime"] = p.stat().st_mtime
-        results.append(fm)
+
+        slug = str(fm.get("slug") or "")
+        if not slug:
+            results.append(fm)
+            continue
+
+        previous = by_slug.get(slug)
+        if previous is None:
+            by_slug[slug] = fm
+            results.append(fm)
+            continue
+
+        # Collision : le plus récemment déclaré gagne, à égalité le premier lu.
+        loser, winner = (
+            (previous, fm)
+            if _declared_date(fm) > _declared_date(previous)
+            else (fm, previous)
+        )
+        winner.setdefault("_duplicate_paths", []).append(loser["_source_path"])
+        winner["_duplicate_paths"] += loser.pop("_duplicate_paths", [])
+        if winner is fm:
+            results[results.index(previous)] = fm
+            by_slug[slug] = fm
     return results
 
 
