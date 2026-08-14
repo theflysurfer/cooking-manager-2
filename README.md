@@ -9,7 +9,7 @@ Live: `https://cooking.srv759970.hstgr.cloud`
 ## Features
 
 - **Recipe browser** — filter by type, family, tags, dietary constraints; view photos, macros, ingredients, steps
-- **Weekly menus** — ingested from Obsidian vault, with per-meal recipe linking and covers adjustment
+- **Weekly menus** — ingested from Obsidian vault, with per-meal recipe linking, photos and covers adjustment
 - **Shopping list** — auto-generated from menu recipes × covers, with "remaining items" toggle (filters past days)
 - **Dietary compatibility** — checks who's at the table (custody schedule × school holidays × absences) against each person's constraints
 - **Voice commands** — speech-to-text (Deepgram) + LLM intent classification (Groq) for hands-free recipe search, servings adjustment, recipe swap, product blacklisting, recipe notes, step editing, meal feedback, and pantry leftovers (Safari 14.5+ only)
@@ -58,7 +58,10 @@ Recipes and menus are Markdown files with YAML frontmatter in the Obsidian vault
 | `Recettes/*.md` | Recipes with ingredients, steps, macros, tags |
 | `Menus/*.md` | Weekly menus — the `meals:` frontmatter block is authoritative |
 | `Convives.md` | Dietary profiles — constraints, allergies, aversions |
-| `Presences.md` | Custody schedule, school holidays, absences |
+| `Garde-manger.md` | Pantry stock (one ingestion source among several — the database is authoritative) |
+
+Attendance (custody schedule, school holidays, absences, holiday stays) is **database-only** since
+2026-08-12. `Presences.md` is kept in the vault as a human note and is no longer read by the app.
 
 The vault is mounted read-only on the VPS via rclone. Ingestion: `POST /api/ingest`.
 
