@@ -97,10 +97,17 @@ def _expand_fractions(text: str) -> str:
     return text
 
 # Sections. Les titres portent souvent une parenthèse : « ## Ingrédients (4 portions) ».
-_H_INGREDIENTS = re.compile(r"^#{2,3}\s*(?:🥕\s*)?ingr[ée]dients?\b", re.IGNORECASE)
-_H_STEPS = re.compile(r"^#{2,3}\s*(?:👩‍🍳\s*|🔪\s*)?(?:pr[ée]paration|instructions?|[ée]tapes?|recette)\b",
-                      re.IGNORECASE)
-_H_ANY = re.compile(r"^#{1,6}\s")
+# ⚠️ Le préfixe de numérotation est OBLIGATOIREMENT toléré : une fiche rédigée en
+# plan numéroté (« ## 3. Ingrédients (4 pers) ») porte les mêmes listes que les
+# autres, mais sans lui elle ressort intégralement vide — ingrédients ET étapes.
+_NUM_PREFIX = r"(?:\d+[.)]\s*)?"
+_H_INGREDIENTS = re.compile(rf"^#{{2,3}}\s*{_NUM_PREFIX}(?:🥕\s*)?ingr[ée]dients?\b", re.IGNORECASE)
+_H_STEPS = re.compile(
+    rf"^#{{2,3}}\s*{_NUM_PREFIX}(?:👩‍🍳\s*|🔪\s*)?"
+    r"(?:pr[ée]paration|instructions?|[ée]tapes?|recette|ex[ée]cution)\b",
+    re.IGNORECASE,
+)
+_H_ANY = re.compile(r"^(#{1,6})\s")
 
 _BULLET = re.compile(r"^\s*[-*+]\s+(.*)$")
 _NUMBERED = re.compile(r"^\s*(\d+)[.)]\s+(.*)$")
@@ -249,18 +256,32 @@ def parse_ingredient(raw: str, position: int) -> Ingredient:
 
 
 def _section(body: str, header: re.Pattern) -> list[str]:
-    """Lignes d'une section, de son titre jusqu'au titre suivant."""
-    lines = body.splitlines()
+    """Lignes d'une section, de son titre jusqu'au prochain titre DE MÊME RANG.
+
+    ⚠️ La borne de fin se compare au NIVEAU du titre d'ouverture — elle ne peut
+    pas être « le prochain titre, quel qu'il soit ». Le vault groupe couramment
+    ses ingrédients en sous-sections (« ## Ingrédients » puis « ### Base »,
+    « ### Sauce mafé ») : avec une borne aveugle au niveau, la section se ferme
+    sur la toute première sous-section, donc AVANT la moindre ligne, et la
+    recette ressort avec zéro ingrédient. Silencieusement — le garde-fou de
+    `parse_rate` ne voit rien, puisqu'il n'y a rien à noter. C'est ce qui a vidé
+    5 recettes sur 11 de la semaine Bègles (issue #58).
+
+    Les sous-titres eux-mêmes ne sont pas des ingrédients : ils ne portent pas
+    de puce, donc `_BULLET` les ignore sans qu'on ait à les filtrer.
+    """
     out: list[str] = []
-    inside = False
-    for line in lines:
-        if header.match(line):
-            inside = True
+    level: int | None = None
+    for line in body.splitlines():
+        if level is None:
+            opening = _H_ANY.match(line)
+            if opening and header.match(line):
+                level = len(opening.group(1))
             continue
-        if inside and _H_ANY.match(line):
+        deeper = _H_ANY.match(line)
+        if deeper and len(deeper.group(1)) <= level:
             break
-        if inside:
-            out.append(line)
+        out.append(line)
     return out
 
 

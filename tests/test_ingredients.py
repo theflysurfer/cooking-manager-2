@@ -152,6 +152,79 @@ class TestRecipeBody:
         content = parse_recipe_body(self.BODY)
         assert not any("pudding" in s.text for s in content.steps)
 
+    GROUPED_BODY = """
+# Mafé au poisson et légumes
+
+## Ingrédients (10 portions)
+
+### Poisson et légumes
+
+- 1,2 kg filets de merlu
+- 4 carottes
+
+### Sauce mafé
+
+- 200 g pâte d'arachide
+- 1 boîte concentré de tomate
+
+## Préparation (50 min)
+
+### Sauce
+
+1. Délayer la pâte d'arachide.
+2. Ajouter le concentré.
+
+### Cuisson
+
+3. Pocher le poisson 10 min.
+
+## Notes
+
+- Se congèle très bien.
+"""
+
+    def test_subsections_do_not_close_the_ingredient_list(self):
+        """« ## Ingrédients » puis « ### Base » : la borne de fin se compare au
+        NIVEAU du titre d'ouverture. Aveugle au niveau, elle fermait la section
+        sur la première sous-section — donc zéro ingrédient, sans un warning.
+        5 recettes sur 11 vidées ainsi (#58)."""
+        content = parse_recipe_body(self.GROUPED_BODY)
+        names = [i.name for i in content.ingredients]
+        assert len(content.ingredients) == 4, names
+        assert "filets de merlu" in names[0]
+        assert names[2].startswith("pâte d'arachide")
+
+    def test_subsection_titles_are_not_ingredients(self):
+        """Les sous-titres n'ont pas de puce : ils ne doivent pas entrer dans la
+        liste de courses (« Sauce mafé » n'est pas un produit à acheter)."""
+        names = [i.name for i in parse_recipe_body(self.GROUPED_BODY).ingredients]
+        assert not any("Sauce mafé" in n or "Poisson et légumes" in n for n in names)
+
+    def test_grouped_steps_span_subsections(self):
+        """Même borne pour les étapes : la cuisson ne doit pas être perdue."""
+        steps = parse_recipe_body(self.GROUPED_BODY).steps
+        assert len(steps) == 3
+        assert steps[2].text.startswith("Pocher")
+
+    def test_grouped_body_stops_before_notes(self):
+        """La borne reste ferme sur un titre de MÊME rang : « ## Notes » clôt."""
+        content = parse_recipe_body(self.GROUPED_BODY)
+        assert not any("congèle" in s.text for s in content.steps)
+        assert not any("congèle" in i.raw for i in content.ingredients)
+
+    def test_numbered_section_titles_are_recognized(self):
+        """Une fiche rédigée en plan numéroté (« ## 3. Ingrédients ») porte les
+        mêmes listes que les autres — sans tolérer le préfixe, elle ressort
+        entièrement vide, ingrédients ET étapes."""
+        body = (
+            "# Gratin\n\n## 3. Ingrédients (4 pers)\n\n"
+            "- Courge spaghetti — ~2 kg brute\n- Feta AOP — 180 g\n\n"
+            "## 4. Exécution\n\n1. Percer la courge.\n2. Enfourner 30 min.\n"
+        )
+        content = parse_recipe_body(body)
+        assert len(content.ingredients) == 2
+        assert len(content.steps) == 2
+
     def test_parse_rate(self):
         content = parse_recipe_body(self.BODY)
         assert content.parse_rate == 0.75  # 3 sur 4 (l'édulcorant n'a pas de quantité)

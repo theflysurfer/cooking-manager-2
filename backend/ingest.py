@@ -263,7 +263,17 @@ async def ingest(vault_root: Path, dsn: str) -> dict:
                 )
             parsed_steps += len(content.steps)
 
-            if content.ingredients and content.parse_rate < 0.5:
+            # ⚠️ Le garde-fou du dessous est gardé par `content.ingredients` :
+            # il ne peut PAS voir le cas le plus grave, une section qui ne rend
+            # aucune ligne. C'est ce trou qui a laissé 5 recettes sans le moindre
+            # ingrédient sans un mot dans les logs (#58) — une liste de courses
+            # amputée ne se découvre qu'en cuisine.
+            if not content.ingredients:
+                warnings.append(
+                    f"{r.get('slug')}: AUCUN ingrédient parsé — la section "
+                    "« ## Ingrédients » est absente, vide ou d'un format inattendu"
+                )
+            elif content.parse_rate < 0.5:
                 warnings.append(
                     f"{r.get('slug')}: seulement {content.parse_rate:.0%} des ingrédients "
                     "structurés — vérifier le format de la section"
