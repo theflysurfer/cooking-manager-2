@@ -296,14 +296,31 @@ h1, h2, h3, .u-heading {
 
 /* Plat lié à une fiche recette — cliquable */
 .slot__dish--linked {
+  display: -webkit-flex;
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
+  -webkit-align-items: center;
+  align-items: center;
   color: var(--text-strong);
   text-decoration: none;
   cursor: pointer;
   min-height: var(--tap);
   padding: 4px 0;
+}
+/* La photo mène : on reconnaît le plat avant de lire son nom. */
+.slot__thumb {
+  width: 52px;
+  height: 52px;
+  border-radius: 6px;
+  object-fit: cover;
+  margin-right: 12px;
+  -webkit-flex-shrink: 0;
+  flex-shrink: 0;
+  background: var(--surface-alt);
+}
+.slot__dish-name {
+  -webkit-flex: 1;
+  flex: 1;
+  min-width: 0;
 }
 .slot__dish--linked:active { color: var(--accent); }
 .slot__arrow {

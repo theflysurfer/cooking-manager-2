@@ -105,9 +105,12 @@ function renderDay(meal, compatIdx, today, mealIndex) {
       '<span class="slot__label">' + esc(s.label) + '</span>';
 
     if (slug) {
+      var photo = meal[s.key + '_photo'];
       slots += '<a class="slot__dish slot__dish--linked" href="#/recette/' +
-        encodeURIComponent(slug) + '">' + esc(dish) +
-        ' <span class="slot__arrow">›</span></a>';
+        encodeURIComponent(slug) + '">' +
+        (photo ? '<img class="slot__thumb" src="' + esc(photo) + '" alt="">' : '') +
+        '<span class="slot__dish-name">' + esc(dish) + '</span>' +
+        '<span class="slot__arrow">›</span></a>';
     } else if (isLeftovers) {
       slots += '<span class="slot__dish">' + esc(dish) +
         ' <span class="slot__tag">restes</span></span>';
@@ -190,6 +193,7 @@ async function viewMenu() {
       if (!day) return;
       day[mm.slot + '_meal_id'] = mm.id;
       if (mm.recipe_slug) day[mm.slot + '_slug'] = mm.recipe_slug;
+      if (mm.recipe_photo) day[mm.slot + '_photo'] = mm.recipe_photo;
       if (mm.match_kind === 'leftovers') day[mm.slot + '_leftovers'] = true;
       if (mm.match_kind === 'manual') day[mm.slot] = mm.dish;
       if (mm.covers) day[mm.slot + '_covers'] = mm.covers;
