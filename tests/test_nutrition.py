@@ -137,6 +137,7 @@ class TestAmbiguousForms:
 
     def test_the_recipe_naming_the_form_resolves_it(self):
         macros, why = self.LENTILLES.macros_for("200 g de lentilles cuites")
+        assert macros is not None
         assert macros.kcal == 116.0 and why == ""
 
     def test_an_unnamed_form_is_refused_not_guessed(self):
@@ -146,6 +147,7 @@ class TestAmbiguousForms:
 
     def test_a_single_form_needs_no_disambiguation(self):
         macros, why = _entry("courgette", 17, 2).macros_for("300 g de courgette")
+        assert macros is not None
         assert macros.kcal == 17 and why == ""
 
 
@@ -155,10 +157,12 @@ class TestMatchEntry:
             "creme fraiche": _entry("creme fraiche", 300, 2)}
 
     def test_exact_match(self):
-        assert match_entry("courgette", self.BASE).key == "courgette"
+        found = match_entry("courgette", self.BASE)
+        assert found is not None and found.key == "courgette"
 
     def test_longest_prefix_wins(self):
-        assert match_entry("chevre tres sec", self.BASE).key == "chevre"
+        found = match_entry("chevre tres sec", self.BASE)
+        assert found is not None and found.key == "chevre"
 
     def test_no_fuzzy_match(self):
         """« crème de coco » ne doit PAS rencontrer « crème fraîche » : un faux

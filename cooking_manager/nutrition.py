@@ -148,7 +148,9 @@ def reconcile(kcal: float | None, protein: float | None,
     Un écart n'est donc PAS un bug — mais au-delà de 5 % il doit être montré,
     jamais lissé, sinon on annonce un dépassement sur un chiffre non réconcilié.
     """
-    if None in (kcal, protein, carbs, fat) or not kcal:
+    # ⚠️ Tester `None in (...)` ne restreint PAS les types pour l'analyseur —
+    # il faut nommer chaque terme, sinon pyright refuse l'arithmétique en aval.
+    if kcal is None or protein is None or carbs is None or fat is None or not kcal:
         return {"reconciled": None, "reason": "données incomplètes"}
     rebuilt = protein * 4 + carbs * 4 + fat * 9
     gap = abs(kcal - rebuilt) / kcal
