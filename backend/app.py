@@ -2245,22 +2245,28 @@ async def discard_import_draft(draft_id: int):
 
 @app.post("/api/recipes/import/drafts/{draft_id}/commit")
 async def commit_import_draft(draft_id: int, overwrite: bool = False):
-    """Écrit la fiche dans le vault, puis ré-ingère pour la rendre visible.
+    """Écrit la fiche dans le vault, puis tente de la rendre visible.
 
-    Sans la ré-ingestion, la recette existe sur le disque mais reste absente de
-    l'app jusqu'au prochain `POST /api/ingest` — l'utilisateur validerait un
-    import et ne verrait rien apparaître.
+    ⚠️ `visible` n'est PAS toujours vrai, et c'est structurel : la fiche transite
+    par le cloud Dropbox, que le mount du VPS ne reflète qu'après propagation
+    (~30 s). Une ré-ingestion lancée dans la foulée ne la voit donc pas encore.
+    Le dire franchement — sinon le front redirige vers une fiche qui n'existe
+    pas et l'import réussi passe pour un échec.
     """
     result = await _rm_request(
         "POST", f"/recipes/import/drafts/{draft_id}/commit",
         params={"overwrite": str(overwrite).lower()},
     )
+    slug = result.get("slug")
     try:
-        ingest_result = await ingest(Path(VAULT_ROOT), DATABASE_DSN)
-        result["ingested"] = ingest_result.get("recipes_ingested")
+        await ingest(Path(VAULT_ROOT), DATABASE_DSN)
+        pool = await get_pool(DATABASE_DSN)
+        result["visible"] = bool(
+            await pool.fetchval("SELECT 1 FROM recipe WHERE slug = $1", slug)
+        )
     except Exception as exc:  # noqa: BLE001 — la fiche EST écrite, ne pas la perdre
         logger.warning("commit ok but re-ingest failed: %s", exc)
-        result["ingested"] = None
+        result["visible"] = False
         result["ingest_error"] = str(exc)
     return result
 

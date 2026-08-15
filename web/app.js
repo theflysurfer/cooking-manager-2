@@ -1500,7 +1500,16 @@ async function commitDraft() {
     });
     var res = await api('/api/recipes/import/drafts/' + d._id + '/commit',
                         { method: 'POST' });
-    location.hash = '#/recette/' + res.slug;
+    /* La fiche transite par le cloud : le serveur ne la voit qu'après
+       propagation (~30 s). Rediriger tout de suite afficherait une recette
+       absente — un import réussi qui passe pour un échec. */
+    if (res.visible) {
+      location.hash = '#/recette/' + res.slug;
+    } else {
+      status.innerHTML = '<p class="import__working">Ajoutée au vault. ' +
+        'Elle apparaîtra dans les recettes d\'ici une minute.</p>';
+      setTimeout(function () { location.hash = '#/import'; }, 2500);
+    }
   } catch (e) {
     status.innerHTML = '<p class="import__error">' + esc(e.message) + '</p>';
   }
