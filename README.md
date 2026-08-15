@@ -14,6 +14,12 @@ Live: `https://cooking.srv759970.hstgr.cloud`
 - **Dietary compatibility** — checks who's at the table (custody schedule × school holidays × absences) against each person's constraints
 - **Voice commands** — speech-to-text (Deepgram) + LLM intent classification (Groq) for hands-free recipe search, servings adjustment, recipe swap, product blacklisting, recipe notes, step editing, meal feedback, and pantry leftovers (Safari 14.5+ only)
 - **Pantry management** — track what's in stock, mark leftovers
+- **Cookbook import** — photograph a printed recipe page; a vision model transcribes it, the
+  house parser structures the ingredients, and the draft is **reviewed before** it is written to
+  the vault. Nothing is written until you validate it.
+- **Computed macros** — totals derived from the parsed ingredients, combining three sources by
+  precedence (verified brand sheet › drive product label › ANSES CIQUAL generic). Reports its
+  own **coverage**: a partial sum is never presented as a recipe total.
 
 ## Stack
 

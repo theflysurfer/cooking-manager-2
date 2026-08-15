@@ -202,6 +202,17 @@ ce cas — il n'est apparu qu'à l'appel réel.
 - `cooking_mcp.py` importe `from fastmcp import FastMCP` (pas `from mcp.server.fastmcp`) — seul le package `fastmcp` (v3.4+) expose `host`/`port`/`allowed_hosts` dans `run()`. Le package `mcp` v2 a un `FastMCP.run()` minimaliste
 - Tout MCP VPS derrière nginx avec `Host $host` doit passer `allowed_hosts=[<domaine>]` à `mcp.run()`, sinon Starlette retourne 421
 
+## Skills liées
+
+- `julien-audit-cooking-vault` — **owner** — audite les données que ce repo ingère
+  (`Noyau/Cuisine/` + la base aliments du Coach Nutrition). À lancer **avant** une
+  génération de courses : c'est là que les défauts de données coûtent de l'argent.
+- `cooking-manager-weekly-pipeline` — **owner** — le pipeline hebdomadaire complet
+  (vault → menu → quantités → compatibilités → courses). Toute modification de
+  l'ingestion ou du différentiel de courses le périme.
+- `cooking-manager-auchan-drive` — **gros-consommateur** — pilote le panier Auchan
+  depuis les courses produites ici.
+
 ## Gates avant commit — les trois sont bloquants
 
 ```bash
