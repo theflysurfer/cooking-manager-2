@@ -147,6 +147,15 @@ du **Coach Nutrition** (`Noyau/Coaches/Coach Nutrition/_coach.md`).
   `shopping_product.nutrition` (étiquette scrapée du drive) > `generiques/`
   (ANSES CIQUAL). Jamais d'estimation implicite en quatrième position.
 
+⚠️ **Trois dispositions de tableau coexistent dans la base aliments**, et les
+trois sont légitimes : (1) métriques en lignes avec colonnes « /100g » ;
+(2) **transposée**, lignes = versions ; (3) **`| Nutriment | Valeur |`**, dont
+la base est annoncée par le *titre de section* (« ## Macros pour 100g ») et non
+par l'en-tête — **47 fiches sur 247**, la plus répandue et la plus facile à
+rater. La 3ᵉ n'est acceptée que si le document mentionne explicitement
+« pour 100 g » : sans mention, la fiche est ignorée plutôt que rapportée à une
+base supposée. Auditer avec `julien-audit-cooking-vault`.
+
 ⚠️ **La 1ʳᵉ colonne d'une fiche n'est PAS toujours « /100g ».** `lentilles.md`
 porte « Crues /100g » **puis** « Cuites /100g » : la prendre donnait 339 kcal là
 où la recette veut 116 — **facteur 3, sans un signe**. Le parseur lit l'en-tête

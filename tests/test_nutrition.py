@@ -77,6 +77,42 @@ class TestParseFoodSheet:
         assert forms["cuites"].kcal == 116
 
 
+MOZZARELLA = """---
+type: generique
+source: ANSES-Ciqual
+---
+
+# Mozzarella
+
+## Macros pour 100g
+
+| Nutriment | Valeur |
+|---|---|
+| Énergie | 224 kcal |
+| Protéines | 18g |
+| Glucides | 1g |
+| Lipides | 17g (dont AGS ~11g) |
+"""
+
+
+class TestThirdTableShape:
+    """« | Nutriment | Valeur | », base annoncée par le TITRE DE SECTION.
+    47 fiches sur 247 l'utilisent — toutes silencieusement absentes du calcul
+    avant ce correctif, trouvé par la skill d'audit."""
+
+    def test_value_column_is_read_when_the_document_says_pour_100g(self):
+        forms = parse_food_sheet(MOZZARELLA)[1]
+        assert forms["100g"].kcal == 224
+        assert forms["100g"].protein == 18
+        assert forms["100g"].fat == 17
+
+    def test_without_the_mention_the_table_is_ignored_not_assumed(self):
+        """Sans « pour 100 g » explicite, rapporter les valeurs à une base
+        supposée fabriquerait des macros fausses."""
+        text = MOZZARELLA.replace("## Macros pour 100g", "## Macros")
+        assert parse_food_sheet(text)[1] == {}
+
+
 class TestReconcile:
     """Règle 2bis (erreur #25) : kcal annoncées vs P×4 + G×4 + L×9."""
 

@@ -224,6 +224,11 @@ def parse_food_sheet(text: str) -> tuple[dict, dict[str, Macros]]:
                 k, _, v = line.partition(":")
                 fm[k.strip()] = v.strip().strip('"')
 
+    # La base « pour 100 g » peut être annoncée hors du tableau (« ## Macros
+    # pour 100g »). On ne l'infère JAMAIS : sans mention explicite, un tableau
+    # à deux colonnes reste ignoré plutôt que rapporté à une base supposée.
+    _PER_100G_IN_TEXT = bool(re.search(r"pour\s*100\s*(?:g|ml)", text, re.IGNORECASE))
+
     forms: dict[str, Macros] = {}
     columns: dict[int, str] = {}   # disposition « métriques en lignes »
     metric_cols: dict[int, str] = {}  # disposition TRANSPOSÉE
@@ -250,6 +255,14 @@ def parse_food_sheet(text: str) -> tuple[dict, dict[str, Macros]]:
                        for i, c in enumerate(cells) if c.lower() in _METRIC_KEYS}
             if len(metrics) >= 3:
                 metric_cols = metrics
+                continue
+            # ⚠️ TROISIÈME disposition : « | Nutriment | Valeur | », dont la base
+            # (« pour 100 g ») est annoncée par le TITRE DE SECTION et non par
+            # l'en-tête de colonne. 47 fiches sur 247 l'utilisent — elles étaient
+            # toutes silencieusement absentes du calcul.
+            if len(cells) == 2 and _PER_100G_IN_TEXT:
+                columns = {1: "100g"}
+                forms = {"100g": Macros()}
             continue
 
         if metric_cols:
