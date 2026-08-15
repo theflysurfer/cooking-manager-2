@@ -1,6 +1,8 @@
 """FastAPI application — recipe browser + ingest trigger."""
 
 import json
+import logging
+import os
 import re
 from contextlib import asynccontextmanager
 import datetime
@@ -2173,6 +2175,94 @@ async def seed_household():
         "school_periods": created_periods,
         "stays": created_stays,
     }
+
+
+# ── Import d'une page de livre — façade ────────────────────────────
+#
+# CM2 ne parle pas à Gemini : recipe-manager possède le modèle recette ET la clé
+# en credstore. Un second appelant dupliquerait le credential et scinderait la
+# propriété du modèle. Ici on ne fait que relayer, pour que le front n'ait qu'une
+# seule origine à appeler (et pas de CORS à ouvrir).
+
+logger = logging.getLogger("cooking_manager.app")
+
+RECIPE_MANAGER_URL = os.environ.get("RECIPE_MANAGER_URL", "http://127.0.0.1:8796")
+_IMPORT_TIMEOUT_S = 180.0
+
+
+async def _rm_request(method: str, path: str, **kwargs):
+    import httpx
+
+    try:
+        async with httpx.AsyncClient(timeout=_IMPORT_TIMEOUT_S) as client:
+            resp = await client.request(method, RECIPE_MANAGER_URL + path, **kwargs)
+    except httpx.HTTPError as exc:
+        raise HTTPException(503, f"recipe-manager unreachable: {exc}") from exc
+    if resp.status_code >= 400:
+        # Relayer le code d'origine : un 409 « fiche déjà présente » ne doit pas
+        # se présenter au front comme une panne serveur.
+        raise HTTPException(resp.status_code, _rm_detail(resp))
+    return resp.json()
+
+
+def _rm_detail(resp) -> str:
+    try:
+        return resp.json().get("detail") or resp.text[:300]
+    except ValueError:
+        return resp.text[:300]
+
+
+@app.post("/api/recipes/import", status_code=201)
+async def import_book_page(files: list[UploadFile], source: str = ""):
+    payloads = [("files", (f.filename or "page.jpg", await f.read(),
+                           f.content_type or "image/jpeg")) for f in files]
+    if not payloads:
+        raise HTTPException(400, "aucune image reçue")
+    return await _rm_request("POST", "/recipes/import/page",
+                             files=payloads, data={"source": source})
+
+
+@app.get("/api/recipes/import/drafts")
+async def list_import_drafts(status: str = "pending"):
+    return await _rm_request("GET", "/recipes/import/drafts",
+                             params={"status": status})
+
+
+@app.get("/api/recipes/import/drafts/{draft_id}")
+async def get_import_draft(draft_id: int):
+    return await _rm_request("GET", f"/recipes/import/drafts/{draft_id}")
+
+
+@app.patch("/api/recipes/import/drafts/{draft_id}")
+async def update_import_draft(draft_id: int, data: dict):
+    return await _rm_request("PATCH", f"/recipes/import/drafts/{draft_id}", json=data)
+
+
+@app.delete("/api/recipes/import/drafts/{draft_id}")
+async def discard_import_draft(draft_id: int):
+    return await _rm_request("DELETE", f"/recipes/import/drafts/{draft_id}")
+
+
+@app.post("/api/recipes/import/drafts/{draft_id}/commit")
+async def commit_import_draft(draft_id: int, overwrite: bool = False):
+    """Écrit la fiche dans le vault, puis ré-ingère pour la rendre visible.
+
+    Sans la ré-ingestion, la recette existe sur le disque mais reste absente de
+    l'app jusqu'au prochain `POST /api/ingest` — l'utilisateur validerait un
+    import et ne verrait rien apparaître.
+    """
+    result = await _rm_request(
+        "POST", f"/recipes/import/drafts/{draft_id}/commit",
+        params={"overwrite": str(overwrite).lower()},
+    )
+    try:
+        ingest_result = await ingest(Path(VAULT_ROOT), DATABASE_DSN)
+        result["ingested"] = ingest_result.get("recipes_ingested")
+    except Exception as exc:  # noqa: BLE001 — la fiche EST écrite, ne pas la perdre
+        logger.warning("commit ok but re-ingest failed: %s", exc)
+        result["ingested"] = None
+        result["ingest_error"] = str(exc)
+    return result
 
 
 # ── Static files (must be last) ────────────────────────────────────

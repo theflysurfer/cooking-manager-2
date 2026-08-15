@@ -1799,3 +1799,99 @@ h1, h2, h3, .u-heading {
   color: var(--text-muted);
   font-size: .85rem;
 }
+
+/* ── Import d'une page de livre ─────────────────────────────────────
+   Grid + gap partout : `gap` en flex n'arrive qu'en Safari 14.5, et l'iPad
+   mini 2 l'effondre silencieusement à 0. */
+
+.import__capture {
+  display: -ms-grid; display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-3);
+}
+.import__shoot { text-align: center; cursor: pointer; }
+/* L'input reste dans le flux mais invisible : `display: none` empêche le clic
+   du label de le déclencher sur certaines versions de Safari. */
+.import__input {
+  position: absolute;
+  width: 1px; height: 1px;
+  opacity: 0;
+  overflow: hidden;
+}
+.import__working { color: var(--text-muted); }
+.import__error,
+.import__flag {
+  background: var(--warn-bg);
+  color: var(--warn);
+  padding: var(--sp-2);
+  border-left: 3px solid var(--warn);
+}
+
+.draft-list {
+  display: -ms-grid; display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--sp-2);
+}
+.draft-row {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: var(--sp-2);
+  background: none;
+  border: 1px solid var(--border);
+  /* 44 px : cible tactile minimale confortable en cuisine, doigt mouillé. */
+  min-height: 44px;
+}
+.draft-row__title { display: block; font-family: var(--font-heading); }
+.draft-row__meta { display: block; font-size: .85rem; color: var(--text-muted); }
+.draft-row__warn { color: var(--warn); }
+
+.draft-form {
+  display: -ms-grid; display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-3);
+}
+.draft-field { display: block; }
+.draft-field__label {
+  display: block;
+  font-size: .8rem;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+
+.draft-ing { list-style: none; padding: 0; margin: 0; }
+.draft-ing__row {
+  padding: var(--sp-2) 0;
+  border-bottom: 1px solid var(--border);
+}
+.draft-ing__row--warn { background: var(--warn-bg); }
+.draft-ing__sec {
+  display: block;
+  font-size: .75rem;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+/* 16 px minimum : en dessous, iOS zoome tout seul au focus et l'utilisateur
+   perd la page. Aucun scanner ne voit ça. */
+.draft-ing__raw { width: 100%; font-size: 16px; }
+.draft-ing__parsed {
+  display: block;
+  font-size: .8rem;
+  color: var(--text-muted);
+}
+.draft-ing__row--warn .draft-ing__parsed { color: var(--warn); }
+
+.draft-steps { padding-left: 1.2em; }
+.draft-steps li { margin-bottom: var(--sp-2); }
+
+.draft-actions {
+  display: -ms-grid; display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--sp-2);
+  margin-top: var(--sp-3);
+}

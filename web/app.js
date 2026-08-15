@@ -1331,11 +1331,187 @@ async function expandSession(card) {
   container.innerHTML = html;
 }
 
+/* ── Import d'une page de livre ─────────────────────────────────────
+ *
+ * Capture par <input type="file" capture> : l'appareil photo natif s'ouvre.
+ * PAS getUserMedia — même famille de limite que MediaRecorder, qui a déjà
+ * imposé de masquer le FAB micro sur l'iPad mini 2.
+ *
+ * L'écran de relecture est le cœur : un modèle vision hallucine des quantités
+ * plausibles, et la page photographiée n'est plus consultable une fois rangée.
+ * Toute ligne non comprise DOIT se voir.
+ */
+
+async function viewImport() {
+  render('<h1 class="title">Importer une recette</h1>' +
+         '<div class="skeleton skeleton--card"></div>');
+
+  var data = await api('/api/recipes/import/drafts?status=pending');
+  var drafts = data.drafts || [];
+
+  var html = '<h1 class="title">Importer une recette</h1>' +
+    '<p class="lede">Photographiez la page du livre. La fiche sera relue avant ' +
+    'd\'être ajoutée.</p>' +
+    '<div class="import__capture">' +
+    '<label class="btn btn--accent import__shoot">' +
+    '<input type="file" accept="image/*" capture="environment" multiple ' +
+    'id="import-file" class="import__input">' +
+    'Photographier une page</label>' +
+    '<input class="input import__source" id="import-source" ' +
+    'placeholder="Source (ex. Livre de fromages, p. 130)">' +
+    '</div>' +
+    '<div id="import-status"></div>';
+
+  if (drafts.length) {
+    html += '<h2 class="section-title">À valider <span class="badge">' +
+            drafts.length + '</span></h2><div class="draft-list">';
+    for (var i = 0; i < drafts.length; i++) {
+      var d = drafts[i];
+      var unparsed = (d.draft && d.draft.unparsed_count) || 0;
+      html += '<button class="draft-row" data-draft="' + d.id + '">' +
+        '<span class="draft-row__title">' + esc(d.title || 'Sans titre') + '</span>' +
+        '<span class="draft-row__meta">' +
+        ((d.draft && d.draft.ingredients) ? d.draft.ingredients.length : 0) +
+        ' ingrédients' +
+        (unparsed ? ' · <span class="draft-row__warn">' + unparsed +
+                    ' à vérifier</span>' : '') +
+        '</span></button>';
+    }
+    html += '</div>';
+  } else {
+    html += emptyState('Aucun brouillon en attente',
+                       'Les pages photographiées apparaissent ici jusqu\'à leur validation.');
+  }
+  render(html);
+}
+
+async function uploadImportPages(files) {
+  var status = document.getElementById('import-status');
+  var sourceEl = document.getElementById('import-source');
+  status.innerHTML = '<p class="import__working">Lecture de la page…</p>';
+
+  var fd = new FormData();
+  for (var i = 0; i < files.length; i++) fd.append('files', files[i]);
+  fd.append('source', sourceEl ? sourceEl.value : '');
+
+  try {
+    var r = await fetch(API + '/api/recipes/import', { method: 'POST', body: fd });
+    if (!r.ok) {
+      var detail = await r.text();
+      throw new Error(detail.slice(0, 200));
+    }
+    var draft = await r.json();
+    location.hash = '#/import/' + draft.id;
+  } catch (e) {
+    status.innerHTML = '<p class="import__error">Lecture impossible : ' +
+                       esc(e.message) + '</p>';
+  }
+}
+
+var CURRENT_DRAFT = null;
+
+async function viewImportDraft(id) {
+  var row = await api('/api/recipes/import/drafts/' + id);
+  CURRENT_DRAFT = row.draft;
+  CURRENT_DRAFT._id = row.id;
+
+  var d = CURRENT_DRAFT;
+  var html = '<button class="btn" onclick="location.hash=\'#/import\'">← Imports</button>' +
+    '<h1 class="title">Relire avant d\'ajouter</h1>';
+
+  if (d.unparsed_count) {
+    html += '<p class="import__flag">' + d.unparsed_count +
+            ' ligne(s) sans quantité comprise — vérifiez-les ci-dessous.</p>';
+  }
+
+  html += '<div class="draft-form">' +
+    field('Titre', 'title', d.title) +
+    field('Type', 'recipe_type', d.recipe_type) +
+    field('Rendement', 'yield_raw', d.yield_raw) +
+    field('Préparation (min)', 'prep_time_min', d.prep_time_min) +
+    field('Cuisson (min)', 'cook_time_min', d.cook_time_min) +
+    '</div>';
+
+  html += '<h2 class="section-title">Ce que j\'ai compris</h2><ul class="draft-ing">';
+  for (var i = 0; i < d.ingredients.length; i++) {
+    var ing = d.ingredients[i];
+    html += '<li class="draft-ing__row' + (ing.parsed ? '' : ' draft-ing__row--warn') + '">' +
+      (ing.section ? '<span class="draft-ing__sec">' + esc(ing.section) + '</span>' : '') +
+      '<input class="input draft-ing__raw" data-ing="' + i + '" value="' +
+      esc(ing.raw) + '">' +
+      '<span class="draft-ing__parsed">' +
+      (ing.parsed
+        ? esc((ing.qty_min || '') + ' ' + (ing.unit || '') + ' · ' + (ing.name || ''))
+        : 'quantité non comprise') +
+      '</span></li>';
+  }
+  html += '</ul>';
+
+  if (d.steps && d.steps.length) {
+    html += '<h2 class="section-title">Étapes</h2><ol class="draft-steps">';
+    for (var s = 0; s < d.steps.length; s++) {
+      html += '<li>' + esc(d.steps[s].text) + '</li>';
+    }
+    html += '</ol>';
+  }
+
+  html += '<div class="draft-actions">' +
+    '<button class="btn btn--accent" id="draft-commit">Ajouter au vault</button>' +
+    '<button class="btn" id="draft-discard">Jeter</button>' +
+    '</div><div id="draft-status"></div>';
+
+  render(html);
+}
+
+function field(labelText, key, value) {
+  return '<label class="draft-field"><span class="draft-field__label">' +
+         esc(labelText) + '</span>' +
+         '<input class="input" data-field="' + key + '" value="' +
+         esc(value === null || value === undefined ? '' : value) + '"></label>';
+}
+
+function collectDraft() {
+  var d = CURRENT_DRAFT;
+  document.querySelectorAll('[data-field]').forEach(function (el) {
+    var k = el.getAttribute('data-field');
+    var v = el.value.trim();
+    if (k === 'prep_time_min' || k === 'cook_time_min') {
+      d[k] = v ? parseInt(v, 10) : null;
+    } else {
+      d[k] = v || null;
+    }
+  });
+  document.querySelectorAll('[data-ing]').forEach(function (el) {
+    var i = parseInt(el.getAttribute('data-ing'), 10);
+    d.ingredients[i].raw = el.value;
+  });
+  return d;
+}
+
+async function commitDraft() {
+  var status = document.getElementById('draft-status');
+  status.innerHTML = '<p class="import__working">Enregistrement…</p>';
+  var d = collectDraft();
+  try {
+    await api('/api/recipes/import/drafts/' + d._id, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ draft: d })
+    });
+    var res = await api('/api/recipes/import/drafts/' + d._id + '/commit',
+                        { method: 'POST' });
+    location.hash = '#/recette/' + res.slug;
+  } catch (e) {
+    status.innerHTML = '<p class="import__error">' + esc(e.message) + '</p>';
+  }
+}
+
 /* ── Routeur ───────────────────────────────────────────────────────── */
 
 var ROUTES = {
   menu: viewMenu, recettes: viewRecipes, courses: viewCourses,
-  'garde-manger': viewPantry, achats: viewShopping, drive: viewDrive
+  'garde-manger': viewPantry, achats: viewShopping, drive: viewDrive,
+  import: viewImport
 };
 
 function currentRoute() {
@@ -1355,6 +1531,8 @@ async function route() {
   try {
     if (parts[0] === 'recette' && parts[1]) {
       await viewRecipe(decodeURIComponent(parts[1]));
+    } else if (parts[0] === 'import' && parts[1]) {
+      await viewImportDraft(parts[1]);
     } else {
       var fn = ROUTES[parts[0]] || viewMenu;
       await fn();
@@ -1368,10 +1546,30 @@ async function route() {
 
 window.addEventListener('hashchange', route);
 
+/* `change` et non `click` : sur iOS le fichier n'existe qu'après le retour de
+   l'appareil photo, et l'input est recréé à chaque rendu de vue. */
+document.addEventListener('change', function (e) {
+  if (e.target && e.target.id === 'import-file' && e.target.files.length) {
+    uploadImportPages(e.target.files);
+  }
+});
+
 /* Délégation d'événements : le contenu est réécrit à chaque vue. */
 document.addEventListener('click', function (e) {
   var nav = e.target.closest('.nav__link');
   if (nav) { location.hash = '#/' + nav.getAttribute('data-route'); return; }
+
+  var draftRow = e.target.closest('.draft-row[data-draft]');
+  if (draftRow) {
+    location.hash = '#/import/' + draftRow.getAttribute('data-draft');
+    return;
+  }
+  if (e.target.id === 'draft-commit') { commitDraft(); return; }
+  if (e.target.id === 'draft-discard') {
+    api('/api/recipes/import/drafts/' + CURRENT_DRAFT._id, { method: 'DELETE' })
+      .then(function () { location.hash = '#/import'; });
+    return;
+  }
 
   var mini = e.target.closest('.mini[data-act]');
   if (mini) {
