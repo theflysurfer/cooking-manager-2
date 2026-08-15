@@ -12,6 +12,7 @@ point de départ.
 from cooking_manager.convives import (
     Convive,
     _fold,
+    check_ingredients,
     check_meal,
     check_menu,
     parse_convives,
@@ -178,3 +179,59 @@ class TestCheckMenu:
         result = check_menu(meals, [clemence])
         assert list(result) == ["mardi/lunch"]
         assert result["mardi/lunch"][0].matched == "poulet"
+
+
+def _ing(raw, name_normalized):
+    return {"raw": raw, "name": raw, "name_normalized": name_normalized}
+
+
+class TestCheckIngredients:
+    """Ce que le libellé d'un repas ne nomme pas, il ne peut pas le signaler."""
+
+    # Salade de haricots verts à la tomme de Savoie, telle qu'imprimée.
+    SALADE = [
+        _ing("400 g de haricots verts frais", "haricots verts frais"),
+        _ing("2 œufs extra-frais", "oeufs extra frais"),
+        _ing("6 anchois à l'huile", "anchois a l huile"),
+        _ing("60 g de tomme de Savoie", "tomme de savoie"),
+    ]
+
+    def test_catches_what_the_title_never_mentions(self):
+        """« Salade de haricots verts à la tomme » ne dit pas qu'elle contient
+        six anchois — muet au titre, bloquant pour une végétarienne."""
+        veggie = Convive(name="Test", diet="vegetarian")
+        assert check_meal("Salade de haricots verts à la tomme de Savoie", [veggie]) == []
+        conflicts = check_ingredients(self.SALADE, [veggie])
+        assert len(conflicts) == 1
+        assert "anchois" in conflicts[0].matched
+
+    def test_anchovies_do_not_block_a_pescetarian(self):
+        """Le sur-blocage érode la confiance plus vite qu'un oubli : le poisson
+        est compatible pescétarien et ne doit produire aucune alerte."""
+        assert check_ingredients(self.SALADE, [Convive(name="C", diet="pescetarian")]) == []
+
+    def test_conflict_carries_the_raw_line_not_the_diet_term(self):
+        """En cuisine on cherche « 8 tranches de lard fumé » dans la liste,
+        pas « lard »."""
+        champignons = [_ing("8 tranches de lard fumé", "lard fume")]
+        c = check_ingredients(champignons, [Convive(name="C", diet="pescetarian")])[0]
+        assert c.matched == "8 tranches de lard fumé"
+
+    def test_one_alert_per_person_and_per_reason(self):
+        lots = [_ing("200 g de lard", "lard"), _ing("4 tranches de jambon", "jambon")]
+        assert len(check_ingredients(lots, [Convive(name="C", diet="pescetarian")])) == 1
+
+    def test_ligatures_survive_normalisation(self):
+        """« bœuf » qu'un ASCII naïf réduirait à « buf » ne rencontrerait
+        jamais le terme du régime."""
+        boeuf = [_ing("500 g de bœuf haché", "boeuf hache")]
+        assert check_ingredients(boeuf, [Convive(name="C", diet="vegetarian")])
+
+    def test_tuna_rillettes_stay_compatible_for_a_pescetarian(self):
+        """« rillettes » est volontairement absent de MEAT : celles du vault
+        sont au THON. L'ajouter bloquerait une recette mangeable."""
+        thon = [_ing("2 boîtes de rillettes de thon", "rillettes de thon")]
+        assert check_ingredients(thon, [Convive(name="C", diet="pescetarian")]) == []
+
+    def test_empty_is_safe(self):
+        assert check_ingredients([], [Convive(name="C", diet="vegan")]) == []

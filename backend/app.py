@@ -260,6 +260,49 @@ async def create_menu(menu: MenuCreate):
             "created": row["inserted"]}
 
 
+@app.get("/api/recipes/{slug}/compatibility")
+async def recipe_compatibility(slug: str, present_only: bool = False):
+    """Compatibilité d'une recette, contrôlée sur ses INGRÉDIENTS.
+
+    Complémentaire de `/api/menus/{slug}/compatibility`, qui travaille sur
+    l'intitulé du repas : ce que le libellé ne nomme pas, il ne peut pas le
+    signaler. « Salade de haricots verts à la tomme de Savoie » ne dit pas
+    qu'elle contient six anchois — muet au titre, bloquant pour une végétarienne.
+
+    Par défaut le contrôle porte sur TOUS les convives connus : on consulte une
+    fiche de recette pour décider si on la cuisinera, souvent sans savoir encore
+    quel jour. `present_only` n'a de sens qu'une fois la recette posée au menu.
+    """
+    from cooking_manager.convives import check_ingredients
+
+    pool = await get_pool(DATABASE_DSN)
+    async with pool.acquire() as conn:
+        recipe_id = await conn.fetchval("SELECT id FROM recipe WHERE slug = $1", slug)
+        if recipe_id is None:
+            raise HTTPException(404, f"Recette introuvable : {slug}")
+        rows = await conn.fetch(
+            """SELECT raw, name, name_normalized FROM recipe_ingredient
+                WHERE recipe_id = $1 ORDER BY position""",
+            recipe_id,
+        )
+        convives = await load_convives_from_db(conn)
+
+    ingredients = [dict(r) for r in rows]
+    conflicts = check_ingredients(ingredients, convives)
+    return {
+        "slug": slug,
+        "ingredients_checked": len(ingredients),
+        # Une recette sans ingrédient parsé ne peut RIEN garantir : le dire,
+        # plutôt que de rendre « aucun conflit » et de le laisser lire comme
+        # une compatibilité vérifiée.
+        "conclusive": bool(ingredients),
+        "conflicts": [
+            {"convive": c.convive, "reason": c.reason, "matched": c.matched}
+            for c in conflicts
+        ],
+    }
+
+
 @app.get("/api/menus/{slug}/compatibility")
 async def menu_compatibility(slug: str):
     """Contrôle de compatibilité alimentaire du menu, repas par repas.

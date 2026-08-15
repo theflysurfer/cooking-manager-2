@@ -26,6 +26,15 @@ MEAT = (
     "viande", "boeuf", "bœuf", "steak", "porc", "agneau", "veau", "lapin",
     "jambon", "lardon", "bacon", "saucisse", "saucisson", "merguez", "chorizo",
     "salami", "charcuterie", "roti", "rôti", "hachis", "bolognaise", "carbonara",
+    # ⚠️ « lard » manquait alors que « lardon » était là — et les termes sont
+    # comparés en MOTS ENTIERS, donc « 8 tranches de lard fumé » ne rencontrait
+    # aucune entrée. Deux recettes du livre de fromages passaient ainsi pour
+    # compatibles pescétarien.
+    "lard", "guanciale", "pancetta", "coppa", "grisons", "prosciutto",
+    "mouton", "andouille", "boudin", "foie gras", "gesier", "gésier",
+    # ⚠️ « rillettes » n'y est PAS, volontairement : les rillettes de THON du
+    # vault sont compatibles pescétarien. L'ajouter bloquerait une recette
+    # mangeable — le sur-blocage érode la confiance plus vite qu'un oubli.
 )
 POULTRY = ("volaille", "poulet", "dinde", "canard", "magret", "escalope de poulet", "pintade")
 FISH = ("poisson", "saumon", "thon", "cabillaud", "lieu", "merlu", "merlan",
@@ -284,6 +293,51 @@ def check_meal(description: str, convives: list[Convive]) -> list[Conflict]:
                 conflicts.append(Conflict(convive.name, "n'aime pas", term))
                 break
 
+    return conflicts
+
+
+def check_ingredients(ingredients: list, convives: list[Convive]) -> list[Conflict]:
+    """Ingrédients PARSÉS + convives présents → conflits, ligne par ligne.
+
+    Complémentaire de `check_meal()`, pas concurrent : ce que le libellé d'un
+    repas ne nomme pas, il ne peut pas le signaler. « Salade de haricots verts
+    à la tomme de Savoie » ne dit pas qu'elle contient **six anchois** — muet
+    pour un contrôle sur le titre, bloquant pour une végétarienne.
+
+    L'appariement se fait sur `name_normalized` quand il existe : c'est la même
+    clé que le garde-manger, déjà débarrassée des accents, des parenthèses et
+    des ligatures (« bœuf » → « boeuf », qu'un ASCII naïf réduirait à « buf »).
+
+    Le conflit porte le **libellé brut** de la ligne, pas le terme du régime :
+    en cuisine on cherche « 8 tranches de lard fumé » dans la liste, pas « lard ».
+    """
+    conflicts: list[Conflict] = []
+    if not ingredients:
+        return conflicts
+
+    rows: list[tuple[str, str]] = []
+    for ing in ingredients:
+        get = ing.get if isinstance(ing, dict) else lambda k, o=ing: getattr(o, k, None)
+        folded = _fold(get("name_normalized") or get("name") or get("raw") or "")
+        if folded:
+            rows.append((folded, str(get("raw") or get("name") or "")))
+
+    for convive in convives:
+        seen: set[str] = set()
+        checks = (
+            [(t, f"régime {convive.diet}") for t in DIETS.get(convive.diet, ())]
+            + [(t, "interdit") for t in convive.forbidden]
+            + [(t, "n'aime pas") for t in convive.dislikes]
+        )
+        for term, reason in checks:
+            if reason in seen:
+                continue
+            for folded, raw in rows:
+                if _contains_term(folded, _fold(term)):
+                    # Le terme sert à détecter, la ligne à retrouver l'ingrédient.
+                    conflicts.append(Conflict(convive.name, reason, raw or term))
+                    seen.add(reason)
+                    break
     return conflicts
 
 
