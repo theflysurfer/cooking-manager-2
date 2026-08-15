@@ -285,7 +285,9 @@ async def recipe_compatibility(slug: str, present_only: bool = False):
                 WHERE recipe_id = $1 ORDER BY position""",
             recipe_id,
         )
-        convives = await load_convives_from_db(conn)
+        # ⚠️ `load_convives_from_db` rend un dict nom → Convive : itérer dessus
+        # donne des chaînes, pas des convives.
+        convives = list((await load_convives_from_db(conn)).values())
 
     ingredients = [dict(r) for r in rows]
     conflicts = check_ingredients(ingredients, convives)
