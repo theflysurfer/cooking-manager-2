@@ -260,6 +260,86 @@ async def create_menu(menu: MenuCreate):
             "created": row["inserted"]}
 
 
+FOOD_BASE_ROOT = Path(os.environ.get(
+    "FOOD_BASE_ROOT",
+    str(Path(VAULT_ROOT).parent / "Coaches" / "Coach Nutrition" / "aliments-vérifiés"),
+))
+
+
+@app.get("/api/recipes/{slug}/macros")
+async def recipe_macros_endpoint(slug: str):
+    """Macros calculées depuis les ingrédients, avec leur provenance.
+
+    Applique les règles du Coach Nutrition du vault, pas des règles inventées :
+    Règle 1 (jamais deviner une macro — base aliments d'abord) et Règle 2bis
+    (réconcilier kcal annoncées et somme des macros, montrer l'écart au-delà
+    de 5 %).
+
+    ⚠️ `conclusive` est faux dès que la couverture est partielle. Une somme sur
+    la moitié des ingrédients n'est pas « les macros de la recette » : c'est le
+    nombre faux à l'aplomb d'un nombre juste que la Règle 1 interdit.
+    """
+    from cooking_manager import nutrition as nut
+
+    pool = await get_pool(DATABASE_DSN)
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT id, servings FROM recipe WHERE slug = $1", slug
+        )
+        if row is None:
+            raise HTTPException(404, f"Recette introuvable : {slug}")
+        ingredients = [dict(r) for r in await conn.fetch(
+            """SELECT raw, name, name_normalized, qty_min, unit, is_optional
+                 FROM recipe_ingredient WHERE recipe_id = $1 ORDER BY position""",
+            row["id"],
+        )]
+        products = await conn.fetch(
+            """SELECT DISTINCT ON (item_requested) item_requested, product_name, nutrition
+                 FROM shopping_product WHERE nutrition IS NOT NULL"""
+        )
+
+    drive = {}
+    for p in products:
+        raw = p["nutrition"]
+        entry = nut.entry_from_product(
+            p["item_requested"] or p["product_name"],
+            json.loads(raw) if isinstance(raw, str) else raw,
+        )
+        if entry:
+            drive[entry.key] = entry
+
+    base = nut.merge_sources(nut.load_food_base(FOOD_BASE_ROOT), drive)
+    result = nut.recipe_macros(ingredients, base)
+
+    per_portion = None
+    if row["servings"]:
+        per_portion = {
+            k: round(getattr(result, k) / row["servings"], 1)
+            for k in ("kcal", "protein", "carbs", "fat")
+        }
+
+    return {
+        "slug": slug,
+        "totals": {k: getattr(result, k) for k in ("kcal", "protein", "carbs", "fat")},
+        "per_portion": per_portion,
+        "servings": row["servings"],
+        "coverage": round(result.coverage, 2),
+        "conclusive": result.coverage >= 0.95,
+        "reconciliation": nut.reconcile(result.kcal, result.protein,
+                                        result.carbs, result.fat),
+        "sources": sorted({r.entry.kind for r in result.resolved if r.entry}),
+        "resolved": [
+            {"name": r.name, "grams": r.grams,
+             "food": r.entry.title if r.entry else None,
+             "source": r.entry.source if r.entry else None}
+            for r in result.resolved
+        ],
+        # Rendu en clair : c'est la liste de ce qu'il faut ficher pour que le
+        # chiffre devienne exploitable.
+        "unresolved": [{"name": u.name, "reason": u.reason} for u in result.unresolved],
+    }
+
+
 @app.get("/api/recipes/{slug}/compatibility")
 async def recipe_compatibility(slug: str, present_only: bool = False):
     """Compatibilité d'une recette, contrôlée sur ses INGRÉDIENTS.
