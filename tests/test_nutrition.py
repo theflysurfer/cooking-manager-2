@@ -107,6 +107,13 @@ class TestToGrams:
         assert to_grams(2, "c.s.") == 30.0
         assert to_grams(1, "c.c.") == 5.0
 
+    def test_decimal_quantities_from_the_database(self):
+        """asyncpg rend les colonnes NUMERIC en `Decimal`, qui ne se multiplie
+        pas par un flottant. Les tests a base de float ne pouvaient pas le voir :
+        le defaut n'est apparu qu'a l'appel reel (500 en production)."""
+        from decimal import Decimal
+        assert to_grams(Decimal("1.2"), "kg") == 1200.0
+
     def test_piece_units_are_NOT_converted(self):
         """« 4 carottes » n'a pas de poids sans un poids unitaire. Convertir
         « à peu près » fabriquerait des macros fausses."""

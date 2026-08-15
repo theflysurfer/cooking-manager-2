@@ -308,7 +308,7 @@ async def recipe_macros_endpoint(slug: str):
         if entry:
             drive[entry.key] = entry
 
-    base = nut.merge_sources(nut.load_food_base(FOOD_BASE_ROOT), drive)
+    base = nut.merge_sources(nut.load_food_base_cached(FOOD_BASE_ROOT), drive)
     result = nut.recipe_macros(ingredients, base)
 
     per_portion = None

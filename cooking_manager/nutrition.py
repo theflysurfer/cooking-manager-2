@@ -272,6 +272,28 @@ def parse_food_sheet(text: str) -> tuple[dict, dict[str, Macros]]:
     return fm, forms
 
 
+_BASE_CACHE: dict[str, dict[str, FoodEntry]] = {}
+
+
+def load_food_base_cached(root: Path) -> dict[str, FoodEntry]:
+    """`load_food_base` mémoïsé.
+
+    ⚠️ Sur le VPS la base aliments vit sur un mount **rclone FUSE** : lire ses
+    ~240 fiches prend ~7 s. Le faire à chaque requête rendait l'endpoint
+    inutilisable (et masquait les erreurs derrière des timeouts). Les fiches
+    changent quelques fois par mois — le cache est vidé par `reset_food_cache()`
+    quand on veut forcer la relecture.
+    """
+    key = str(root)
+    if key not in _BASE_CACHE:
+        _BASE_CACHE[key] = load_food_base(root)
+    return _BASE_CACHE[key]
+
+
+def reset_food_cache() -> None:
+    _BASE_CACHE.clear()
+
+
 def load_food_base(root: Path) -> dict[str, FoodEntry]:
     """Charge `aliments-vérifiés/` → index par nom normalisé.
 
@@ -382,11 +404,18 @@ def match_entry(name_normalized: str, base: dict[str, FoodEntry]) -> FoodEntry |
     return best
 
 
-def to_grams(qty: float | None, unit: str | None) -> float | None:
+def to_grams(qty, unit: str | None) -> float | None:
+    """Quantité + unité → grammes, ou None si l'unité n'est pas convertible.
+
+    ⚠️ `qty` n'est pas toujours un `float` : asyncpg rend les colonnes NUMERIC
+    en `Decimal`, qui ne se multiplie pas par un flottant. Les tests unitaires
+    passent des `float` et ne peuvent donc pas voir ce cas — il n'est apparu
+    qu'à l'appel réel.
+    """
     if qty is None:
         return None
     factor = GRAMS_PER_UNIT.get((unit or "").lower())
-    return qty * factor if factor is not None else None
+    return float(qty) * factor if factor is not None else None
 
 
 def recipe_macros(ingredients: list, base: dict[str, FoodEntry]) -> RecipeMacros:
