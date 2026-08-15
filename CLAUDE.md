@@ -132,6 +132,41 @@ Pipeline : MediaRecorder (front) → `POST /api/audio` → Deepgram prerecorded 
 - **MediaRecorder** exige Safari 14.5+ — le FAB micro est **masqué** sur Safari 12 (feature-detect). Le panneau vocal n'apparaît jamais sur l'iPad mini 2
 - **9 intents** (tous câblés) : `search_recipe`, `adjust_servings`, `swap_recipe`, `pantry_bulk_update`, `product_blacklist`, `recipe_note`, `recipe_edit_step`, `meal_feedback`, `pantry_leftover`
 
+## Macros — la doctrine vient du vault, pas du code
+
+`cooking_manager/nutrition.py` n'invente aucune donnée : il applique les règles
+du **Coach Nutrition** (`Noyau/Coaches/Coach Nutrition/_coach.md`).
+
+- **Règle 1 — pas d'hypothèse.** Un ingrédient non résolu ressort en
+  `unresolved` **avec son motif**, jamais estimé au jugé ni omis.
+- **Règle 2bis (erreur #25).** `kcal_reconstitué = P×4 + G×4 + L×9` ; au-delà de
+  5 % d'écart, **montrer les deux chiffres**. Les fiches CIQUAL ont 5–15 %
+  d'écart structurel (eau, cendres, fibres hors somme) — l'écart n'est pas un
+  bug, le cacher en est un.
+- **Trois sources hiérarchisées** : fiche `marques/` (étiquette vérifiée) >
+  `shopping_product.nutrition` (étiquette scrapée du drive) > `generiques/`
+  (ANSES CIQUAL). Jamais d'estimation implicite en quatrième position.
+
+⚠️ **La 1ʳᵉ colonne d'une fiche n'est PAS toujours « /100g ».** `lentilles.md`
+porte « Crues /100g » **puis** « Cuites /100g » : la prendre donnait 339 kcal là
+où la recette veut 116 — **facteur 3, sans un signe**. Le parseur lit l'en-tête
+et, quand plusieurs formes coexistent, **refuse de trancher** tant que la recette
+ne nomme pas la sienne. Certaines fiches sont aussi **transposées** (lignes =
+versions, colonnes = métriques) : `fromage-blanc.md` et ses 3 versions n'était
+pas chargée du tout.
+
+⚠️ **`coverage` et `conclusive` sont de premier plan.** Une somme sur la moitié
+des ingrédients n'est pas « les macros de la recette ». Les unités-pièce
+(« 4 carottes ») ne se convertissent pas sans poids unitaire.
+
+⚠️ **La base aliments vit sur le mount rclone : ~7 s pour ses ~240 fiches.**
+`load_food_base_cached()` est obligatoire côté API — la relire à chaque requête
+rendait l'endpoint inutilisable *et* masquait les erreurs derrière des timeouts.
+
+⚠️ **`qty_min` arrive en `Decimal`** (colonne NUMERIC via asyncpg) : il ne se
+multiplie pas par un flottant. Un test qui passe des `float` ne peut pas voir
+ce cas — il n'est apparu qu'à l'appel réel.
+
 ## Gotchas
 
 - **Auchan Drive : une seule voie de connexion — le MCP VPS** (`mcp-vps-auchan`, port 3854 ; décision 2026-08-12, refs #60). `backend/auchan.py`, `backend/auchan_mcp.py` et `backend/auchan_stores.py` ont été **décommissionnés le 2026-08-09** (commit `0d36988`) — leur logique de contexte magasin (`POST /journey/update`) a été portée dans le MCP VPS le 2026-08-12 (`grocery_find_stores`/`grocery_set_store`, mcp-vps#171). La session Auchan du VPS est gérée par le seul **Cookie Health VPS**. HydraSpecter = outil de diagnostic, pas une voie de connexion
