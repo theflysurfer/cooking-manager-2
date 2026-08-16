@@ -197,6 +197,15 @@ ce cas — il n'est apparu qu'à l'appel réel.
 - Toute nouvelle colonne dans un CREATE TABLE doit aussi etre dans MIGRATIONS_SQL (`ALTER TABLE ADD COLUMN IF NOT EXISTS`) — le VPS a deja les tables, `CREATE TABLE IF NOT EXISTS` ne rajoute rien
 - `menu_meal.position` est **1-based** en DB (`enumerate(meals, start=1)`) — tout consommateur JS doit faire `position - 1` pour indexer le tableau `menu.meals[]`
 - Après un `rclone copy` vers Dropbox, le mount VPS (`/mnt/dropbox-full`) peut avoir un délai de propagation (~30 s) — relancer `POST /api/ingest` si une recette n'apparaît pas
+- **La liste de courses n'est PAS un objet stocké — c'est un calcul.** `GET
+  /api/menus/{slug}/shopping-list` la recalcule intégralement à chaque appel (menu × tablée ×
+  garde-manger) ; le front la garde en RAM (`state.shopping`), rien en DB, rien en
+  `localStorage`. Ce qui persiste, `shopping_session`/`shopping_product`, est un **compte rendu
+  d'après coup** d'une commande drive — jamais un plan, et relié à aucun menu. Corollaire :
+  aucune ligne n'a d'état, aucun tour ne se clôt, et rien ne dit **où** un article doit être
+  acheté (`shopping_session.store` n'est rempli qu'après). Le modèle cible (tour borné,
+  canal, réattribution, besoin résiduel) est dans `docs/conception/USE_CASES_COURSES.md` —
+  le lire avant de toucher aux courses. Refs #67, #68
 - `_pantry_from_db()` remplace `_load_pantry()` — le différentiel courses lit désormais la DB, plus le Markdown
 - Pour le garde-manger, la **DB est la source de vérité** (pas le vault). Le vault est une source d'ingestion parmi d'autres (API, voix). Les items `source != 'vault'` survivent à la ré-ingestion
 - `cooking_mcp.py` importe `from fastmcp import FastMCP` (pas `from mcp.server.fastmcp`) — seul le package `fastmcp` (v3.4+) expose `host`/`port`/`allowed_hosts` dans `run()`. Le package `mcp` v2 a un `FastMCP.run()` minimaliste
