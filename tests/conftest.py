@@ -1,28 +1,11 @@
-"""Configuration pytest — trois étages de tests.
-
-  * unitaires  : purs, sans réseau ni DB. Toujours joués.
-  * compat     : gate iOS 12 sur le front statique. Toujours joué.
-  * e2e        : frappent l'API RÉELLE (VPS). Opt-in via `-m e2e`.
-
-Les e2e sont opt-in parce qu'ils écrivent en base de production. Ils créent
-des objets préfixés `test-e2e-` et les nettoient systématiquement, mais on ne
-veut pas qu'un `pytest` distrait les déclenche.
-
-    pytest                  # unitaires + compat
-    pytest -m e2e           # e2e seuls (VPS)
-    pytest -m ""            # tout
-"""
+"""Configuration pytest — étages unitaires, compat iOS 12 et e2e opt-in."""
 
 import os
 
 import pytest
 
-# Le VPS est la cible par défaut : ce projet n'a pas de serveur local
-# (décision consignée en mémoire — toujours le VPS, jamais localhost).
 API_BASE = os.environ.get("COOKING_API_BASE", "https://cooking.srv759970.hstgr.cloud")
 
-# Préfixe de tout objet créé par les tests, pour pouvoir les reconnaître
-# et les nettoyer sans jamais toucher aux vraies données.
 E2E_PREFIX = "test-e2e-"
 
 
@@ -48,10 +31,18 @@ def api_base() -> str:
 
 @pytest.fixture(scope="session")
 def client(api_base):
-    """Client HTTP vers l'API réelle. Timeout large : l'enrichissement
-    nutritionnel scrape le catalogue Auchan article par article."""
+    """Client HTTP authentifié vers l'API réelle, timeout large (scraping Auchan)."""
     httpx = pytest.importorskip("httpx")
-    with httpx.Client(base_url=api_base, timeout=300.0) as c:
+
+    user = os.environ.get("COOKING_API_USER")
+    password = os.environ.get("COOKING_API_PASSWORD")
+    if not user or not password:
+        pytest.skip(
+            "COOKING_API_USER / COOKING_API_PASSWORD absents : /api/ est derrière "
+            "le basic-auth nginx, les e2e ne peuvent pas s'authentifier"
+        )
+
+    with httpx.Client(base_url=api_base, timeout=300.0, auth=(user, password)) as c:
         try:
             r = c.get("/health")
             r.raise_for_status()

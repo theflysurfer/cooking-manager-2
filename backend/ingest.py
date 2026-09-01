@@ -20,11 +20,6 @@ from .db import get_pool, init_schema
 log = logging.getLogger(__name__)
 
 
-# photo_url est en COALESCE : c'est la seule colonne dont la valeur ne vient pas
-# toujours du vault. Quand aucun fichier local n'existe, elle est reconstruite à
-# chaque ingestion par _scrape_photo(), qui dépend d'un site tiers joignable en
-# 8 s. Écrire $24 sans condition efface donc la photo d'une recette dès qu'un
-# scraping échoue — la grille du menu perdait ses images sans erreur ni trace.
 UPSERT_RECIPE = """
 INSERT INTO recipe (
     slug, title, status, recipe_type, family, servings,
@@ -202,9 +197,6 @@ async def ingest(vault_root: Path, dsn: str) -> dict:
         warnings.append("aucun convive lu depuis Convives.md — le contrôle de "
                         "compatibilité alimentaire ne pourra rien vérifier")
 
-    # Photos générées : rattachement déterministe par slug. Rien n'est écrit dans
-    # le vault, et la liaison survit à chaque ré-ingestion. Priorité au fichier
-    # local sur le scraping, qui reste le repli pour les recettes issues du web.
     media_dir = Path(__file__).resolve().parent.parent / "web" / "media" / "recipes"
     photos_linked = 0
     for r in recipes:
@@ -232,9 +224,6 @@ async def ingest(vault_root: Path, dsn: str) -> dict:
         for r in recipes:
             await conn.execute(UPSERT_RECIPE, *_recipe_row(r))
 
-            # Ingrédients et étapes structurés depuis le corps markdown.
-            # Remplacement complet à chaque ingestion : le vault fait foi, et les
-            # positions changent dès qu'on réordonne une liste.
             content = parse_recipe_body(r.get("_body", ""))
             recipe_id = await conn.fetchval(
                 "SELECT id FROM recipe WHERE slug = $1", r.get("slug", "")
@@ -263,13 +252,6 @@ async def ingest(vault_root: Path, dsn: str) -> dict:
                 )
             parsed_steps += len(content.steps)
 
-            # ⚠️ Le garde-fou du dessous est gardé par `content.ingredients` :
-            # il ne peut PAS voir le cas le plus grave, une section qui ne rend
-            # aucune ligne. C'est ce trou qui a laissé 5 recettes sans le moindre
-            # ingrédient sans un mot dans les logs (#58) — une liste de courses
-            # amputée ne se découvre qu'en cuisine.
-            # Deux fichiers du vault déclarent le même slug : un seul survit à
-            # l'upsert. Le dire, sinon la fiche perdue n'existe nulle part.
             for shadowed in r.get("_duplicate_paths", []):
                 warnings.append(
                     f"{r.get('slug')}: slug en DOUBLE — « {Path(shadowed).name} » est "
@@ -288,10 +270,6 @@ async def ingest(vault_root: Path, dsn: str) -> dict:
                     "structurés — vérifier le format de la section"
                 )
 
-        # Convives — la table était restée VIDE depuis la création du projet :
-        # les profils vivaient dans le vault mais rien ne les ingérait, donc
-        # l'app ignorait qui mange quoi. C'est ce qui a laissé passer des wraps
-        # au poulet devant une pescétarienne (2026-08-04).
         for convive in convives:
             await conn.execute(
                 """INSERT INTO convive (name, constraints, notes)
@@ -319,10 +297,6 @@ async def ingest(vault_root: Path, dsn: str) -> dict:
                 convive.notes or None, attendance,
             )
 
-        # PAS de DELETE FROM menu : l'upsert par slug suffit désormais à dédoublonner.
-        # Le DELETE détruisait tout menu absent du vault — y compris ceux créés via
-        # POST /api/menus (incident 2026-08-04 : le menu structuré « Semaine du 3 au 7
-        # août » effacé par une ingestion de recettes).
         for m in menus:
             await conn.execute(UPSERT_MENU, *_menu_row(m))
 
@@ -349,20 +323,7 @@ SLOTS = ("breakfast", "lunch", "snack", "dinner")
 
 
 async def _link_meals(conn) -> tuple[int, int]:
-    """Éclate `menu.meals` (JSONB) en lignes `menu_meal`, recettes résolues.
-
-    C'est ici que le menu cesse d'être un bloc de texte et devient un graphe :
-    chaque repas pointe (ou non) une recette. Sans ça, « quelles recettes cette
-    semaine ? » n'a pas de réponse, et la liste de courses doit deviner à
-    chaque appel.
-
-    ⚠️ Une recette refaite plusieurs fois dans la semaine produit **plusieurs
-    lignes** — le dénombrement se fait en aval (`COUNT`), pas en écrasant.
-
-    ⚠️ Un repas non relié reste inséré, `recipe_id = NULL`. Le faire
-    disparaître le rendrait invisible partout, y compris dans les manques
-    signalés par la liste de courses.
-    """
+    """Éclate `menu.meals` (JSONB) en lignes `menu_meal`, un repas non relié restant à NULL."""
     recipes = await conn.fetch("SELECT id, slug, title FROM recipe")
     by_slug = {r["slug"]: r["id"] for r in recipes}
     by_norm = {}
@@ -380,8 +341,6 @@ async def _link_meals(conn) -> tuple[int, int]:
         if not meals:
             continue
 
-        # Réécriture complète des repas de CE menu : le vault fait autorité sur
-        # sa propre semaine. Le CASCADE ne touche aucun autre menu.
         await conn.execute("DELETE FROM menu_meal WHERE menu_id = $1", menu["id"])
 
         for position, meal in enumerate(meals, start=1):
@@ -389,16 +348,6 @@ async def _link_meals(conn) -> tuple[int, int]:
                 dish = (meal.get(slot) or "").strip()
                 if not dish:
                     continue
-                # Un `<slot>_slug:` dans le vault DÉSIGNE la fiche et
-                # court-circuite toute heuristique. C'est la seule liaison qui ne
-                # redérive pas : l'intitulé du menu est rédigé à la main chaque
-                # semaine et finit toujours par diverger du titre de la fiche
-                # d'un mot ou deux (« crevettes citron » / « crevettes sautées
-                # citron »).
-                # Un repas de RESTES n'a pas de fiche, et c'est correct : lui
-                # en donner une ferait racheter les ingrédients du repas qu'il
-                # recycle. Sans ce marqueur il ressort en « repas sans fiche »,
-                # une fausse alerte qui reviendrait chaque semaine.
                 if meal.get(slot + "_leftovers"):
                     await conn.execute(
                         """INSERT INTO menu_meal
@@ -416,9 +365,6 @@ async def _link_meals(conn) -> tuple[int, int]:
                 if explicit:
                     recipe_id, kind = by_slug.get(explicit), "explicit"
                     if recipe_id is None:
-                        # Un slug qui ne pointe nulle part est une faute de
-                        # frappe, pas une absence : le dire, plutôt que retomber
-                        # en silence sur un appariement approximatif.
                         log.warning("menu %s : slug de recette inconnu %r (%s)",
                                     menu["id"], explicit, dish)
                         kind = "explicit_missing"
@@ -443,26 +389,13 @@ async def _link_meals(conn) -> tuple[int, int]:
 
 
 def _resolve_dish(dish: str, by_norm: dict) -> tuple[int | None, str | None]:
-    """Intitulé de repas → recette, avec le motif d'appariement retenu.
-
-    Les intitulés sont rédigés à la main (« Gratin courgettes-ricotta-feta +
-    crevettes sautées citron ») et ne collent jamais au titre de la fiche. On
-    reste prudent : mieux vaut ne pas relier — et laisser `recipe_id` à NULL —
-    que rattacher la mauvaise recette et acheter ses ingrédients. Le motif est
-    stocké pour qu'un appariement approximatif reste contestable.
-    """
+    """Intitulé de repas → recette, avec le motif d'appariement retenu (ADR 0004)."""
     norm = normalize_name(dish or "")
     if not norm:
         return None, None
     if norm in by_norm:
         return by_norm[norm]["id"], "exact"
-    # L'inclusion joue dans les DEUX SENS, et c'est nécessaire : la fiche est
-    # souvent plus détaillée que l'intitulé du menu (« Wraps poulet froid +
-    # crudités » au menu, « … + ranch skyr » en fiche). Ne tester qu'un sens
-    # laissait ces repas orphelins — donc leurs ingrédients hors des courses.
     for key, recipe in by_norm.items():
-        # Seuil de 12 caractères sur la partie COMMUNE : en dessous, un titre
-        # court (« Œufs ») s'accrocherait à tout intitulé qui le mentionne.
         if len(key) > 12 and (key in norm or norm.startswith(key)):
             return recipe["id"], "contains"
         if len(norm) > 12 and (norm in key or key.startswith(norm)):
@@ -482,12 +415,7 @@ def _as_date(value):
 
 
 async def _ingest_pantry(conn, vault_root: Path, warnings: list[str]) -> int:
-    """Ingère Garde-manger.md → pantry_item (upsert par nom normalisé + rayon).
-
-    Les items source='vault' absents du fichier sont supprimés (le Markdown fait
-    foi pour ce qui vient du vault). Les items source='manual'/'auchan'/'voice'
-    ne sont jamais touchés — ils vivent en DB uniquement.
-    """
+    """Ingère Garde-manger.md → pantry_item sans jamais écraser une ligne non-vault."""
     path = vault_root / "Garde-manger.md"
     if not path.exists():
         warnings.append("Garde-manger.md introuvable — garde-manger non ingéré")
@@ -515,12 +443,24 @@ async def _ingest_pantry(conn, vault_root: Path, warnings: list[str]) -> int:
                ON CONFLICT (name_normalized, section) DO UPDATE SET
                    name = $1, qty_text = $4, qty_value = $5, unit = $6,
                    status = $7, xstatus = $8, perishable = $9,
-                   entered_at = $10, source = 'vault', updated_at = NOW()
+                   entered_at = $10, updated_at = NOW()
+               WHERE pantry_item.source = 'vault'
                RETURNING id""",
             item.name, item.name_normalized, item.rayon,
             item.qty_text, float(item.qty_value) if item.qty_value is not None else None,
             item.unit, item.status, item.xstatus, item.is_perishable, item.entered_at,
         )
+        if row is None:
+            owner = await conn.fetchval(
+                "SELECT source FROM pantry_item "
+                "WHERE name_normalized = $1 AND section = $2",
+                item.name_normalized, item.rayon,
+            )
+            warnings.append(
+                f"{item.name} ({item.rayon}) : ligne tenue par source='{owner}', "
+                "valeur du vault ignorée"
+            )
+            continue
         ingested_ids.append(row["id"])
 
     if ingested_ids:

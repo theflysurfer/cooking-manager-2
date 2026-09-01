@@ -1,20 +1,4 @@
-"""Garde-manger : inventaire réel, et différentiel avec un besoin.
-
-Jow demande « retirez les basiques que vous avez déjà » à partir d'une liste
-figée. Ici l'app **sait** ce qu'on a : `Garde-manger.md` est un inventaire daté,
-avec des quantités et des statuts. La question n'est donc pas « est-ce un
-basique ? » mais **« d'après le garde-manger, en ai-je assez ? »**.
-
-C'est la correction structurelle du bug du 2026-08-04 : sauce soja et miel
-rachetés alors qu'ils étaient en stock `status=ok`, parce que le contrôle
-anti-doublon comparait le panier à lui-même et jamais au garde-manger.
-
-⚠️ **Un faux positif coûte plus cher qu'un faux négatif.** Dire « tu en as »
-alors qu'on n'en a pas fait sauter un achat nécessaire, et ça ne se découvre
-qu'en cuisine. D'où l'état `UNKNOWN`, citoyen de première classe : quand
-l'appariement ou la comparaison d'unités est incertaine, l'app **demande** au
-lieu de trancher.
-"""
+"""Garde-manger : inventaire réel, et différentiel avec un besoin (ADR 0001)."""
 
 from __future__ import annotations
 
@@ -24,13 +8,10 @@ from datetime import date, timedelta
 
 from .ingredients import UNIT_ALIASES, normalize_name
 
-# ── Statuts ──────────────────────────────────────────────────────────
-
 STATUS_OK = "ok"
 STATUS_LOW = "low"
 STATUS_OUT = "out"
 
-# Codes étendus rencontrés dans le vault, ramenés à un statut de base.
 XSTATUS_MAP = {
     "ok": STATUS_OK,
     "low": STATUS_LOW,
@@ -46,18 +27,13 @@ XSTATUS_MAP = {
     "vérifier-dlc": STATUS_LOW,
 }
 
-# Issues du différentiel.
 ENOUGH = "suffisant"
 PARTIAL = "insuffisant"
 MISSING = "absent"
 UNKNOWN = "inconnu"
 
-# Rayons dont le contenu est périssable : au-delà du délai de péremption de
-# l'inventaire, on ne peut plus s'y fier.
 PERISHABLE_HINTS = ("frais", "légume", "legume", "fruit", "protéine", "proteine")
 
-# Au-delà, le frais de l'inventaire est réputé consommé (règle métier du
-# Cooking Coach, cf. skill cooking-manager-weekly-pipeline).
 STALE_AFTER = timedelta(days=14)
 
 _UNIT_LOOKUP = {
@@ -67,12 +43,8 @@ _UNIT_LOOKUP = {
 }
 _UNIT_PATTERN = "|".join(re.escape(v) for v in sorted(_UNIT_LOOKUP, key=len, reverse=True))
 
-# Conversions vers une unité de base, pour comparer des quantités.
 _TO_BASE = {"kg": ("g", 1000.0), "g": ("g", 1.0),
             "l": ("ml", 1000.0), "cl": ("ml", 10.0), "ml": ("ml", 1.0),
-            # Le dénombrable est sa propre famille : « 4 œufs » se compare bien
-            # à « 6 pièces ». Sans cette entrée, tout ingrédient compté sortait
-            # en `inconnu` — la moitié du frais, noyée en questions inutiles.
             "pièce": ("pièce", 1.0)}
 
 _SECTION = re.compile(r"^##+\s+(.+?)\s*$", re.MULTILINE)
@@ -108,11 +80,8 @@ class PantryItem:
 class Pantry:
     items: list[PantryItem] = field(default_factory=list)
     updated: date | None = None
+    aliases: dict[str, str] = field(default_factory=dict)
 
-    # ⚠️ `today` est un paramètre, pas `date.today()` en dur : la règle
-    # d'ancienneté est la déduction la plus lourde de conséquences du
-    # différentiel (elle vide le frais d'un coup). Une règle qu'on ne peut pas
-    # figer dans un test est une règle qu'on ne peut pas défendre.
     def age_days(self, today: date | None = None) -> int | None:
         if not self.updated:
             return None
@@ -123,19 +92,11 @@ class Pantry:
         return age is not None and age > STALE_AFTER.days
 
     def find(self, normalized: str) -> PantryItem | None:
-        """Appariement par nom normalisé, avec repli par inclusion de MOT.
-
-        « miel » doit rencontrer « Miel bio (liquide) » — c'est précisément ce
-        qui manquait le 2026-08-04. On préfère l'égalité exacte, puis l'item le
-        plus court qui contienne le terme (le plus générique).
-
-        ⚠️ Inclusion **de mot entier**, jamais de sous-chaîne nue : « ri »
-        matcherait « riz », « ail » matcherait « bouillon volaille ». Un faux
-        appariement fait sauter un achat, et ça ne se voit qu'en cuisine.
-        """
+        """Appariement par groupe d'alias, puis repli par inclusion de MOT (ADR 0002)."""
         if not normalized:
             return None
-        exact = [i for i in self.items if i.name_normalized == normalized]
+        group = self._alias_group(normalized)
+        exact = [i for i in self.items if i.name_normalized in group]
         if exact:
             return _best(exact)
         contains = [
@@ -147,6 +108,24 @@ class Pantry:
             return None
         return _best(sorted(contains, key=lambda i: len(i.name_normalized)))
 
+    def _alias_group(self, normalized: str) -> set[str]:
+        """Graphies équivalentes à `normalized`, chaînes d'alias résolues jusqu'à leur racine."""
+        root = self._alias_root(normalized)
+        return {
+            name for name in {normalized, root} | set(self.aliases)
+            if self._alias_root(name) == root
+        }
+
+    def _alias_root(self, name: str) -> str:
+        """Bout de la chaîne d'alias, insensible aux cycles."""
+        seen = {name}
+        while True:
+            nxt = self.aliases.get(name)
+            if nxt is None or nxt in seen:
+                return name
+            name = nxt
+            seen.add(name)
+
 
 def _contains_words(haystack: str, needle: str) -> bool:
     """`needle` apparaît-il dans `haystack` sur des frontières de mot ?"""
@@ -156,8 +135,7 @@ def _contains_words(haystack: str, needle: str) -> bool:
 
 
 def _best(candidates: list[PantryItem]) -> PantryItem:
-    """Entre plusieurs lignes du même produit, la mieux dotée gagne — sinon un
-    pot vide masquerait un pot plein rangé ailleurs."""
+    """Entre plusieurs lignes du même produit, la mieux dotée gagne."""
     order = {STATUS_OK: 0, STATUS_LOW: 1, STATUS_OUT: 2}
     return sorted(candidates, key=lambda i: order.get(i.status, 3))[0]
 
@@ -180,13 +158,7 @@ _FRONTMATTER_UPDATED = re.compile(
 
 
 def parse_pantry(body: str, updated: date | None = None) -> Pantry:
-    """Corps de `Garde-manger.md` → inventaire exploitable.
-
-    ⚠️ La date d'inventaire se lit **ici**, dans le frontmatter, et pas
-    seulement au bon vouloir de l'appelant : c'est elle qui décide si le frais
-    est encore crédible. Un appelant qui oublie de la passer obtiendrait un
-    inventaire réputé éternellement frais — le pire des faux positifs.
-    """
+    """Corps de `Garde-manger.md` → inventaire daté, la date étant lue à défaut du frontmatter."""
     pantry = Pantry(updated=updated)
     if not body:
         return pantry
@@ -222,7 +194,6 @@ def parse_pantry(body: str, updated: date | None = None) -> Pantry:
                 except ValueError:
                     entered = None
 
-            # Le nom s'arrête au premier séparateur « — » ; le reste est la quantité.
             head = re.split(r"\s+[—–]\s+", line, maxsplit=1)
             name = re.sub(r"\*\*", "", head[0]).strip()
             name = re.sub(r"#\s*status\s*=\s*[\w\-àéèêëîïôöûü]+", "", name)
@@ -245,8 +216,6 @@ def parse_pantry(body: str, updated: date | None = None) -> Pantry:
     return pantry
 
 
-# ── Différentiel ─────────────────────────────────────────────────────
-
 @dataclass
 class Need:
     """Un ingrédient requis, consolidé sur l'ensemble du menu."""
@@ -255,18 +224,18 @@ class Need:
     qty: float | None = None
     unit: str | None = None
     recipes: list[str] = field(default_factory=list)
-    is_optional: bool = True     # devient False dès qu'une recette l'exige
+    is_optional: bool = True
     raw_lines: list[str] = field(default_factory=list)
 
 
 @dataclass
 class Verdict:
     need: Need
-    outcome: str                    # ENOUGH | PARTIAL | MISSING | UNKNOWN
+    outcome: str
     pantry_item: PantryItem | None = None
     reason: str = ""
-    to_buy: float | None = None     # quantité restant à acheter
-    assumed_empty: bool = False     # frais réputé consommé (inventaire ancien)
+    to_buy: float | None = None
+    assumed_empty: bool = False
 
 
 def _comparable(need: Need, item: PantryItem) -> bool:
@@ -279,7 +248,6 @@ def _comparable(need: Need, item: PantryItem) -> bool:
     return bool(a and b and a[0] == b[0])
 
 
-# Unités « de prélèvement » : on en prend dans un contenant, on ne l'épuise pas.
 _SPOON_SCALE = {"c.s.", "c.c.", "pincée", "trait", "filet", "goutte"}
 
 
@@ -297,8 +265,6 @@ def check_need(need: Need, pantry: Pantry, today: date | None = None) -> Verdict
     if item.status == STATUS_OUT:
         return Verdict(need, MISSING, item, f"marqué épuisé ({item.xstatus})", need.qty)
 
-    # Règle de péremption : au-delà du délai, le frais n'est plus fiable. On le
-    # DIT au lieu de décider en coulisses — l'utilisateur doit pouvoir contredire.
     if pantry.is_stale(today) and item.is_perishable:
         return Verdict(
             need, UNKNOWN, item,
@@ -306,37 +272,19 @@ def check_need(need: Need, pantry: Pantry, today: date | None = None) -> Verdict
             need.qty, assumed_empty=True,
         )
 
-    # ⚠️ `status=low` ne court-circuite PAS la comparaison de quantités quand
-    # elles sont comparables : « il en reste peu » + « 250 g en stock » pour un
-    # besoin de 500 g, c'est 250 g à acheter, pas 500. Racheter la quantité
-    # pleine à chaque stock faible ramène exactement le gaspillage qu'on corrige.
     if item.status == STATUS_LOW and not _comparable(need, item):
         return Verdict(need, PARTIAL, item, f"stock faible ({item.xstatus})", need.qty)
 
-    # Un besoin à l'échelle de la cuillère face à un contenant en stock
-    # (« 2 pots », « 1 flacon ») n'est pas une vraie question : personne ne
-    # manque d'une cuillère de miel quand il a deux pots. Poser la question
-    # noierait la liste — et une liste qu'on n'a plus envie de lire est une
-    # liste qu'on cesse de croire. C'est le cas exact du miel et de la sauce
-    # soja rachetés le 2026-08-04.
     if item.status == STATUS_OK and need.unit in _SPOON_SCALE:
         return Verdict(need, ENOUGH, item,
                        f"présent en stock ({item.qty_text or 'quantité non chiffrée'}) — "
                        f"un besoin de {need.qty} {need.unit} s'y prélève")
 
     if need.qty is None:
-        # Le besoin n'est pas chiffré (« huile d'olive pour la poêle », « sel »).
-        # Avoir le produit suffit. Répondre `inconnu` ici noierait la liste sous
-        # des questions sans objet — et une liste qu'on n'a plus envie de lire
-        # est une liste qu'on cesse de croire.
         return Verdict(need, ENOUGH, item,
                        f"présent en stock ({item.qty_text or 'quantité non chiffrée'})")
 
     if not _comparable(need, item):
-        # Une quantité EST demandée, mais on ne peut pas la comparer (unités
-        # incommensurables, ou stock non chiffré). Ne PAS conclure « suffisant » :
-        # c'est le faux positif qui fait sauter un achat, et il ne se découvre
-        # qu'en cuisine.
         return Verdict(
             need, UNKNOWN, item,
             f"présent ({item.qty_text or 'quantité non chiffrée'}) — "
@@ -358,11 +306,7 @@ def check_need(need: Need, pantry: Pantry, today: date | None = None) -> Verdict
 
 
 def build_needs(meals_recipes: list[tuple[str, list, float]]) -> list[Need]:
-    """Consolide les ingrédients de plusieurs recettes en besoins uniques.
-
-    `meals_recipes` : (titre de recette, ingrédients, ratio de portions).
-    Le ratio pondère les quantités — 4 convives pour une recette base 2 = ×2.
-    """
+    """Consolide (titre, ingrédients, ratio de portions) en besoins uniques par famille d'unité."""
     needs: dict[tuple[str, str], Need] = {}
     for title, ingredients, ratio in meals_recipes:
         for raw_ing in ingredients:
@@ -371,10 +315,6 @@ def build_needs(meals_recipes: list[tuple[str, list, float]]) -> list[Need]:
             if not key:
                 continue
 
-            # ⚠️ La clé porte la FAMILLE D'UNITÉ, pas seulement le nom.
-            # « 2 courgettes » et « 200 g de courgettes » ne s'additionnent pas :
-            # les fondre sous une seule clé produit un chiffre faux qui a l'air
-            # juste, ou — pire — fait disparaître la seconde quantité en silence.
             unit = ing.get("unit")
             family = _TO_BASE[unit][0] if unit in _TO_BASE else (unit or "")
             need = needs.get((key, family))
@@ -382,8 +322,6 @@ def build_needs(meals_recipes: list[tuple[str, list, float]]) -> list[Need]:
                 need = Need(name=ing.get("name", ""), name_normalized=key, unit=unit)
                 needs[(key, family)] = need
 
-            # Une fourchette « 2–3 c.s. » s'achète au maximum : manquer coûte
-            # plus cher qu'avoir un peu trop.
             qty = ing.get("qty_max") or ing.get("qty_min")
             if qty is not None:
                 if need.unit is None:
@@ -401,11 +339,7 @@ def build_needs(meals_recipes: list[tuple[str, list, float]]) -> list[Need]:
 
 
 def _as_mapping(ing) -> dict:
-    """Accepte indifféremment une ligne de DB (mapping) et un `Ingredient`.
-
-    Les deux entrent ici : l'API lit des `asyncpg.Record`, les tests et le
-    pipeline vault manipulent des dataclasses.
-    """
+    """Accepte indifféremment une ligne de DB (mapping) et un `Ingredient`."""
     if hasattr(ing, "get"):
         return ing
     return {

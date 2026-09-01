@@ -1,8 +1,4 @@
-"""Cooking Manager MCP server — pantry + cooking tools for LLMs.
-
-Exposes the pantry (DB-backed), shopping list differential, and recipe search.
-Run: python -m backend.cooking_mcp
-"""
+"""Serveur MCP Cooking Manager — garde-manger, courses, recettes et tablée."""
 
 import json
 import os
@@ -71,11 +67,14 @@ async def pantry_add(
     qty_text: str = "",
     status: str = "ok",
     notes: str = "",
+    source: str = "coach",
 ) -> str:
     """Add a new item to the pantry.
 
     section: rayon name, e.g. "Frais — Protéines", "Sec", "Épices"
     status: ok, low, out
+    source: who observed it — coach, voice, manual, receipt. Anything but
+    'vault' makes the row DB-owned, so vault ingestion can never revert it.
     """
     data = await _api("POST", "/api/pantry/items", {
         "name": name,
@@ -83,7 +82,7 @@ async def pantry_add(
         "qty_text": qty_text,
         "status": status,
         "notes": notes or None,
-        "source": "voice",
+        "source": source,
     })
     return json.dumps(data, ensure_ascii=False, indent=2)
 
@@ -94,13 +93,16 @@ async def pantry_update(
     qty_text: str = "",
     status: str = "",
     notes: str = "",
+    source: str = "coach",
 ) -> str:
     """Update a pantry item's quantity, status, or notes.
 
     item_id: from pantry_list or pantry_search results
     status: ok, low, out (or extended: urgent, a-jeter, verifier-dlc)
+    source: who observed it. The row becomes DB-owned, so the next vault
+    ingestion cannot silently revert this update.
     """
-    body: dict = {}
+    body: dict = {"source": source}
     if qty_text:
         body["qty_text"] = qty_text
     if status:
@@ -186,11 +188,6 @@ async def pantry_ingest() -> str:
     """
     data = await _api("POST", "/api/ingest")
     return json.dumps(data, ensure_ascii=False, indent=2)
-
-
-# ═══════════════════════════════════════════════════════════════════════
-# Tablée — qui mange à quel repas (100 % DB, découplé des .md)
-# ═══════════════════════════════════════════════════════════════════════
 
 
 @mcp.tool()

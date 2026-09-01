@@ -30,6 +30,8 @@ backend/           # FastAPI + schéma DB + ingestion
   cooking_mcp.py   # serveur FastMCP (stdio) — garde-manger, recettes, menus
 web/               # Front : index.html + style.css + app.js (+ media/recipes/)
 tests/             # unitaires · gate compat iOS 12 · e2e (opt-in)
+scripts/           # outillage hors service : dédoublonnage du garde-manger
+docs/decisions/    # ADR — le foyer du POURQUOI (skill julien-adr)
 data/              # sessions de courses + photo-prompt.md (versionné)
 docs/veille/       # analyses concurrentielles (auditées par julien-audit-competitor)
 ```
@@ -73,20 +75,14 @@ Quatre fichiers font autorité, dans cet ordre de spécificité :
 | `Garde-manger.md` | stock réel par rayon, statuts, quantités | `pantry_item` (DB = source de vérité) |
 | `Presences.md` | ⚠️ **plus lu par l'app depuis 2026-08-12** — présence 100 % DB (`school_period`, `absence`, `stay`). Conservé comme note humaine seulement | — |
 
-⚠️ **`menu.slug` est la clé naturelle.** Sans elle, l'ingestion se protégeait des
-doublons par un `DELETE FROM menu` qui effaçait tout menu absent du vault — un
-menu créé via l'API disparaissait à la première ingestion de recettes, sans
-erreur ni trace. Ne jamais réintroduire ce DELETE.
+⚠️ **`menu.slug` est la clé naturelle** — ne jamais réintroduire un `DELETE FROM
+menu` à l'ingestion : il efface les menus créés par l'API.
 
-⚠️ **Le `slug` est la clé, pas le nom de fichier — deux fiches peuvent le déclarer
-en double.** L'upsert n'en garde alors qu'une, et laquelle dépendait de l'ordre
-alphabétique du glob : `<slug>-v2.md` trie AVANT `<slug>.md` (`-` < `.`), donc la
-version **périmée** écrasait la bonne, sans un mot. Mesuré sur le journal Creami :
-la prod servait l'état du 08/07 pendant que le vault décrivait celui du 06/08.
-`read_recipes()` tranche désormais sur la date **déclarée** (`updated`/`created`)
-et expose `_duplicate_paths`, qu'`ingest.py` remonte en warning. ⚠️ **Ne jamais
-départager au `_mtime`** : sur le VPS le vault est un mount rclone, le mtime date
-la *copie*, pas la donnée.
+⚠️ **Le `slug` est la clé, pas le nom de fichier** : deux fiches peuvent le
+déclarer en double. `read_recipes()` tranche sur la date **déclarée**
+(`updated`/`created`) et expose `_duplicate_paths`, remonté en warning. **Ne
+jamais départager au `_mtime`** — le vault est un mount rclone sur le VPS, le
+mtime date la copie, pas la donnée.
 
 ### Relier un repas à sa recette — deux marqueurs dans `meals:`
 
@@ -156,13 +152,10 @@ rater. La 3ᵉ n'est acceptée que si le document mentionne explicitement
 « pour 100 g » : sans mention, la fiche est ignorée plutôt que rapportée à une
 base supposée. Auditer avec `julien-audit-cooking-vault`.
 
-⚠️ **La 1ʳᵉ colonne d'une fiche n'est PAS toujours « /100g ».** `lentilles.md`
-porte « Crues /100g » **puis** « Cuites /100g » : la prendre donnait 339 kcal là
-où la recette veut 116 — **facteur 3, sans un signe**. Le parseur lit l'en-tête
-et, quand plusieurs formes coexistent, **refuse de trancher** tant que la recette
-ne nomme pas la sienne. Certaines fiches sont aussi **transposées** (lignes =
-versions, colonnes = métriques) : `fromage-blanc.md` et ses 3 versions n'était
-pas chargée du tout.
+⚠️ **La 1ʳᵉ colonne d'une fiche n'est PAS toujours « /100g »** — une même fiche
+peut porter « Crues » puis « Cuites » (écart mesuré : facteur 3). Le parseur lit
+l'en-tête et, quand plusieurs formes coexistent, **refuse de trancher** tant que
+la recette ne nomme pas la sienne.
 
 ⚠️ **`coverage` et `conclusive` sont de premier plan.** Une somme sur la moitié
 des ingrédients n'est pas « les macros de la recette ». Les unités-pièce
@@ -181,10 +174,9 @@ ce cas — il n'est apparu qu'à l'appel réel.
 - **Auchan Drive : une seule voie de connexion — le MCP VPS** (`mcp-vps-auchan`, port 3854 ; décision 2026-08-12, refs #60). `backend/auchan.py`, `backend/auchan_mcp.py` et `backend/auchan_stores.py` ont été **décommissionnés le 2026-08-09** (commit `0d36988`) — leur logique de contexte magasin (`POST /journey/update`) a été portée dans le MCP VPS le 2026-08-12 (`grocery_find_stores`/`grocery_set_store`, mcp-vps#171). La session Auchan du VPS est gérée par le seul **Cookie Health VPS**. HydraSpecter = outil de diagnostic, pas une voie de connexion
 - **Tablée : câblée et 100 % DB depuis 2026-08-12 (refs #33)**. `/api/menus/<slug>/compatibility` ne lit **plus** `Presences.md` ni `Convives.md` — tout vient de la DB via `load_referential_from_db()` (school_period, absence, stay, overrides) et `load_convives_from_db()` (profils depuis `person`). Résolution de présence à 4 niveaux dans `presence.py::attendees()` : **override manuel > séjour (`stay`) > trame garde/cantine > absences**. Le modèle **`stay`+`stay_member`** (tables ajoutées 2026-08-12) corrige le bug fondateur F.30 (Bègles) : en location de vacances on cuisine sur place, donc les membres du séjour sont à table quels que soient les absences et la trame. Endpoint résolveur : `GET /api/attendance?day=&slot=`. Les constantes `ADULTS`/`CHILDREN`/`CUSTODY_REFERENCE_WEEK` restent en **fallback** quand aucune `HouseholdConfig` DB n'est fournie. `convive` (legacy) et `person` coexistent encore ; `person` fait autorité pour la compatibilité. ⚠️ **Après `POST /api/seed`, relancer si besoin — idempotent** ; le séjour Bègles y est seedé (membres = foyer, Julien ajoute les invités via `stay_add`/`POST /api/stays/<id>/members/<pid>`)
 - **Une photo qui n'est pas un fichier local est une photo en sursis.** `_scrape_photo()`
-  reconstruit `photo_url` à chaque ingestion depuis un site tiers (timeout 8 s) : l'upsert
-  écrivait `photo_url=$24` sans condition, donc **un scraping qui échoue effaçait la photo**,
-  sans erreur ni warning (le 2026-08-12 : 11 recettes d'un coup, 9 au menu). Corrigé par
-  `photo_url=COALESCE($24, recipe.photo_url)`. La parade de fond reste le **fichier local** :
+  reconstruit `photo_url` à chaque ingestion depuis un site tiers : l'upsert garde
+  `photo_url=COALESCE($24, recipe.photo_url)`, sans quoi un scraping en échec efface la photo
+  sans erreur. La parade de fond reste le **fichier local** :
   `web/media/recipes/<slug>.jpg` → rattachement déterministe, prioritaire sur le scraping,
   insensible au réseau. Générer les manquantes via **recipe-manager**
   (`POST /recipes/<slug>/generate-image`, port 8796), qui porte le prompt v1.1 — jamais un
@@ -206,7 +198,10 @@ ce cas — il n'est apparu qu'à l'appel réel.
   acheté (`shopping_session.store` n'est rempli qu'après). Le modèle cible (tour borné,
   canal, réattribution, besoin résiduel) est dans `docs/conception/USE_CASES_COURSES.md` —
   le lire avant de toucher aux courses. Refs #67, #68
-- `_pantry_from_db()` remplace `_load_pantry()` — le différentiel courses lit la DB, source de vérité pour l'app (le vault n'est qu'une source d'ingestion parmi d'autres ; `source != 'vault'` survit à la ré-ingestion). ⚠️ **`Noyau/Cuisine/Garde-manger.md` est aussi lu/écrit par un système entièrement séparé** — le Coach Nutrition sur claude.ai, qui planifie les menus macro par macro et n'appelle jamais l'app ni sa DB. Les deux garde-manger ne sont **jamais synchronisés** et peuvent diverger sans alerte (constaté 2026-09-01 : 6 articles listés « ok » dans le vault n'existaient plus réellement)
+- `_pantry_from_db()` remplace `_load_pantry()` — le différentiel courses lit la DB, source de vérité pour l'app. ⚠️ **`Noyau/Cuisine/Garde-manger.md` est aussi lu/écrit par un système entièrement séparé** — le Coach Nutrition sur claude.ai, qui n'appelle jamais l'app ni sa DB. Les deux garde-manger ne sont **jamais synchronisés** et divergent sans alerte (refs #69)
+- **`source` dit qui détient une ligne de `pantry_item`, et l'ingestion vault ne touche que les siennes** (`WHERE pantry_item.source = 'vault'`, ADR 0003). Toute écriture doit donc **déclarer sa provenance** : sans `source`, une correction du Coach ou de la voix reste estampillée `vault` et se fait annuler à la ré-ingestion suivante. Une ligne du Markdown masquée par une ligne DB sort en **warning nommé**, jamais en écrasement muet
+- **L'identité d'un aliment se déclare dans `pantry_alias`, elle ne s'infère pas** (ADR 0002). `find()` élargit l'égalité exacte au groupe d'alias, chaînes résolues, puis laisse `_best()` arbitrer. ⚠️ **Ne pas relâcher `normalize_name()`** pour absorber pluriels ou conditionnements : ça ferait dire « tu en as de la sauce » parce qu'il y a de la sauce soja, et un faux positif fait sauter un achat. Proposer des paires : `scripts/pantry_dedup_report.py`
+- **Le conditionnement va dans `qty_text`, jamais dans `name`** — l'unicité porte sur `normalize_name(name)`, qui ne retire ni `x10` ni `250g` : « Oeufs plein air x10 » et « Œufs plein air » deviennent deux lignes du même produit **sans déclencher le 409**
 - `cooking_mcp.py` importe `from fastmcp import FastMCP` (pas `from mcp.server.fastmcp`) — seul le package `fastmcp` (v3.4+) expose `host`/`port`/`allowed_hosts` dans `run()`. Le package `mcp` v2 a un `FastMCP.run()` minimaliste
 - Tout MCP VPS derrière nginx avec `Host $host` doit passer `allowed_hosts=[<domaine>]` à `mcp.run()`, sinon Starlette retourne 421
 
@@ -239,6 +234,11 @@ python ~/.claude/skills/julien-audit-ios12-compat/scripts/audit_ios12.py web
 pytest              # unitaires + gate compat (rapide, aucun réseau)
 pytest -m e2e       # frappe l'API RÉELLE du VPS — opt-in, écrit en production
 ```
+
+⚠️ `/api/` est derrière le **basic-auth nginx** (`/health` seul en est exempté) : les e2e
+exigent `COOKING_API_USER` / `COOKING_API_PASSWORD`. Sans elles la suite **saute en nommant
+la variable manquante** — un skip, pas un échec en « 401 attendu 200 » qui déguiserait un
+défaut d'authentification en API cassée.
 
 Les e2e créent des objets préfixés `test-e2e-` et les suppriment ; un test
 d'hygiène échoue si un résidu subsiste. Ils sont opt-in précisément parce qu'ils

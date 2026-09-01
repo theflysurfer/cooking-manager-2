@@ -144,6 +144,15 @@ CREATE INDEX IF NOT EXISTS idx_pantry_item_status ON pantry_item(status);
 CREATE INDEX IF NOT EXISTS idx_pantry_item_norm ON pantry_item(name_normalized);
 CREATE INDEX IF NOT EXISTS idx_pantry_item_section ON pantry_item(section);
 
+CREATE TABLE IF NOT EXISTS pantry_alias (
+    id               SERIAL PRIMARY KEY,
+    alias_normalized TEXT NOT NULL UNIQUE,
+    pantry_item_id   INTEGER NOT NULL REFERENCES pantry_item(id) ON DELETE CASCADE,
+    created_at       TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_pantry_alias_item ON pantry_alias(pantry_item_id);
+
 -- ═══════════════════════════════════════════════════════════════════════
 -- Tablée — qui mange à quel repas
 --

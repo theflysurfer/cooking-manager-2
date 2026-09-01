@@ -33,10 +33,6 @@ def _serialize_dates(d: dict, keys: tuple[str, ...]) -> None:
             d[key] = d[key].isoformat()
 
 
-# Nombre de décimales par champ à la sortie de l'API. Les colonnes sont en NUMERIC
-# (asyncpg rend des Decimal) : on arrondit ET on convertit en float ici, pour que
-# l'UI n'ait jamais à s'en soucier. Sans ça, un ancien REAL ressortait en
-# 3.799999952316284 et s'affichait tel quel.
 _ROUNDING = {
     "macros_kcal": 1, "macros_protein": 1, "macros_carbs": 1, "macros_fat": 1,
     "kcal": 1, "protein": 1, "carbs": 1, "fat": 1,
@@ -68,8 +64,6 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Cooking Manager", version="2.0.0", lifespan=lifespan)
 
 
-# ── API routes ──────────────────────────────────────────────────────
-
 @app.get("/api/recipes")
 async def list_recipes(
     status: str | None = None,
@@ -86,9 +80,6 @@ async def list_recipes(
     idx = 1
 
     if menu:
-        # ⚠️ EXISTS, pas de JOIN : une recette refaite trois fois dans la semaine
-        # doit apparaître UNE fois dans le catalogue. Le nombre de fois est une
-        # donnée de la recette (`occurrences`), pas une multiplication des lignes.
         clauses.append(
             f"EXISTS (SELECT 1 FROM menu_meal mm JOIN menu mu ON mu.id = mm.menu_id "
             f"WHERE mm.recipe_id = recipe.id AND mu.slug = ${idx})"
@@ -116,9 +107,6 @@ async def list_recipes(
     where = " WHERE " + " AND ".join(clauses) if clauses else ""
     params.extend([limit, offset])
 
-    # Quand on filtre sur une semaine, le nombre de fois où la recette y revient
-    # (et à quels créneaux) fait partie de la réponse : « 2× » est l'information
-    # qui manque le plus quand on planifie.
     occurrences = ""
     if menu:
         occurrences = """,
@@ -153,12 +141,7 @@ async def list_recipes(
 
 @app.get("/api/recipes/{slug}")
 async def get_recipe(slug: str):
-    """Fiche complète : métadonnées + ingrédients et étapes STRUCTURÉS.
-
-    Le champ `body` (markdown brut) reste servi pour les notes libres, mais il
-    n'est plus la source d'affichage principale — c'était lui qui produisait le
-    mur de markdown en bas de la fiche.
-    """
+    """Fiche complète : métadonnées + ingrédients et étapes STRUCTURÉS."""
     pool = await get_pool(DATABASE_DSN)
     async with pool.acquire() as conn:
         row = await conn.fetchrow("SELECT * FROM recipe WHERE slug = $1", slug)
@@ -234,9 +217,7 @@ class MenuCreate(BaseModel):
 
 @app.post("/api/menus")
 async def create_menu(menu: MenuCreate):
-    """Créer ou mettre à jour un menu. Le slug est la clé naturelle : rejouer le
-    même POST met à jour au lieu de dupliquer (et l'ingestion vault ne l'écrase
-    plus, cf. suppression du DELETE FROM menu)."""
+    """Créer ou mettre à jour un menu, le slug servant de clé naturelle (idempotent)."""
     from cooking_manager.normalizer import slugify
 
     slug = menu.slug or slugify(menu.title)
@@ -268,17 +249,7 @@ FOOD_BASE_ROOT = Path(os.environ.get(
 
 @app.get("/api/recipes/{slug}/macros")
 async def recipe_macros_endpoint(slug: str):
-    """Macros calculées depuis les ingrédients, avec leur provenance.
-
-    Applique les règles du Coach Nutrition du vault, pas des règles inventées :
-    Règle 1 (jamais deviner une macro — base aliments d'abord) et Règle 2bis
-    (réconcilier kcal annoncées et somme des macros, montrer l'écart au-delà
-    de 5 %).
-
-    ⚠️ `conclusive` est faux dès que la couverture est partielle. Une somme sur
-    la moitié des ingrédients n'est pas « les macros de la recette » : c'est le
-    nombre faux à l'aplomb d'un nombre juste que la Règle 1 interdit.
-    """
+    """Macros calculées depuis les ingrédients, avec leur provenance."""
     from cooking_manager import nutrition as nut
 
     pool = await get_pool(DATABASE_DSN)
@@ -334,25 +305,13 @@ async def recipe_macros_endpoint(slug: str):
              "source": r.entry.source if r.entry else None}
             for r in result.resolved
         ],
-        # Rendu en clair : c'est la liste de ce qu'il faut ficher pour que le
-        # chiffre devienne exploitable.
         "unresolved": [{"name": u.name, "reason": u.reason} for u in result.unresolved],
     }
 
 
 @app.get("/api/recipes/{slug}/compatibility")
 async def recipe_compatibility(slug: str, present_only: bool = False):
-    """Compatibilité d'une recette, contrôlée sur ses INGRÉDIENTS.
-
-    Complémentaire de `/api/menus/{slug}/compatibility`, qui travaille sur
-    l'intitulé du repas : ce que le libellé ne nomme pas, il ne peut pas le
-    signaler. « Salade de haricots verts à la tomme de Savoie » ne dit pas
-    qu'elle contient six anchois — muet au titre, bloquant pour une végétarienne.
-
-    Par défaut le contrôle porte sur TOUS les convives connus : on consulte une
-    fiche de recette pour décider si on la cuisinera, souvent sans savoir encore
-    quel jour. `present_only` n'a de sens qu'une fois la recette posée au menu.
-    """
+    """Compatibilité d'une recette, contrôlée sur ses INGRÉDIENTS."""
     from cooking_manager.convives import check_ingredients
 
     pool = await get_pool(DATABASE_DSN)
@@ -365,8 +324,6 @@ async def recipe_compatibility(slug: str, present_only: bool = False):
                 WHERE recipe_id = $1 ORDER BY position""",
             recipe_id,
         )
-        # ⚠️ `load_convives_from_db` rend un dict nom → Convive : itérer dessus
-        # donne des chaînes, pas des convives.
         convives = list((await load_convives_from_db(conn)).values())
 
     ingredients = [dict(r) for r in rows]
@@ -374,9 +331,6 @@ async def recipe_compatibility(slug: str, present_only: bool = False):
     return {
         "slug": slug,
         "ingredients_checked": len(ingredients),
-        # Une recette sans ingrédient parsé ne peut RIEN garantir : le dire,
-        # plutôt que de rendre « aucun conflit » et de le laisser lire comme
-        # une compatibilité vérifiée.
         "conclusive": bool(ingredients),
         "conflicts": [
             {"convive": c.convive, "reason": c.reason, "matched": c.matched}
@@ -387,17 +341,7 @@ async def recipe_compatibility(slug: str, present_only: bool = False):
 
 @app.get("/api/menus/{slug}/compatibility")
 async def menu_compatibility(slug: str):
-    """Contrôle de compatibilité alimentaire du menu, repas par repas.
-
-    Croise DEUX choses qu'on ne peut pas séparer :
-      * qui est réellement à table (référentiel de présence — garde alternée,
-        vacances scolaires, absences) ;
-      * ce que chacun ne peut pas manger (régimes, interdits, aversions).
-
-    L'incident du 2026-08-04 tenait aux deux à la fois : des wraps au poulet
-    devant une pescétarienne, ET une composition de table devinée depuis une
-    grille valable « hors vacances scolaires » alors qu'on était en août.
-    """
+    """Contrôle de compatibilité alimentaire du menu, repas par repas."""
     from datetime import date as _date
 
     from cooking_manager.convives import check_meal
@@ -409,7 +353,6 @@ async def menu_compatibility(slug: str):
         row = await conn.fetchrow("SELECT slug, title, meals FROM menu WHERE slug = $1", slug)
         if not row:
             raise HTTPException(404, f"Menu introuvable : {slug}")
-        # Tout depuis la DB — plus aucune lecture de Presences.md / Convives.md.
         household = await load_household_config(conn)
         referential = await load_referential_from_db(conn)
         convives = await load_convives_from_db(conn)
@@ -464,6 +407,11 @@ async def _pantry_from_db():
         meta = await conn.fetchrow(
             "SELECT MAX(updated_at) AS last_updated FROM pantry_item"
         )
+        alias_rows = await conn.fetch(
+            """SELECT a.alias_normalized, p.name_normalized AS canonical
+                 FROM pantry_alias a
+                 JOIN pantry_item p ON p.id = a.pantry_item_id"""
+        )
 
     last = meta["last_updated"]
     updated = last.date() if last and hasattr(last, "date") else last
@@ -482,7 +430,8 @@ async def _pantry_from_db():
             entered_at=r["entered_at"],
         ))
 
-    return Pantry(items=items, updated=updated)
+    aliases = {r["alias_normalized"]: r["canonical"] for r in alias_rows}
+    return Pantry(items=items, updated=updated, aliases=aliases)
 
 
 @app.get("/api/pantry")
@@ -537,17 +486,7 @@ async def get_pantry():
 async def menu_shopping_list(
     slug: str, covers: int | None = None, from_date: str | None = None,
 ):
-    """Menu → liste de courses différentielle, groupée par recette.
-
-    Trois étapes, dans cet ordre :
-      1. retrouver les recettes citées dans les repas du menu ;
-      2. agréger leurs ingrédients, pondérés par convives / portions_base ;
-      3. croiser chaque besoin avec le garde-manger réel.
-
-    Le résultat n'est jamais un verdict silencieux : chaque ligne porte son
-    `outcome` et sa `reason`, et l'état `inconnu` existe précisément pour que
-    l'app demande au lieu de deviner.
-    """
+    """Menu → liste de courses différentielle, groupée par recette."""
     from cooking_manager.pantry import build_needs, check_need
 
     pool = await get_pool(DATABASE_DSN)
@@ -557,9 +496,6 @@ async def menu_shopping_list(
         if not menu:
             raise HTTPException(404, f"Menu introuvable : {slug}")
 
-        # Les repas sont reliés aux recettes à l'ingestion (`menu_meal`), plus
-        # devinés à chaque appel : deux appels successifs donnaient auparavant
-        # deux listes différentes si une recette venait d'être ajoutée.
         date_filter = ""
         params: list = [slug]
         if from_date:
@@ -580,16 +516,12 @@ async def menu_shopping_list(
         matched, unmatched, leftovers = [], [], []
         for row in rows:
             if row["match_kind"] == "leftovers":
-                # Repas de restes : sans fiche PAR CONCEPTION. Le compter comme
-                # manquant ferait clignoter une alerte qu'on ne peut pas éteindre.
                 leftovers.append({"day": row["day_label"], "slot": row["slot"],
                                   "dish": row["dish"]})
             elif row["id"] is None:
                 unmatched.append({"day": row["day_label"], "slot": row["slot"],
                                   "dish": row["dish"]})
             else:
-                # ⚠️ Pas de dédoublonnage : une recette refaite deux fois dans
-                # la semaine doit peser deux fois dans les quantités.
                 matched.append((row, row["dish"]))
 
         default_covers = covers or 4
@@ -647,27 +579,16 @@ async def menu_shopping_list(
     }
 
 
-
 class PantryUpdate(BaseModel):
     """Un des 4 gestes du différentiel garde-manger."""
-    item_name: str                    # nom EXACT de la ligne dans Garde-manger.md
-    action: str                       # have | missing | partial | update
-    qty_text: str | None = None       # requis pour `update`
+    item_name: str
+    action: str
+    qty_text: str | None = None
 
 
 @app.patch("/api/pantry")
 async def update_pantry(body: PantryUpdate):
-    """Écrit un geste dans `Garde-manger.md`.
-
-    ⚠️ Écriture **ciblée ligne à ligne**, jamais de réécriture globale : le
-    fichier est aussi lu par le family-dashboard et éditable depuis Obsidian,
-    et une session parallèle peut le modifier entre-temps. Réécrire tout le
-    fichier écraserait son travail sans un mot.
-
-    ⚠️ L'app Dropbox desktop est désactivée : cette écriture ne remonte au cloud
-    qu'après un bisync (`julien-vault-bisync`). Le champ `needs_bisync` du
-    retour est là pour qu'on ne l'oublie pas.
-    """
+    """Écrit un geste dans `Garde-manger.md`."""
     actions = {"have", "missing", "partial", "update"}
     if body.action not in actions:
         raise HTTPException(400, f"action inconnue : {body.action} (attendu {actions})")
@@ -696,7 +617,6 @@ async def update_pantry(body: PantryUpdate):
     today = datetime.date.today().isoformat()
 
     if body.action == "have":
-        # Rien à changer : l'utilisateur confirme simplement le stock.
         return {"changed": False, "line": original.strip(), "needs_bisync": False}
 
     new_status = {"missing": "out", "partial": "low", "update": "ok"}[body.action]
@@ -706,7 +626,6 @@ async def update_pantry(body: PantryUpdate):
         updated = updated.rstrip("\n") + f" # status={new_status}\n"
 
     if body.action == "update" and body.qty_text:
-        # Remplacer la quantité, en préservant le nom et les annotations.
         parts = re.split(r"(\s+[—–]\s+)", updated.rstrip("\n"), maxsplit=1)
         if len(parts) == 3:
             tail = re.search(r"(\(entré[^)]*\))", parts[2])
@@ -731,8 +650,6 @@ async def update_pantry(body: PantryUpdate):
     }
 
 
-# ── Pantry CRUD (DB-backed) ──────────────────────────────────────
-
 class PantryItemCreate(BaseModel):
     name: str
     section: str
@@ -751,6 +668,7 @@ class PantryItemUpdate(BaseModel):
     xstatus: str | None = None
     entered_at: datetime.date | None = None
     notes: str | None = None
+    source: str | None = None
 
 
 @app.post("/api/pantry/items")
@@ -818,6 +736,7 @@ async def update_pantry_item(item_id: int, body: PantryItemUpdate):
         status = XSTATUS_MAP.get(xstatus, xstatus)
         entered_at = body.entered_at or existing["entered_at"]
         notes = body.notes if body.notes is not None else existing["notes"]
+        source = body.source or existing["source"]
 
         from cooking_manager.pantry import _parse_qty
         qty_value, unit = _parse_qty(qty_text)
@@ -827,14 +746,15 @@ async def update_pantry_item(item_id: int, body: PantryItemUpdate):
             """UPDATE pantry_item SET
                    name=$1, name_normalized=$2, section=$3, qty_text=$4,
                    qty_value=$5, unit=$6, status=$7, xstatus=$8,
-                   perishable=$9, entered_at=$10, notes=$11, updated_at=NOW()
-               WHERE id=$12""",
+                   perishable=$9, entered_at=$10, notes=$11, source=$12,
+                   updated_at=NOW()
+               WHERE id=$13""",
             name, normalize_name(name), section, qty_text,
             float(qty_value) if qty_value is not None else None, unit,
-            status, xstatus, perishable, entered_at, notes, item_id,
+            status, xstatus, perishable, entered_at, notes, source, item_id,
         )
 
-    return {"id": item_id, "name": name, "status": status, "updated": True}
+    return {"id": item_id, "name": name, "status": status, "source": source, "updated": True}
 
 
 @app.delete("/api/pantry/items/{item_id}")
@@ -1017,13 +937,7 @@ async def update_menu_meal(slug: str, meal_id: int, body: MealUpdate):
 
 @app.delete("/api/menus/{slug}")
 async def delete_menu(slug: str):
-    """Supprimer un menu par son slug.
-
-    Nécessaire depuis que l'ingestion ne fait plus de `DELETE FROM menu` :
-    sans cet endpoint, un menu créé par l'API ne peut plus jamais partir.
-    Les menus issus du vault reviendront à la prochaine ingestion — c'est le
-    fichier qui fait foi, pas la base.
-    """
+    """Supprimer un menu par son slug."""
     pool = await get_pool(DATABASE_DSN)
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
@@ -1177,8 +1091,6 @@ async def seed_history():
 
     return {"seeded": seeded, "total_entries": len(history)}
 
-
-# ── Shopping ───────────────────────────────────────────────────────
 
 @app.post("/api/shopping/import")
 async def import_shopping_session():
@@ -1361,8 +1273,6 @@ async def list_shopping_sessions():
     return {"sessions": sessions}
 
 
-# ── Voice intent endpoints ─────────────────────────────────────────
-
 class BlacklistBody(BaseModel):
     product: str
     reason: str | None = None
@@ -1474,8 +1384,6 @@ async def add_pantry_leftover(body: LeftoverBody):
     return {"ok": True, "ingredient": body.ingredient}
 
 
-# ── Multi-drive search ────────────────────────────────────────────
-
 @app.get("/api/drives/{store}/stores")
 async def drive_stores(store: str, postal_code: str = Query(..., min_length=4)):
     """Find nearby stores for a given enseigne + postal code."""
@@ -1543,8 +1451,6 @@ async def drive_compare(body: CompareBody):
     }
 
 
-# ── Voice / STT ───────────────────────────────────────────────────
-
 @app.post("/api/audio")
 async def voice_audio(file: UploadFile):
     """Audio → transcription → intent JSON. Pipeline complet."""
@@ -1583,8 +1489,6 @@ async def health():
     return {"status": "ok", "db": version, "app_version": "2.0.0"}
 
 
-# ── Helpers ─────────────────────────────────────────────────────────
-
 def _recipe_to_dict(row) -> dict:
     d = _round_numeric(dict(row))
     macros = {}
@@ -1597,8 +1501,6 @@ def _recipe_to_dict(row) -> dict:
     _serialize_dates(d, ("created", "updated"))
     return d
 
-
-# ── Tablée : person, household, relationship ───────────────────────
 
 class PersonCreate(BaseModel):
     name: str
@@ -1730,8 +1632,6 @@ async def delete_person(person_id: int):
         raise HTTPException(404, "Person not found")
 
 
-# ── Households ──
-
 @app.get("/api/households")
 async def list_households():
     pool = await get_pool(DATABASE_DSN)
@@ -1775,8 +1675,6 @@ async def remove_household_member(household_id: int, person_id: int):
         )
 
 
-# ── Relationships ──
-
 @app.get("/api/relationships")
 async def list_relationships():
     pool = await get_pool(DATABASE_DSN)
@@ -1810,8 +1708,6 @@ async def delete_relationship(rel_id: int):
     async with pool.acquire() as conn:
         await conn.execute("DELETE FROM relationship WHERE id = $1", rel_id)
 
-
-# ── Custody & canteen schedules ──
 
 @app.get("/api/custody-schedules")
 async def list_custody_schedules():
@@ -1869,8 +1765,6 @@ async def create_canteen_schedule(body: CanteenScheduleCreate):
     return dict(row)
 
 
-# ── school_period CRUD ──
-
 @app.get("/api/school-periods")
 async def list_school_periods():
     pool = await get_pool(DATABASE_DSN)
@@ -1897,8 +1791,6 @@ async def delete_school_period(period_id: int):
     async with pool.acquire() as conn:
         await conn.execute("DELETE FROM school_period WHERE id=$1", period_id)
 
-
-# ── absence CRUD ──
 
 @app.get("/api/absences")
 async def list_absences():
@@ -1929,8 +1821,6 @@ async def delete_absence(absence_id: int):
     async with pool.acquire() as conn:
         await conn.execute("DELETE FROM absence WHERE id=$1", absence_id)
 
-
-# ── stay CRUD (le modèle F.30 — correctif Bègles) ──
 
 @app.get("/api/stays")
 async def list_stays():
@@ -1984,15 +1874,9 @@ async def delete_stay(stay_id: int):
         await conn.execute("DELETE FROM stay WHERE id=$1", stay_id)
 
 
-# ── Résolution de présence — qui mange, un jour donné ──
-
 @app.get("/api/attendance")
 async def resolve_attendance(day: str, slot: str = ""):
-    """Qui est à table le `day` (YYYY-MM-DD), pour un `slot` ou tous les créneaux.
-
-    Résolution 100 % DB : override manuel > séjour > trame (garde × cantine ×
-    vacances) > absences. Expose la source de la décision pour le débogage.
-    """
+    """Qui est à table le `day` (YYYY-MM-DD), pour un `slot` ou tous les créneaux."""
     from datetime import date as _date
 
     from cooking_manager.presence import SLOTS, attendees
@@ -2017,8 +1901,6 @@ async def resolve_attendance(day: str, slot: str = ""):
     }
     return result
 
-
-# ── HouseholdConfig from DB (bridge to presence.py) ──
 
 async def load_household_config(conn) -> HouseholdConfig:
 
@@ -2058,13 +1940,7 @@ async def load_household_config(conn) -> HouseholdConfig:
 
 
 async def load_referential_from_db(conn) -> "Referential":
-    """Construit le référentiel de présence ENTIÈREMENT depuis la DB.
-
-    Remplace `parse_referential(Presences.md)` : plus aucune lecture de Markdown.
-    Sources : `school_period` (vacances), `absence`, `stay`+`stay_member`
-    (séjours — le correctif Bègles), et `meal_attendance` source manual/voice
-    (overrides explicites par créneau).
-    """
+    """Construit le référentiel de présence ENTIÈREMENT depuis la DB."""
     from cooking_manager.presence import Absence, Referential, SchoolPeriod, Stay
 
     ref = Referential()
@@ -2108,11 +1984,7 @@ async def load_referential_from_db(conn) -> "Referential":
 
 
 async def load_convives_from_db(conn) -> dict:
-    """Profils alimentaires depuis `person` — remplace parse_convives(Convives.md).
-
-    Toute personne active (foyer + invités récurrents connus) devient un
-    `Convive` exploitable par `check_meal`.
-    """
+    """Profils alimentaires depuis `person` — remplace parse_convives(Convives.md)."""
     from cooking_manager.convives import Convive
 
     rows = await conn.fetch(
@@ -2130,8 +2002,6 @@ async def load_convives_from_db(conn) -> dict:
         )
     return convives
 
-
-# ── Seed données initiales ──
 
 SEED_PERSONS = [
     {"name": "Julien",   "circle": "household", "role": "adult", "default_attendance": "always"},
@@ -2152,17 +2022,12 @@ SEED_RELATIONSHIPS = [
 ]
 
 SEED_CUSTODY_REFERENCE = datetime.date(2026, 3, 3)
-SEED_CANTEEN_WEEKDAYS = [1, 3, 4]  # mardi, jeudi, vendredi
+SEED_CANTEEN_WEEKDAYS = [1, 3, 4]
 
-# Vacances scolaires d'été 2026 (zone A — Bordeaux). Remplace le tableau
-# §Vacances de Presences.md, désormais en DB.
 SEED_SCHOOL_PERIODS = [
     ("Vacances d'été", datetime.date(2026, 7, 4), datetime.date(2026, 8, 31)),
 ]
 
-# Séjour Bègles — le correctif du bug fondateur (F.30) : la famille cuisine
-# sur place en location de vacances. Sans ce stay, les adultes marqués absents
-# vidaient la tablée. Membres = le foyer (Julien peut ajouter les invités).
 SEED_STAYS = [
     {
         "label": "Semaine à Bègles",
@@ -2302,13 +2167,6 @@ async def seed_household():
     }
 
 
-# ── Import d'une page de livre — façade ────────────────────────────
-#
-# CM2 ne parle pas à Gemini : recipe-manager possède le modèle recette ET la clé
-# en credstore. Un second appelant dupliquerait le credential et scinderait la
-# propriété du modèle. Ici on ne fait que relayer, pour que le front n'ait qu'une
-# seule origine à appeler (et pas de CORS à ouvrir).
-
 logger = logging.getLogger("cooking_manager.app")
 
 RECIPE_MANAGER_URL = os.environ.get("RECIPE_MANAGER_URL", "http://127.0.0.1:8796")
@@ -2324,8 +2182,6 @@ async def _rm_request(method: str, path: str, **kwargs):
     except httpx.HTTPError as exc:
         raise HTTPException(503, f"recipe-manager unreachable: {exc}") from exc
     if resp.status_code >= 400:
-        # Relayer le code d'origine : un 409 « fiche déjà présente » ne doit pas
-        # se présenter au front comme une panne serveur.
         raise HTTPException(resp.status_code, _rm_detail(resp))
     return resp.json()
 
@@ -2370,14 +2226,7 @@ async def discard_import_draft(draft_id: int):
 
 @app.post("/api/recipes/import/drafts/{draft_id}/commit")
 async def commit_import_draft(draft_id: int, overwrite: bool = False):
-    """Écrit la fiche dans le vault, puis tente de la rendre visible.
-
-    ⚠️ `visible` n'est PAS toujours vrai, et c'est structurel : la fiche transite
-    par le cloud Dropbox, que le mount du VPS ne reflète qu'après propagation
-    (~30 s). Une ré-ingestion lancée dans la foulée ne la voit donc pas encore.
-    Le dire franchement — sinon le front redirige vers une fiche qui n'existe
-    pas et l'import réussi passe pour un échec.
-    """
+    """Écrit la fiche dans le vault, puis tente de la rendre visible."""
     result = await _rm_request(
         "POST", f"/recipes/import/drafts/{draft_id}/commit",
         params={"overwrite": str(overwrite).lower()},
@@ -2395,8 +2244,6 @@ async def commit_import_draft(draft_id: int, overwrite: bool = False):
         result["ingest_error"] = str(exc)
     return result
 
-
-# ── Static files (must be last) ────────────────────────────────────
 
 WEB_DIR = Path(__file__).parent.parent / "web"
 if WEB_DIR.is_dir():

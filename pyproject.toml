@@ -28,3 +28,4 @@ select = ["F", "B"]
 
 [tool.pyright]
 reportCallIssue = "error"
+extraPaths = ["scripts"]
