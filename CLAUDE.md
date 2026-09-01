@@ -206,8 +206,7 @@ ce cas — il n'est apparu qu'à l'appel réel.
   acheté (`shopping_session.store` n'est rempli qu'après). Le modèle cible (tour borné,
   canal, réattribution, besoin résiduel) est dans `docs/conception/USE_CASES_COURSES.md` —
   le lire avant de toucher aux courses. Refs #67, #68
-- `_pantry_from_db()` remplace `_load_pantry()` — le différentiel courses lit désormais la DB, plus le Markdown
-- Pour le garde-manger, la **DB est la source de vérité** (pas le vault). Le vault est une source d'ingestion parmi d'autres (API, voix). Les items `source != 'vault'` survivent à la ré-ingestion
+- `_pantry_from_db()` remplace `_load_pantry()` — le différentiel courses lit la DB, source de vérité pour l'app (le vault n'est qu'une source d'ingestion parmi d'autres ; `source != 'vault'` survit à la ré-ingestion). ⚠️ **`Noyau/Cuisine/Garde-manger.md` est aussi lu/écrit par un système entièrement séparé** — le Coach Nutrition sur claude.ai, qui planifie les menus macro par macro et n'appelle jamais l'app ni sa DB. Les deux garde-manger ne sont **jamais synchronisés** et peuvent diverger sans alerte (constaté 2026-09-01 : 6 articles listés « ok » dans le vault n'existaient plus réellement)
 - `cooking_mcp.py` importe `from fastmcp import FastMCP` (pas `from mcp.server.fastmcp`) — seul le package `fastmcp` (v3.4+) expose `host`/`port`/`allowed_hosts` dans `run()`. Le package `mcp` v2 a un `FastMCP.run()` minimaliste
 - Tout MCP VPS derrière nginx avec `Host $host` doit passer `allowed_hosts=[<domaine>]` à `mcp.run()`, sinon Starlette retourne 421
 

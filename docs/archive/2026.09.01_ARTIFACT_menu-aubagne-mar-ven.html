@@ -1,0 +1,313 @@
+<title>Semaine Aubagne — mar-ven</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Domine:wght@500;700&family=Work+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap');
+
+  :root{
+    --ground:#f7f5ef; --surface:#ffffff; --surface-2:#fbfaf5;
+    --ink:#26241f; --ink-muted:#6b6759; --ink-faint:#9a9484;
+    --line:#ddd8c8; --line-soft:#eae6d9;
+    --accent:#5c6e4f; --accent-ink:#3f4d37; --accent-soft:#e4e9dc;
+    --amber:#a5652f; --amber-soft:#f2e2d1;
+    --ok:#4f7a4a; --warn:#b4713a;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --ground:#1c1b17; --surface:#242219; --surface-2:#211f18;
+      --ink:#efe9da; --ink-muted:#b3ac99; --ink-faint:#7d7768;
+      --line:#3a3628; --line-soft:#302c21;
+      --accent:#8fa87e; --accent-ink:#b7cba9; --accent-soft:#31392a;
+      --amber:#d69a63; --amber-soft:#3d2f22;
+      --ok:#87b17f; --warn:#d69a63;
+    }
+  }
+  :root[data-theme="dark"]{
+    --ground:#1c1b17; --surface:#242219; --surface-2:#211f18;
+    --ink:#efe9da; --ink-muted:#b3ac99; --ink-faint:#7d7768;
+    --line:#3a3628; --line-soft:#302c21;
+    --accent:#8fa87e; --accent-ink:#b7cba9; --accent-soft:#31392a;
+    --amber:#d69a63; --amber-soft:#3d2f22;
+    --ok:#87b17f; --warn:#d69a63;
+  }
+
+  *{box-sizing:border-box;}
+  body{
+    background:var(--ground); color:var(--ink);
+    font-family:'Work Sans', system-ui, sans-serif;
+    line-height:1.5; max-width:760px; margin:0 auto;
+    padding:2.5rem 1.25rem 5rem;
+  }
+  h1,h2,h3{font-family:'Domine', Georgia, serif; font-weight:700; text-wrap:balance; margin:0;}
+  .num{font-family:'IBM Plex Mono', ui-monospace, monospace; font-variant-numeric:tabular-nums;}
+
+  header.page{margin-bottom:1.75rem;}
+  .eyebrow{
+    font-size:.72rem; letter-spacing:.09em; text-transform:uppercase;
+    color:var(--ink-faint); font-weight:600; margin-bottom:.35rem;
+  }
+  h1{font-size:1.85rem; color:var(--ink);}
+  .subtitle{color:var(--ink-muted); margin-top:.4rem; font-size:.98rem;}
+
+  .grid-doctrine{
+    display:grid; grid-template-columns:1fr 1fr; gap:.75rem;
+    margin:1.5rem 0 2rem;
+  }
+  .doctrine-card{
+    background:var(--surface); border:1px solid var(--line-soft);
+    border-radius:6px; padding:.85rem 1rem;
+  }
+  .doctrine-card .tag{
+    display:inline-block; font-size:.68rem; letter-spacing:.06em; text-transform:uppercase;
+    font-weight:600; padding:.15rem .5rem; border-radius:3px; margin-bottom:.5rem;
+  }
+  .tag-cross{background:var(--accent-soft); color:var(--accent-ink);}
+  .tag-repos{background:var(--amber-soft); color:var(--warn);}
+  .doctrine-card dl{margin:0; font-size:.82rem; color:var(--ink-muted); display:grid; gap:.2rem;}
+  .doctrine-card dl b{color:var(--ink); font-weight:600;}
+
+  .batch{
+    background:var(--accent-soft); border-left:3px solid var(--accent);
+    border-radius:0 6px 6px 0; padding:1rem 1.1rem; margin:0 0 2.2rem;
+  }
+  .batch .eyebrow{color:var(--accent-ink);}
+  .batch ul{margin:.5rem 0 0; padding-left:1.1rem;}
+  .batch li{margin-bottom:.3rem;}
+
+  section.day{
+    border-top:1px solid var(--line); padding-top:1.4rem; margin-top:1.6rem;
+  }
+  .day-head{
+    display:flex; align-items:baseline; justify-content:space-between;
+    flex-wrap:wrap; gap:.4rem .8rem; margin-bottom:.2rem;
+  }
+  .day-head h2{font-size:1.35rem;}
+  .day-context{color:var(--ink-muted); font-size:.85rem; margin-bottom:1rem;}
+  .day-badge{
+    font-size:.68rem; letter-spacing:.06em; text-transform:uppercase; font-weight:600;
+    padding:.2rem .55rem; border-radius:3px; white-space:nowrap;
+  }
+
+  .meal{margin-bottom:1.1rem;}
+  .meal-head{
+    display:flex; justify-content:space-between; align-items:baseline;
+    gap:.6rem; margin-bottom:.3rem;
+  }
+  .meal-time{font-size:.78rem; color:var(--ink-faint); font-weight:600; letter-spacing:.03em;}
+  .meal-name{font-weight:600;}
+  .meal-desc{color:var(--ink-muted); font-size:.92rem; margin:.15rem 0 .45rem;}
+  .macro-row{
+    display:flex; gap:1.1rem; font-size:.86rem; color:var(--ink-muted);
+    background:var(--surface-2); border:1px solid var(--line-soft);
+    border-radius:5px; padding:.45rem .7rem; width:fit-content;
+  }
+  .macro-row b{color:var(--ink); font-weight:600;}
+  .estimate-flag{
+    display:inline-block; font-size:.72rem; color:var(--warn);
+    margin-left:.4rem; font-weight:500;
+  }
+
+  .day-total{
+    margin-top:.9rem; padding:.7rem .9rem;
+    background:var(--surface); border:1px solid var(--line); border-radius:6px;
+    font-size:.88rem;
+  }
+  .day-total .macro-row{background:transparent; border:none; padding:0; width:auto; margin-top:.3rem;}
+  .verdict{color:var(--ok); font-weight:600;}
+  .verdict.warn{color:var(--warn);}
+
+  .box{
+    background:var(--surface); border:1px solid var(--line-soft); border-radius:6px;
+    padding:1.1rem 1.2rem; margin-top:2rem;
+  }
+  .box h3{font-size:1.05rem; margin-bottom:.6rem;}
+  .box ul{margin:0; padding-left:1.15rem;}
+  .box li{margin-bottom:.4rem; color:var(--ink-muted); font-size:.92rem;}
+  .box li b{color:var(--ink);}
+
+  .notes{border-color:var(--amber-soft);}
+  .notes h3{color:var(--warn);}
+
+  footer{margin-top:2.5rem; font-size:.78rem; color:var(--ink-faint); text-align:center;}
+</style>
+
+<header class="page">
+  <div class="eyebrow">Coach Nutrition · Aubagne · foyer 2</div>
+  <h1>Semaine du 1ᵉʳ au 4 septembre</h1>
+  <p class="subtitle">Julien + Clémence. Régime R1 (Julien cuisine), sauf mercredi soir en R3 (restaurant). Suite &amp; clôture de la session claude.ai du 01/09 — soupes placées, sec du garde-manger poussé, vendredi complété.</p>
+</header>
+
+<div class="grid-doctrine">
+  <div class="doctrine-card">
+    <span class="tag tag-cross">Cross · mar / mer / jeu</span>
+    <dl>
+      <div><b>1700–1950 kcal</b></div>
+      <div>Protéines ≥ <b>160 g</b> (max 180)</div>
+      <div>Glucides ≥ <b>200 g</b> (max 220)</div>
+      <div>Lipides ≤ <b>65 g</b> (min 55)</div>
+    </dl>
+  </div>
+  <div class="doctrine-card">
+    <span class="tag tag-repos">Repos · vendredi</span>
+    <dl>
+      <div><b>1700–1900 kcal</b></div>
+      <div>Protéines ≥ <b>160 g</b> (max 180)</div>
+      <div>Glucides 90–115 g</div>
+      <div>Lipides 80–90 g</div>
+    </dl>
+  </div>
+</div>
+
+<div class="batch">
+  <div class="eyebrow">🔴 À lancer mardi, avant/pendant le ménage (18h–20h)</div>
+  <ul>
+    <li><b>3 patates douces</b> en dés, four 200°C, 35 min — c'est tout ce qui reste, réservées à Julien seul (2 portions de 200 g, mer + jeu midi).</li>
+    <li><b>300 g de lentilles vertes</b> sèches à l'eau, 25 min — ~4 portions de 200 g, couvre Julien et Clémence mercredi midi.</li>
+  </ul>
+</div>
+
+<section class="day">
+  <div class="day-head">
+    <h2>Mardi 1ᵉʳ</h2>
+    <span class="day-badge tag-cross">Cross</span>
+  </div>
+  <div class="day-context">Ménage 18h–20h. Dîner seul à planifier (petit-déj et déjeuner déjà pris).</div>
+
+  <div class="meal">
+    <div class="meal-head">
+      <span class="meal-time">DÎNER · ~20h15</span>
+      <span class="meal-name">Curry coco de saumon, lentilles corail &amp; épinards</span>
+    </div>
+    <p class="meal-desc">Une seule casserole. Oignon + ail 3 min → pâte de curry doux 1 min → lentilles corail 160 g + eau 500 ml + lait de coco 120 ml, 15 min → épinards surgelés 200 g, 3 min → pavés de saumon posés dessus, couvert, 8 min → citron au moment de servir. <span class="estimate-flag">pas de gingembre en stock — retiré, la pâte de curry porte la saveur.</span></p>
+    <div class="macro-row"><span><b>701</b> kcal</span><span>P <b>54</b> g</span><span>G <b>47</b> g</span><span>L <b>27</b> g</span></div>
+  </div>
+
+  <div class="meal">
+    <div class="meal-head"><span class="meal-name">Dessert Clémence</span></div>
+    <p class="meal-desc">1 portion au choix dans le stock desserts tout faits (libre-service, voir encadré plus bas).</p>
+  </div>
+</section>
+
+<section class="day">
+  <div class="day-head">
+    <h2>Mercredi 2</h2>
+    <span class="day-badge tag-cross">Cross</span>
+  </div>
+  <div class="day-context">Cross 10h15 · atelier kokedama 17h30 · dîner Marseille 19h–22h (R3, aucune règle de construction).</div>
+
+  <div class="meal">
+    <div class="meal-head"><span class="meal-time">7H30</span><span class="meal-name">Flocons d'avoine + whey + banane + chia</span></div>
+    <p class="meal-desc">Avoine 80 g + 1 scoop whey + banane + graines de chia 15 g + cannelle.</p>
+    <div class="macro-row"><span><b>551</b> kcal</span><span>P <b>39</b> g</span><span>G <b>62</b> g</span><span>L <b>13</b> g</span></div>
+  </div>
+
+  <div class="meal">
+    <div class="meal-head"><span class="meal-time">MIDI · 13H, POST-CROSS</span><span class="meal-name">Starter — soupe Danival Pois Cassés (2 sachets)</span></div>
+    <p class="meal-desc">Les deux sachets restants, partagés en entrée (250 ml/personne) avant la salade — vide ce rayon du garde-manger. <span class="estimate-flag">74→370 kcal/sachet corrigé : le kcal en fiche était par 100 ml, pas par sachet entier.</span></p>
+    <div class="macro-row"><span><b>335</b> kcal</span><span>P <b>17,5</b> g</span><span>G <b>50</b> g</span><span>L <b>7,5</b> g</span></div>
+  </div>
+
+  <div class="meal">
+    <div class="meal-head"><span class="meal-name">Salade lentilles-patate douce, thon &amp; poivrons</span></div>
+    <p class="meal-desc"><b>Julien</b> : lentilles batch 200 g + patate douce batch 200 g + thon listao 100 g + trio de poivrons 150 g + 1 c.s. huile d'olive + balsamique. <b>Clémence</b> : lentilles batch + petits pois extra-fins à la place de la patate douce, même thon, mêmes poivrons. <span class="estimate-flag">Pas un choix de goût — le batch (3 patates douces ≈ 500 g) ne couvre que 2 portions de 200 g, réservées à Julien sur mer + jeu ; il n'y en a pas assez pour vous deux. Si tu préfères lui en laisser une part, réduis la tienne d'autant.</span></p>
+    <div class="macro-row"><span><b>590</b> kcal</span><span>P <b>47</b> g</span><span>G <b>75</b> g</span><span>L <b>12</b> g</span></div>
+  </div>
+
+  <div class="meal">
+    <div class="meal-head"><span class="meal-time">17H, AVANT DE PARTIR</span><span class="meal-name">Fromage blanc + whey</span></div>
+    <p class="meal-desc">Fromage blanc entier 250 g + 1 scoop whey. <span class="estimate-flag">⚠️ dépend de la livraison Auchan Drive de ce matin — c'est la ligne qui comble le trou laitier.</span></p>
+    <div class="macro-row"><span><b>300</b> kcal</span><span>P <b>50</b> g</span><span>G <b>10</b> g</span><span>L <b>10</b> g</span></div>
+  </div>
+
+  <div class="day-total">
+    Cumul avant le resto : <span class="num"><b>1776</b> kcal · P <b>154</b> · G <b>197</b> · L <b>43</b></span>
+    — <span class="verdict">confortablement au-dessus de la fenêtre 130–140 g P exigée avant un dîner avec alcool</span> (le starter de soupe y contribue). Ne pas sauter la collation de 17h.
+  </div>
+</section>
+
+<section class="day">
+  <div class="day-head">
+    <h2>Jeudi 3</h2>
+    <span class="day-badge tag-cross">Cross</span>
+  </div>
+  <div class="day-context">Cross 7h45 · CRM 10h–13h · slides 15h–18h.</div>
+
+  <div class="meal">
+    <div class="meal-head"><span class="meal-time">7H</span><span class="meal-name">Avoine + whey + banane + purée d'amande + chia</span></div>
+    <div class="macro-row"><span><b>668</b> kcal</span><span>P <b>42</b> g</span><span>G <b>72</b> g</span><span>L <b>22</b> g</span></div>
+  </div>
+
+  <div class="meal">
+    <div class="meal-head"><span class="meal-time">9H30, POST-SÉANCE</span><span class="meal-name">Fromage blanc + whey</span></div>
+    <p class="meal-desc">Fromage blanc entier 200 g + 1 scoop whey.</p>
+    <div class="macro-row"><span><b>275</b> kcal</span><span>P <b>40</b> g</span><span>G <b>8</b> g</span><span>L <b>8</b> g</span></div>
+  </div>
+
+  <div class="meal">
+    <div class="meal-head"><span class="meal-time">MIDI · 13H</span><span class="meal-name">Bowl patate douce, pois chiches &amp; thon</span></div>
+    <p class="meal-desc"><b>Julien</b> : dernière portion patate douce batch 200 g + pois chiches 150 g + thon listao 100 g + batavia + 1 c.s. huile d'olive. <b>Clémence</b> : petits pois extra-fins à la place de la patate douce (batch épuisé).</p>
+    <div class="macro-row"><span><b>625</b> kcal</span><span>P <b>51</b> g</span><span>G <b>73</b> g</span><span>L <b>5</b> g</span><span class="estimate-flag">dérivé par différence du cumul jour</span></div>
+  </div>
+
+  <div class="meal">
+    <div class="meal-head"><span class="meal-time">~19H, SORT DE 3H DE SLIDES</span><span class="meal-name">Saumon mijoté à la tomate + lentilles corail</span></div>
+    <p class="meal-desc">Saumon 110 g + lentilles corail 70 g sec + sauce tomate cuisinée (bocal du 01/09) 60 g + poêlée méditerranéenne surgelée 200 g. <span class="estimate-flag">Le lieu noir prévu n'est pas en stock — remplacé par du saumon, la seule protéine confirmée cette semaine. Portion réduite par rapport à mardi/vendredi pour répartir le stock (~2 pavés + 1 paquet neuf sur 3 repas).</span></p>
+    <div class="macro-row"><span><b>580</b> kcal</span><span>P <b>47</b> g</span><span>G <b>55</b> g</span><span>L <b>18</b> g</span></div>
+  </div>
+
+  <div class="day-total">
+    Cumul jeudi : <span class="num"><b>2148</b> kcal · P <b>180</b> · G <b>208</b> · L <b>53</b></span>
+    — <span class="verdict warn">planchers P et G tenus, ~200 kcal au-dessus du plafond nominal.</span> Assumé : entre rater deux planchers et dépasser légèrement un jour d'entraînement à trois créneaux, le choix est clair.
+  </div>
+</section>
+
+<section class="day">
+  <div class="day-head">
+    <h2>Vendredi 4</h2>
+    <span class="day-badge tag-repos">Repos</span>
+  </div>
+  <div class="day-context">Pas de sport. Objectif du jour : vider le sec au maximum et placer la dernière soupe.</div>
+
+  <div class="meal">
+    <div class="meal-head"><span class="meal-time">PETIT-DÉJEUNER</span><span class="meal-name">Fromage blanc + whey ×2 + pomme + amandes + chia</span></div>
+    <div class="macro-row"><span><b>700</b> kcal</span><span>P <b>76</b> g</span><span>G <b>32</b> g</span><span>L <b>26</b> g</span></div>
+  </div>
+
+  <div class="meal">
+    <div class="meal-head"><span class="meal-time">MIDI</span><span class="meal-name">Demi-sachet soupe Danival Patate Douce &amp; Gingembre + wrap thon-houmous</span></div>
+    <p class="meal-desc">250 ml de soupe (l'autre moitié se garde 2 jours au frigo), puis 1 tortilla de blé (60 g, vide le paquet sec) garnie de thon listao 130 g + houmous extra pois chiches 40 g + crudités + un filet d'huile d'olive. <span class="estimate-flag">Soupe corrigée : 74 kcal était par 100 ml, pas par sachet — un sachet entier aurait pesé 370 kcal, trop pour laisser de la place au dîner. Tortilla/houmous restent estimés (générique, pas en base).</span></p>
+    <div class="macro-row"><span><b>690</b> kcal</span><span>P <b>45</b> g</span><span>G <b>58</b> g</span><span>L <b>30</b> g</span></div>
+  </div>
+
+  <div class="meal">
+    <div class="meal-head"><span class="meal-time">DÎNER</span><span class="meal-name">Saumon grillé &amp; asperges vertes</span></div>
+    <p class="meal-desc">Saumon 150 g + asperges vertes (bocal) 200 g + 1,5 c.s. huile d'olive + citron. <span class="estimate-flag">Les gésiers confits et le Saint Môret prévus ne sont pas en stock (fiches fausses, corrigées) — troisième et dernier repas saumon de la semaine, c'est ce qui reste de protéine confirmée. Vérifier le stock réel de pavés avant de lancer, la quantité totale disponible est incertaine (voir garde-manger).</span></p>
+    <div class="macro-row"><span><b>475</b> kcal</span><span>P <b>36</b> g</span><span>G <b>3</b> g</span><span>L <b>35</b> g</span></div>
+  </div>
+
+  <div class="day-total">
+    Cumul vendredi : <span class="num"><b>1865</b> kcal · P <b>157</b> · G <b>93</b> · L <b>90</b></span>
+    — <span class="verdict">kcal, G et L dans la grille Repos ; P à 3 g du plancher 160</span> (une poignée d'amandes en plus au petit-déj referme l'écart).
+  </div>
+</section>
+
+<div class="box">
+  <h3>🍫 Desserts Clémence — stock tout fait, libre-service</h3>
+  <ul>
+    <li><b>Danette crème dessert chocolat</b> ×2 lots.</li>
+    <li><b>Bonne Maman mousse au chocolat</b> 4×50 g.</li>
+    <li><b>Mousse liégeoise au chocolat (Auchan)</b> ×2 lots.</li>
+  </ul>
+  <p style="margin:.7rem 0 0; color:var(--ink-muted); font-size:.9rem;">Crème brûlée retirée du panier — Clémence n'aime pas ça (Titouan oui, mais pas concerné cette semaine, foyer à 2). Elle se sert comme elle veut sur le reste, aucun arbitrage ni cuisine de ta part.</p>
+</div>
+
+<div class="box notes">
+  <h3>⚠️ À vérifier / non bouclé</h3>
+  <ul>
+    <li><b>Le garde-manger vault avait 6 postes faux</b>, corrigés le 01/09 après relecture de Julien : gingembre, thon (3 boîtes), trio de poivrons surgelé, lieu noir, gésiers confits et « saint-maure » (en réalité Saint Môret) étaient listés « ok » mais absents réellement. Thon, saumon et poivrons ajoutés au panier Auchan Drive (60,41 €, non validé) pour combler. La quantité réelle de pavés de saumon restants est incertaine — marquée « à recompter » dans le fichier.</li>
+    <li><b>Kcal des soupes Danival vérifié en ligne</b> (OpenFoodFacts + Fatsecret, 01/09) : 74 kcal/100g (patate douce-gingembre) et 67 kcal/100g (pois cassés) sont bien <i>par 100 g/ml</i>, pas par sachet — un sachet entier de 50 cl pèse donc ~370 kcal et ~335 kcal. Menu recalculé en conséquence.</li>
+    <li><b>Deux systèmes de garde-manger distincts</b> : ce fichier (vault, lu par le Coach Nutrition claude.ai) n'est jamais synchronisé avec la base <code>pantry_item</code> de l'app Cooking Manager 2 — les deux peuvent diverger sans alerte. Non vérifié ici (API app en 401, pas de session montée).</li>
+    <li><b>Tortilla de blé et houmous du 04/09</b> : aucune fiche vérifiée en base — macros estimées génériques (±10-15%).</li>
+    <li><b>Sec pas totalement vidé</b> : millet, polenta, pâtes (~100 g), riz de cuisson Lustucru, petit épeautre-lentilles (Graines de Sens) et pignons de pin Carrefour restent en petites quantités — trop faibles pour s'intégrer proprement dans les portions macro de cette semaine. Bons candidats pour un risotto-mix la semaine prochaine.</li>
+  </ul>
+</div>
+
+<footer>Coach Nutrition × Cooking Manager 2 — session claude.ai du 01/09/2026, close le 01/09/2026.</footer>
