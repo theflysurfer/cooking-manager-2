@@ -465,6 +465,13 @@ def detect_context(
     return RecipeContext(cuisines=cuisines, cooking_methods=methods)
 
 
+def rule_applies(rule: SubstitutionRule, context: RecipeContext) -> bool:
+    """Une règle qui déclare des cuisines ne vaut QUE dans ces cuisines, si le plat en nomme une."""
+    if not rule.cuisines or not context.cuisines:
+        return True
+    return any(cuisine in context.cuisines for cuisine in rule.cuisines)
+
+
 def score_rule(rule: SubstitutionRule, context: RecipeContext) -> int:
     """Priorité de base, plus un bonus par dimension de contexte effectivement appariée."""
     score = rule.priority
@@ -488,11 +495,10 @@ def find_substitution(
         return None
     resolved = context or RecipeContext()
     haystack = fold(protein)
-    candidates = [
-        rule for rule in rules if _SOURCE_PATTERNS[rule.source].search(haystack)
-    ]
-    if not candidates:
+    named = [rule for rule in rules if _SOURCE_PATTERNS[rule.source].search(haystack)]
+    if not named:
         return None
+    candidates = [rule for rule in named if rule_applies(rule, resolved)] or named
     best = max(candidates, key=lambda rule: score_rule(rule, resolved))
     return Substitution(
         source=best.source,

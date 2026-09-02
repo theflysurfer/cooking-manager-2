@@ -11,6 +11,7 @@ from cooking_manager.substitutions import (
     detect_context,
     has_anchored_stew,
     is_accommodation_step,
+    rule_applies,
     diets_at_table,
     find_substitution,
     repair_ingredients,
@@ -255,3 +256,34 @@ def test_le_mafe_est_repare_en_cabillaud_pas_en_dorade():
     substitution = find_substitution("1,2 kg cuisses de poulet", context)
     assert substitution is not None
     assert substitution.target == "cabillaud"
+
+
+def test_une_regle_de_cuisine_ne_deborde_pas_sur_une_autre_cuisine():
+    ouest_africaine = next(
+        r for r in PESCETARIAN_RULES if r.cuisines == ("west_african",) and r.target == "cabillaud"
+    )
+    assert rule_applies(ouest_africaine, RecipeContext(cuisines=("west_african",)))
+    assert not rule_applies(ouest_africaine, RecipeContext(cuisines=("french", "italian")))
+
+
+def test_une_regle_sans_cuisine_declaree_vaut_partout():
+    universelle = next(r for r in PESCETARIAN_RULES if not r.cuisines)
+    assert rule_applies(universelle, RecipeContext(cuisines=("french",)))
+    assert rule_applies(universelle, RecipeContext())
+
+
+def test_un_plat_sans_cuisine_detectee_ne_perd_aucune_regle():
+    ouest_africaine = next(r for r in PESCETARIAN_RULES if r.cuisines == ("west_african",))
+    assert rule_applies(ouest_africaine, RecipeContext())
+
+
+def test_le_mafe_ne_deteint_pas_sur_un_poulet_en_cocotte_francais():
+    context = detect_context(
+        "Cocotte de poulet mijoté de ma grand-mère",
+        ingredients=("1 poulet", "20 cl de vin blanc", "beurre", "crème fraîche"),
+        steps=("Faire revenir les morceaux de poulet avec le beurre dans une cocotte.",),
+    )
+    assert "west_african" not in context.cuisines
+    substitution = find_substitution("1 poulet fermier", context)
+    assert substitution is not None
+    assert "mafé" not in substitution.reason
