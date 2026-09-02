@@ -25,6 +25,28 @@ def test_detect_context_croise_titre_et_ingredients():
     assert "stew" in context.cooking_methods
 
 
+def test_un_mot_cle_ne_matche_pas_a_l_interieur_d_un_autre_mot():
+    citronnelle = detect_context("Poulet grillé à la citronnelle")
+    assert "mediterranean" not in citronnelle.cuisines
+    cocotte = detect_context("Poulet en cocotte au vin blanc")
+    assert "asian" not in cocotte.cuisines
+    assert "french" in cocotte.cuisines
+
+
+def test_la_flexion_du_mot_reste_toleree():
+    assert "grilled" in detect_context("Brochettes grillées").cooking_methods
+    assert "stew" in detect_context("Laisser mijoter 20 min").cooking_methods
+    assert "mediterranean" in detect_context("Poulet au citron confit").cuisines
+
+
+def test_la_collision_de_sous_chaine_changeait_le_substitut():
+    result = find_substitution(
+        "poulet", detect_context("Brochettes de poulet grillées à la citronnelle")
+    )
+    assert result is not None
+    assert result.target == "thon"
+
+
 def test_meme_proteine_cuisson_differente_substitut_different():
     grille = find_substitution("poulet", detect_context("Poulet grillé au barbecue"))
     pane = find_substitution(

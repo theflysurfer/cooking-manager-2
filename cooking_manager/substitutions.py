@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import unicodedata
 from dataclasses import dataclass
 
@@ -367,6 +368,22 @@ def fold(text: str) -> str:
     return "".join(char for char in decomposed if unicodedata.category(char) != "Mn")
 
 
+def keyword_pattern(keyword: str) -> re.Pattern[str]:
+    """Le mot-clé en mot entier, deux lettres de flexion tolérées, pas davantage."""
+    return re.compile(rf"(?<!\w){re.escape(fold(keyword))}\w{{0,2}}(?!\w)")
+
+
+_CUISINE_PATTERNS: dict[str, tuple[re.Pattern[str], ...]] = {
+    cuisine: tuple(keyword_pattern(keyword) for keyword in keywords)
+    for cuisine, keywords in CUISINE_KEYWORDS.items()
+}
+
+_COOKING_METHOD_PATTERNS: dict[str, tuple[re.Pattern[str], ...]] = {
+    method: tuple(keyword_pattern(keyword) for keyword in keywords)
+    for method, keywords in COOKING_METHOD_KEYWORDS.items()
+}
+
+
 def detect_context(
     name: str,
     description: str = "",
@@ -377,13 +394,13 @@ def detect_context(
     haystack = fold(" ".join((name, description, *ingredients, *steps)))
     cuisines = tuple(
         cuisine
-        for cuisine, keywords in CUISINE_KEYWORDS.items()
-        if any(fold(keyword) in haystack for keyword in keywords)
+        for cuisine, patterns in _CUISINE_PATTERNS.items()
+        if any(pattern.search(haystack) for pattern in patterns)
     )
     methods = tuple(
         method
-        for method, keywords in COOKING_METHOD_KEYWORDS.items()
-        if any(fold(keyword) in haystack for keyword in keywords)
+        for method, patterns in _COOKING_METHOD_PATTERNS.items()
+        if any(pattern.search(haystack) for pattern in patterns)
     )
     return RecipeContext(cuisines=cuisines, cooking_methods=methods)
 

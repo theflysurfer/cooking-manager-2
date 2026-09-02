@@ -47,6 +47,25 @@ Les cinq tables manquantes ont été ajoutées, et un test vérifie désormais q
 citée par une règle existe dans les tables de détection**. C'est ce test qui a trouvé le défaut, à sa
 première exécution.
 
+**Second défaut, plus coûteux : la détection comparait en sous-chaînes.** La v1 utilise
+`textToAnalyze.includes(keyword)`, donc un mot-clé matche à l'intérieur d'un autre mot :
+
+| Mot-clé | Matchait aussi | Effet |
+|---|---|---|
+| `citron` (mediterranean) | **citron**nelle | toute recette à la citronnelle taguée méditerranéenne |
+| `coco` (asian) | **coco**tte | tout mijoté en cocotte tagué asiatique |
+| `cru` (raw) | **cru**dités | des crudités prises pour une préparation crue |
+
+Ce n'était pas théorique : *« Brochettes de poulet grillées à la citronnelle »* rendait **dorade**
+(règle méditerranéenne, 90 + 20 + 40 = 150) au lieu de **thon** (95 + 40 = 135). Un plat d'Asie du
+Sud-Est se voyait proposer un poisson méditerranéen, à cause de six lettres.
+
+La comparaison passe en **mots entiers**, avec deux lettres de flexion tolérées
+(`(?<!\w)mot\w{0,2}(?!\w)`) — assez pour que « grillé » attrape « grillées » et « mijoté » attrape
+« mijoter », trop peu pour que « citron » attrape « citronnelle ». C'est la discipline que
+`convives.py` applique déjà dans ce dépôt, après qu'un « lard » manquant y ait laissé passer des
+recettes au lard fumé.
+
 ## Ce qui est hérité et assumé tel quel
 
 Sans aucun contexte détecté, le score se réduit à la priorité de base, et `poulet` rend **colin** —
