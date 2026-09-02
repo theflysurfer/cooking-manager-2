@@ -1,5 +1,5 @@
 {
-  "version": "0.1.0",
+  "version": "0.2.0",
   "slug": "cooking-vocabulary",
   "origin": "Extrait du moteur de substitutions porté de cooking-manager v1 (server/src/services/intelligentSubstitutions.ts) et mesuré en production dans cooking-manager-2 le 2026-09-02. Voir cooking-manager-2 ADR 0001.",
   "cooking_methods": [
@@ -399,9 +399,17 @@
     {
       "key": "west_african",
       "label": "Ouest-africaine",
-      "status": "probation",
+      "status": "active",
       "definition": "",
-      "synonyms": [],
+      "synonyms": [
+        "mafé",
+        "mafe",
+        "pâte d'arachide",
+        "huile d'arachide",
+        "yassa",
+        "thiéboudienne",
+        "sénégalais"
+      ],
       "applicable_when": ""
     }
   ],
@@ -441,9 +449,17 @@
   ],
   "accommodations": [
     {
+      "key": "self_service",
+      "label": "Libre-service",
+      "status": "active",
+      "definition": "L'ingrédient litigieux est servi à part, chacun se sert ; le convive arbitre, pas la recette.",
+      "synonyms": [],
+      "applicable_when": "L'ingrédient est ajoutable après coup sans recuisson — crudité, condiment, garniture."
+    },
+    {
       "key": "full_substitution",
       "label": "Substitution totale",
-      "status": "probation",
+      "status": "active",
       "definition": "L'ingrédient est remplacé pour tout le monde ; le plat change.",
       "synonyms": [],
       "applicable_when": "L'ingrédient est fondu dans la préparation — haché, mariné, mijoté dans la base, réduit en sauce."

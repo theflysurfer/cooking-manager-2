@@ -9,6 +9,8 @@ from cooking_manager.substitutions import (
     RecipeContext,
     concept_keys,
     detect_context,
+    has_anchored_stew,
+    is_accommodation_step,
     diets_at_table,
     find_substitution,
     repair_ingredients,
@@ -185,4 +187,71 @@ def test_toute_cle_citee_est_detectable():
 
 
 def test_le_vocabulaire_est_epingle():
-    assert VOCABULARY_VERSION == "0.1.0"
+    assert VOCABULARY_VERSION == "0.2.0"
+
+
+MAFE_POULET_STEPS = (
+    "Faire revenir les oignons dans l'huile 5 min. Ajouter l'ail, le concentré de tomate, cuire 2 min.",
+    "Ajouter les patates douces et les aubergines. Couvrir, cuire 15 min à feu moyen.",
+    "Poser les morceaux de poulet sur les légumes, couvrir. Cuire 12-15 min jusqu'à ce que le poulet soit cuit à coeur.",
+    "Dans une petite poêle, saisir les crevettes 2-3 min de chaque côté. Les ajouter dans la part de Clémence au service.",
+    "Cuire le riz à part. Servir le mafé sur un lit de riz.",
+)
+
+
+def test_le_mijote_sans_le_mot_est_detecte():
+    assert has_anchored_stew(MAFE_POULET_STEPS)
+
+
+def test_cuire_un_feculent_a_l_eau_bouillante_n_est_pas_un_mijote():
+    assert not has_anchored_stew(
+        (
+            "Cuire le couscous perlé 10 min à l'eau bouillante salée, égoutter.",
+            "Cuire les pommes de terre 20 min à l'eau bouillante salée.",
+            "Cuire les lentilles 20 min à l'eau frémissante non salée.",
+        )
+    )
+
+
+def test_une_etape_qui_sert_un_convive_nomme_est_une_accommodation():
+    assert is_accommodation_step(MAFE_POULET_STEPS[3], ("Clémence",))
+
+
+def test_un_prenom_ne_matche_pas_un_mot_qui_le_contient():
+    assert not is_accommodation_step(
+        "Râper les carottes en julienne.", ("Julien",)
+    )
+
+
+def test_le_libre_service_est_une_accommodation_sans_nom():
+    assert is_accommodation_step("Disposer câpres et cornichons en libre-service.")
+    assert is_accommodation_step("Laisser chacun garnir la sienne : thon, poivron.")
+
+
+def test_cuire_a_part_n_est_pas_une_accommodation():
+    assert not is_accommodation_step("Sauter les crevettes 3 min à part.", ("Clémence",))
+    assert not is_accommodation_step("Cuire le riz à part.", ("Clémence",))
+
+
+def test_l_etape_de_garniture_ne_pilote_plus_le_plat():
+    context = detect_context(
+        "Mafé au poulet",
+        ingredients=("1,2 kg cuisses de poulet", "300 g crevettes décortiquées"),
+        steps=MAFE_POULET_STEPS,
+        convives=("Clémence",),
+    )
+    assert "stew" in context.cooking_methods
+    assert "pan-seared" not in context.cooking_methods
+
+
+def test_le_mafe_est_repare_en_cabillaud_pas_en_dorade():
+    context = detect_context(
+        "Mafé au poulet",
+        ingredients=("1,2 kg cuisses de poulet", "350 g pâte d'arachide"),
+        steps=MAFE_POULET_STEPS,
+        convives=("Clémence",),
+    )
+    assert "west_african" in context.cuisines
+    substitution = find_substitution("1,2 kg cuisses de poulet", context)
+    assert substitution is not None
+    assert substitution.target == "cabillaud"

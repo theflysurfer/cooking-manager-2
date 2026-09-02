@@ -1,4 +1,4 @@
-version: "0.1.0"
+version: "0.2.0"
 slug: cooking-vocabulary
 kind: cooking
 origin: >-
@@ -20,12 +20,12 @@ origin: >-
 # sont toutes : elles reposent sur UNE recette (mafe-poulet, qui prépare une part
 # de crevettes pour Clémence). Une recette n'est pas un corpus.
 #
-# ⚠️ CE QUE CE VOCABULAIRE NE RÉSOUT PAS. La détection d'un mijoté décrit sans
-# le mot — « Poser le poulet sur les légumes, couvrir. Cuire 12-15 min » — ne se
-# règle PAS en ajoutant « couvrir » aux synonymes : presque toute recette
-# contient un « couvrir » quelque part, et le terme sur-déclencherait. Il faut
-# une détection ancrée sur les étapes qui nomment l'ingrédient, plus une
-# conjonction (couvrir ET durée). C'est du code, pas du vocabulaire.
+# ⚠️ CE QUE CE VOCABULAIRE NE RÉSOUT PAS — et qui est passé en code le
+# 2026-09-02. La détection d'un mijoté décrit sans le mot ne se règle PAS en
+# ajoutant « couvrir » aux synonymes. Mesuré sur les 28 recettes du corpus :
+# « milieu liquide + durée » remonte 8 faux positifs (couscous, quinoa, pommes
+# de terre à l'eau bouillante). Il faut un TROISIÈME terme — l'étape doit nommer
+# la protéine à remplacer. C'est `has_anchored_stew()` dans substitutions.py.
 
 cooking_methods:
   - key: stew
@@ -155,14 +155,16 @@ cuisines:
     label: "Moyen-orientale"
     status: active
     synonyms: ["tahini", "cumin", "sumac", "grenade", "menthe"]
-  # ⚠️ En probation SANS synonymes : mesuré le 2026-09-02, aucune règle de
-  # substitution ne cite cette cuisine. Lui donner des synonymes maintenant
-  # produirait un tag détecté que rien ne consomme — le défaut symétrique des
-  # cinq cuisines qui étaient citées sans être détectables.
+  # Sortie de probation le 2026-09-02 par le corpus annoté
+  # (docs/conception/CORPUS_ACCOMMODATIONS.md) : deux recettes du vault sont
+  # ouest-africaines (`mafe-poulet`, `mafe-poisson-legumes`) et partagent un
+  # vocabulaire net. Les synonymes et les règles qui les consomment sont posés
+  # dans le MÊME geste — un tag détecté que rien ne lit serait le défaut
+  # symétrique des cinq cuisines citées sans être détectables.
   - key: west_african
     label: "Ouest-africaine"
-    status: probation
-    synonyms: []
+    status: active
+    synonyms: ["mafé", "mafe", "pâte d'arachide", "huile d'arachide", "yassa", "thiéboudienne", "sénégalais"]
 
 textures:
   - key: firm
@@ -185,24 +187,46 @@ textures:
 # ============================================================================
 # TECHNIQUES D'ACCOMMODATION — comment un plat sert un convive incompatible
 # ============================================================================
-# TOUTES en probation : observées sur UNE recette (mafe-poulet, dont le titre
-# annonce « + part crevettes pour Clémence » et dont la dernière étape dit
-# « les ajouter dans la part de Clémence au service »). Un cas n'est pas une
-# mesure. Passeront `active` quand un corpus de recettes du vault aura été
-# annoté et que le partage réel entre les trois techniques sera compté.
+# Le corpus annoté du 2026-09-02 (docs/conception/CORPUS_ACCOMMODATIONS.md) a
+# remplacé l'unique observation `mafe-poulet` par 8 observations ancrées sur les
+# 28 recettes de famille « servie à une tablée ». Chaque statut ci-dessous porte
+# son compte. La mesure a produit deux surprises :
+#   - `self_service` n'existait pas et c'est la technique LA PLUS pratiquée ;
+#   - `separate_dish` existait et n'a AUCUNE observation.
+#
+# ⚠️ Le marqueur de détection n'est pas « à part » — quatre recettes disent
+# « à part » pour parler de cuisson ou de dressage. C'est la présence d'un NOM
+# DE CONVIVE ou d'un marqueur collectif (« libre-service », « chacun ») dans la
+# même phrase qui fait l'accommodation.
 accommodations:
+  - key: self_service
+    label: "Libre-service"
+    status: active
+    definition: "L'ingrédient litigieux est servi à part, chacun se sert ; le convive arbitre, pas la recette."
+    applicable_when: "L'ingrédient est ajoutable après coup sans recuisson — crudité, condiment, garniture."
+    observed_in: ["salade-vietnamienne", "sandwiches-rillettes-thon", "sandwiches-saumon-fume-saint-moret", "tortilla-pizza-atelier"]
   - key: full_substitution
     label: "Substitution totale"
-    status: probation
+    status: active
     definition: "L'ingrédient est remplacé pour tout le monde ; le plat change."
     applicable_when: "L'ingrédient est fondu dans la préparation — haché, mariné, mijoté dans la base, réduit en sauce."
+    observed_in: ["mafe-poisson-legumes", "salade-lentilles-froides-graines-courge", "tagliatelles-carbonara-vege"]
+  # ⚠️ Deux des trois observations de `full_substitution` sont matérialisées par
+  # une FICHE JUMELLE (mafe-poulet / mafe-poisson-legumes : étapes 1-5 identiques,
+  # protéine remplacée), pas par une règle appliquée à la volée. Une réparation
+  # devrait chercher la fiche jumelle avant de recomposer une substitution.
   - key: separate_portion
     label: "Part séparée"
     status: probation
     definition: "Le plat est cuisiné tel quel ; une part reçoit un ingrédient différent au service."
     applicable_when: "L'ingrédient est ajouté tard — posé sur le plat, saisi à part, incorporé au service."
+    observed_in: ["mafe-poulet"]
+  # Reste en probation : UNE observation. Le corpus l'a confirmée sans l'élargir.
   - key: separate_dish
     label: "Plat séparé"
     status: probation
     definition: "Un plat distinct est préparé pour le convive incompatible."
     applicable_when: "Ni la substitution ni la part séparée ne tiennent — le plat est indissociable de son ingrédient."
+    observed_in: []
+  # ZÉRO observation sur 28 recettes. Conservée — l'absence dans ce corpus n'est
+  # pas une preuve d'impossibilité — mais elle ne pèse pas comme les autres.

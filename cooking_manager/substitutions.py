@@ -6,6 +6,7 @@ import json
 import re
 import unicodedata
 from collections.abc import Sequence
+from functools import lru_cache
 from dataclasses import dataclass
 from importlib.resources import files
 
@@ -55,6 +56,20 @@ class SubstitutionRule:
 
 
 PESCETARIAN_RULES: tuple[SubstitutionRule, ...] = (
+    SubstitutionRule(
+        source="poulet", target="cabillaud",
+        cuisines=("west_african",),
+        cooking_methods=("stew",), texture="firm", budget="medium",
+        reason="Le mafé du foyer se fait déjà au cabillaud en gros morceaux, posé sur les légumes en fin de cuisson",
+        priority=97,
+    ),
+    SubstitutionRule(
+        source="poulet", target="lieu noir",
+        cuisines=("west_african",),
+        cooking_methods=("stew",), texture="firm", budget="low",
+        reason="Alternative au cabillaud citée par la même fiche, tient dans la sauce arachide",
+        priority=94,
+    ),
     SubstitutionRule(
         source="poulet", target="cabillaud",
         cuisines=("asian", "thai", "chinese", "vietnamese"),
@@ -387,14 +402,54 @@ _SOURCE_PATTERNS: dict[str, re.Pattern[str]] = {
 }
 
 
+ACCOMMODATION_MARKERS: tuple[str, ...] = ("libre-service", "libre service", "chacun")
+
+_LIQUID_COOKING_PATTERN = re.compile(
+    r"(?<!de)couvr|(?<!de)couvert|mijot|petits bouillons|pocher|fremiss"
+)
+
+_DURATION_PATTERN = re.compile(r"\d+\s*(?:-\s*\d+\s*)?min")
+
+
+@lru_cache(maxsize=None)
+def name_pattern(name: str) -> re.Pattern[str]:
+    """Un prénom en mot entier STRICT — « Julien » ne doit pas matcher « julienne »."""
+    return re.compile(rf"(?<!\w){re.escape(fold(name))}(?!\w)")
+
+
+def is_accommodation_step(text: str, convives: Sequence[str] = ()) -> bool:
+    """Une étape qui sert un convive nommé ou laisse chacun se servir ne décrit pas le plat."""
+    folded = fold(text)
+    if any(marker in folded for marker in ACCOMMODATION_MARKERS):
+        return True
+    return any(name_pattern(name).search(folded) for name in convives if name)
+
+
+def has_anchored_stew(steps: Sequence[str]) -> bool:
+    """Mijoté décrit sans le mot : milieu liquide ET durée ET protéine à remplacer nommée."""
+    for step in steps:
+        folded = fold(step)
+        if not _LIQUID_COOKING_PATTERN.search(folded):
+            continue
+        if not _DURATION_PATTERN.search(folded):
+            continue
+        if any(pattern.search(folded) for pattern in _SOURCE_PATTERNS.values()):
+            return True
+    return False
+
+
 def detect_context(
     name: str,
     description: str = "",
     ingredients: tuple[str, ...] = (),
     steps: tuple[str, ...] = (),
+    convives: Sequence[str] = (),
 ) -> RecipeContext:
     """Déduit cuisines et modes de cuisson du titre, du corps et des ingrédients."""
-    haystack = fold(" ".join((name, description, *ingredients, *steps)))
+    dish_steps = tuple(
+        step for step in steps if not is_accommodation_step(step, convives)
+    )
+    haystack = fold(" ".join((name, description, *ingredients, *dish_steps)))
     cuisines = tuple(
         cuisine
         for cuisine, patterns in _CUISINE_PATTERNS.items()
@@ -405,6 +460,8 @@ def detect_context(
         for method, patterns in _COOKING_METHOD_PATTERNS.items()
         if any(pattern.search(haystack) for pattern in patterns)
     )
+    if "stew" not in methods and has_anchored_stew(dish_steps):
+        methods = (*methods, "stew")
     return RecipeContext(cuisines=cuisines, cooking_methods=methods)
 
 

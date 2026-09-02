@@ -385,6 +385,7 @@ async def recipe_compatibility(slug: str, present_only: bool = False):
         recipe["title"] or slug,
         ingredients=tuple(str(r["name"] or r["raw"] or "") for r in rows),
         steps=tuple(str(s["text"] or "") for s in step_rows),
+        convives=tuple(c.name for c in convives),
     )
     ingredient_texts = [str(r["raw"] or r["name"] or "") for r in rows]
     repairs = repair_ingredients(ingredient_texts, diets_at_table(conflicts), context)
