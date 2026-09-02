@@ -57,6 +57,9 @@ python -m cooking_manager serve --port 8795
 
 # Deploy on VPS — /opt/cooking-manager-2 est un vrai clone git (depuis 2026-08-04)
 ssh srv759970 'cd /opt/cooking-manager-2 && git pull && .venv/bin/pip install -q . && sudo systemctl restart cooking-manager'
+
+# Interroger la DB sans credentials — /api/ est derriere une basic auth nginx (401 != panne)
+ssh srv759970 'docker exec postgresql-shared psql -U cooking -d cooking_manager -c "SELECT ..."'
 ```
 
 ## Vault source
@@ -79,14 +82,10 @@ menu créé via l'API disparaissait à la première ingestion de recettes, sans
 erreur ni trace. Ne jamais réintroduire ce DELETE.
 
 ⚠️ **Le `slug` est la clé, pas le nom de fichier — deux fiches peuvent le déclarer
-en double.** L'upsert n'en garde alors qu'une, et laquelle dépendait de l'ordre
-alphabétique du glob : `<slug>-v2.md` trie AVANT `<slug>.md` (`-` < `.`), donc la
-version **périmée** écrasait la bonne, sans un mot. Mesuré sur le journal Creami :
-la prod servait l'état du 08/07 pendant que le vault décrivait celui du 06/08.
-`read_recipes()` tranche désormais sur la date **déclarée** (`updated`/`created`)
-et expose `_duplicate_paths`, qu'`ingest.py` remonte en warning. ⚠️ **Ne jamais
-départager au `_mtime`** : sur le VPS le vault est un mount rclone, le mtime date
-la *copie*, pas la donnée.
+en double**, et l'upsert n'en garde qu'une. `read_recipes()` les départage sur la date
+**déclarée** (`updated`/`created`) et expose `_duplicate_paths`, qu'`ingest.py` remonte en
+warning. ⚠️ **Ne jamais départager au `_mtime`** ni à l'ordre du glob : sur le VPS le vault
+est un mount rclone, le mtime date la *copie*, pas la donnée.
 
 ### Relier un repas à sa recette — deux marqueurs dans `meals:`
 
@@ -206,7 +205,7 @@ ce cas — il n'est apparu qu'à l'appel réel.
   acheté (`shopping_session.store` n'est rempli qu'après). Le modèle cible (tour borné,
   canal, réattribution, besoin résiduel) est dans `docs/conception/USE_CASES_COURSES.md` —
   le lire avant de toucher aux courses. Refs #67, #68
-- `_pantry_from_db()` remplace `_load_pantry()` — le différentiel courses lit la DB, source de vérité pour l'app (le vault n'est qu'une source d'ingestion parmi d'autres ; `source != 'vault'` survit à la ré-ingestion). ⚠️ **`Noyau/Cuisine/Garde-manger.md` est aussi lu/écrit par un système entièrement séparé** — le Coach Nutrition sur claude.ai, qui planifie les menus macro par macro et n'appelle jamais l'app ni sa DB. Les deux garde-manger ne sont **jamais synchronisés** et peuvent diverger sans alerte (constaté 2026-09-01 : 6 articles listés « ok » dans le vault n'existaient plus réellement)
+- `_pantry_from_db()` remplace `_load_pantry()` — le différentiel courses lit la DB, source de vérité pour l'app (le vault n'est qu'une source d'ingestion parmi d'autres ; `source != 'vault'` survit à la ré-ingestion — **donc aucune correction du vault ne les atteint jamais** : une ligne `receipt` est un événement d'achat daté, pas un état de stock, et reste `ok` indéfiniment, refs #69). ⚠️ **`Noyau/Cuisine/Garde-manger.md` est aussi lu/écrit par un système entièrement séparé** — le Coach Nutrition sur claude.ai, qui planifie les menus macro par macro et n'appelle jamais l'app ni sa DB. Les deux garde-manger ne sont **jamais synchronisés** et peuvent diverger sans alerte (constaté 2026-09-01 : 6 articles listés « ok » dans le vault n'existaient plus réellement)
 - `cooking_mcp.py` importe `from fastmcp import FastMCP` (pas `from mcp.server.fastmcp`) — seul le package `fastmcp` (v3.4+) expose `host`/`port`/`allowed_hosts` dans `run()`. Le package `mcp` v2 a un `FastMCP.run()` minimaliste
 - Tout MCP VPS derrière nginx avec `Host $host` doit passer `allowed_hosts=[<domaine>]` à `mcp.run()`, sinon Starlette retourne 421
 
