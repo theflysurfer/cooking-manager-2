@@ -30,7 +30,7 @@ backend/           # FastAPI + schéma DB + ingestion
   cooking_mcp.py   # serveur FastMCP (stdio) — garde-manger, recettes, menus
 web/               # Front : index.html + style.css + app.js (+ media/recipes/)
 tests/             # unitaires · gate compat iOS 12 · e2e (opt-in)
-data/              # sessions de courses + photo-prompt.md (versionné)
+data/              # courses + photo-prompt.md + ontology/cooking-vocabulary.yaml (SOURCE)
 docs/veille/       # analyses concurrentielles (auditées par julien-audit-competitor)
 ```
 
@@ -206,6 +206,7 @@ ce cas — il n'est apparu qu'à l'appel réel.
   canal, réattribution, besoin résiduel) est dans `docs/conception/USE_CASES_COURSES.md` —
   le lire avant de toucher aux courses. Refs #67, #68
 - `_pantry_from_db()` remplace `_load_pantry()` — le différentiel courses lit la DB, source de vérité pour l'app (le vault n'est qu'une source d'ingestion parmi d'autres ; `source != 'vault'` survit à la ré-ingestion — **donc aucune correction du vault ne les atteint jamais** : une ligne `receipt` est un événement d'achat daté, pas un état de stock, et reste `ok` indéfiniment, refs #69). ⚠️ **`Noyau/Cuisine/Garde-manger.md` est aussi lu/écrit par un système entièrement séparé** — le Coach Nutrition sur claude.ai, qui planifie les menus macro par macro et n'appelle jamais l'app ni sa DB. Les deux garde-manger ne sont **jamais synchronisés** et peuvent diverger sans alerte (constaté 2026-09-01 : 6 articles listés « ok » dans le vault n'existaient plus réellement)
+- **Cuissons, cuisines, textures et techniques d'accommodation viennent de l'ONTOLOGIE, jamais d'une table écrite dans le code.** Source : `data/ontology/cooking-vocabulary.yaml` (ce repo) → `ontology-manager` (`kind: cooking`) → artefact épinglé `cooking_manager/cooking-vocabulary.json`. Modifier le YAML, régénérer (`python -m ontology_manager.cli generate --ontology cooking-vocabulary`), recopier l'artefact. Deux tests refusent qu'une règle cite une clé absente du vocabulaire ou déclarée sans synonyme — donc indétectable
 - `cooking_mcp.py` importe `from fastmcp import FastMCP` (pas `from mcp.server.fastmcp`) — seul le package `fastmcp` (v3.4+) expose `host`/`port`/`allowed_hosts` dans `run()`. Le package `mcp` v2 a un `FastMCP.run()` minimaliste
 - Tout MCP VPS derrière nginx avec `Host $host` doit passer `allowed_hosts=[<domaine>]` à `mcp.run()`, sinon Starlette retourne 421
 
