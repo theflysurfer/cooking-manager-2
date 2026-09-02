@@ -1,0 +1,208 @@
+version: "0.1.0"
+slug: cooking-vocabulary
+kind: cooking
+origin: >-
+  Extrait du moteur de substitutions porté de cooking-manager v1
+  (server/src/services/intelligentSubstitutions.ts) et mesuré en production dans
+  cooking-manager-2 le 2026-09-02. Voir cooking-manager-2 ADR 0001.
+
+# ============================================================================
+# RÈGLE D'INTAKE — reprise de taste-vocabulary.yaml, même exigence
+# ============================================================================
+# Un concept entre en `probation`. Il ne passe `active` que s'il est REPRIS
+# d'une source déjà éprouvée par l'usage, ou MESURÉ.
+#
+# `active` ici = le concept pilote déjà une décision en production. Les modes de
+# cuisson et les cuisines sont dans ce cas : ils sont cités par les 42 règles de
+# substitution qui tournent sur /api/recipes/{slug}/compatibility.
+#
+# `probation` = observé, pas encore mesuré. Les techniques d'accommodation y
+# sont toutes : elles reposent sur UNE recette (mafe-poulet, qui prépare une part
+# de crevettes pour Clémence). Une recette n'est pas un corpus.
+#
+# ⚠️ CE QUE CE VOCABULAIRE NE RÉSOUT PAS. La détection d'un mijoté décrit sans
+# le mot — « Poser le poulet sur les légumes, couvrir. Cuire 12-15 min » — ne se
+# règle PAS en ajoutant « couvrir » aux synonymes : presque toute recette
+# contient un « couvrir » quelque part, et le terme sur-déclencherait. Il faut
+# une détection ancrée sur les étapes qui nomment l'ingrédient, plus une
+# conjonction (couvrir ET durée). C'est du code, pas du vocabulaire.
+
+cooking_methods:
+  - key: stew
+    label: "Mijoté"
+    status: active
+    definition: "Cuisson longue en milieu liquide, à couvert ou à feu doux."
+    synonyms: ["mijoté", "ragoût", "cocotte", "braisé", "à feu doux", "à petit feu", "à couvert"]
+  - key: slow-cooked
+    label: "Cuisson lente"
+    status: active
+    definition: "Cuisson prolongée à basse température."
+    synonyms: ["mijoté", "slow-cooked", "cuisson lente"]
+  - key: grilled
+    label: "Grillé"
+    status: active
+    definition: "Cuisson par contact direct avec une source de chaleur vive."
+    synonyms: ["grillé", "barbecue", "plancha", "grill"]
+  - key: bbq
+    label: "Barbecue"
+    status: active
+    definition: "Grillade au feu de bois ou au charbon."
+    synonyms: ["barbecue", "bbq"]
+  - key: pan-fried
+    label: "Poêlé"
+    status: active
+    definition: "Cuisson à la poêle avec un corps gras."
+    synonyms: ["poêlé", "sauté", "à la poêle", "dans une poêle", "dans la poêle", "faites dorer"]
+  - key: pan-seared
+    label: "Saisi"
+    status: active
+    definition: "Saisie vive et courte, cœur peu cuit."
+    synonyms: ["saisir", "snacké", "poêler"]
+  - key: stir-fry
+    label: "Sauté au wok"
+    status: active
+    definition: "Sauté vif et remué, à feu très fort."
+    synonyms: ["wok", "sauté", "stir-fry"]
+  - key: oven
+    label: "Au four"
+    status: active
+    definition: "Cuisson au four, chaleur enveloppante."
+    synonyms: ["au four", "rôti"]
+  - key: breaded
+    label: "Pané"
+    status: active
+    definition: "Enrobé de chapelure avant cuisson."
+    synonyms: ["pané", "chapelure", "panko", "katsu", "tempura"]
+  - key: steamed
+    label: "Vapeur"
+    status: active
+    definition: "Cuisson à la vapeur, sans contact avec le liquide."
+    synonyms: ["vapeur", "cuit à la vapeur"]
+  - key: glazed
+    label: "Laqué"
+    status: active
+    definition: "Nappé d'une sauce réduite et sucrée en fin de cuisson."
+    synonyms: ["laqué", "glacé"]
+  - key: smoked
+    label: "Fumé"
+    status: active
+    definition: "Aromatisé et conservé par la fumée."
+    synonyms: ["fumé", "au fumoir"]
+  - key: raw
+    label: "Cru"
+    status: active
+    definition: "Servi sans cuisson, éventuellement mariné."
+    synonyms: ["tartare", "carpaccio", "cru", "mariné"]
+
+cuisines:
+  - key: asian
+    label: "Asiatique"
+    status: active
+    synonyms: ["wok", "soja", "gingembre", "curry vert", "curry rouge", "coco", "citronnelle", "nuoc-mam"]
+  - key: thai
+    label: "Thaïlandaise"
+    status: active
+    synonyms: ["curry vert", "curry rouge", "citronnelle", "coco", "piment thai", "basilic thai"]
+  - key: chinese
+    label: "Chinoise"
+    status: active
+    synonyms: ["wok", "soja", "gingembre", "cinq-épices", "nouilles chinoises"]
+  - key: vietnamese
+    label: "Vietnamienne"
+    status: active
+    synonyms: ["nuoc-mam", "pho", "banh", "nem", "citronnelle", "menthe fraîche"]
+  - key: japanese
+    label: "Japonaise"
+    status: active
+    synonyms: ["soja", "mirin", "saké", "wasabi", "teriyaki", "katsu", "tempura", "panko", "gomasio", "japonais"]
+  - key: indian
+    label: "Indienne"
+    status: active
+    synonyms: ["curry", "tandoori", "tikka", "masala", "garam masala", "cumin", "coriandre", "cardamome"]
+  - key: pakistani
+    label: "Pakistanaise"
+    status: active
+    synonyms: ["biryani", "karahi", "korma", "garam masala", "tandoori", "ghee"]
+  - key: mediterranean
+    label: "Méditerranéenne"
+    status: active
+    synonyms: ["olive", "tomate", "basilic", "origan", "citron", "ail"]
+  - key: greek
+    label: "Grecque"
+    status: active
+    synonyms: ["feta", "tzatziki", "kalamata", "yaourt grec", "origan", "aneth"]
+  - key: italian
+    label: "Italienne"
+    status: active
+    synonyms: ["tomate", "basilic", "parmesan", "mozzarella", "pesto"]
+  - key: french
+    label: "Française"
+    status: active
+    synonyms: ["vin blanc", "vin rouge", "échalote", "beurre", "crème fraîche", "moutarde"]
+  - key: spanish
+    label: "Espagnole"
+    status: active
+    synonyms: ["chorizo", "pimenton", "paprika fumé", "safran", "piquillo", "tapas"]
+  - key: american
+    label: "Américaine"
+    status: active
+    synonyms: ["burger", "cheddar", "coleslaw", "buffalo", "cajun", "bbq sauce"]
+  - key: mexican
+    label: "Mexicaine"
+    status: active
+    synonyms: ["cumin", "piment", "avocat", "coriandre", "lime"]
+  - key: middle_eastern
+    label: "Moyen-orientale"
+    status: active
+    synonyms: ["tahini", "cumin", "sumac", "grenade", "menthe"]
+  # ⚠️ En probation SANS synonymes : mesuré le 2026-09-02, aucune règle de
+  # substitution ne cite cette cuisine. Lui donner des synonymes maintenant
+  # produirait un tag détecté que rien ne consomme — le défaut symétrique des
+  # cinq cuisines qui étaient citées sans être détectables.
+  - key: west_african
+    label: "Ouest-africaine"
+    status: probation
+    synonyms: []
+
+textures:
+  - key: firm
+    label: "Ferme"
+    status: active
+    definition: "Tient à la cuisson, ne se délite pas."
+  - key: tender
+    label: "Tendre"
+    status: active
+    definition: "Chair moelleuse, cuisson courte."
+  - key: flaky
+    label: "Floconneux"
+    status: active
+    definition: "Se détache en lamelles, supporte la panure."
+  - key: crispy
+    label: "Croustillant"
+    status: active
+    definition: "Recherché pour le croquant après cuisson vive."
+
+# ============================================================================
+# TECHNIQUES D'ACCOMMODATION — comment un plat sert un convive incompatible
+# ============================================================================
+# TOUTES en probation : observées sur UNE recette (mafe-poulet, dont le titre
+# annonce « + part crevettes pour Clémence » et dont la dernière étape dit
+# « les ajouter dans la part de Clémence au service »). Un cas n'est pas une
+# mesure. Passeront `active` quand un corpus de recettes du vault aura été
+# annoté et que le partage réel entre les trois techniques sera compté.
+accommodations:
+  - key: full_substitution
+    label: "Substitution totale"
+    status: probation
+    definition: "L'ingrédient est remplacé pour tout le monde ; le plat change."
+    applicable_when: "L'ingrédient est fondu dans la préparation — haché, mariné, mijoté dans la base, réduit en sauce."
+  - key: separate_portion
+    label: "Part séparée"
+    status: probation
+    definition: "Le plat est cuisiné tel quel ; une part reçoit un ingrédient différent au service."
+    applicable_when: "L'ingrédient est ajouté tard — posé sur le plat, saisi à part, incorporé au service."
+  - key: separate_dish
+    label: "Plat séparé"
+    status: probation
+    definition: "Un plat distinct est préparé pour le convive incompatible."
+    applicable_when: "Ni la substitution ni la part séparée ne tiennent — le plat est indissociable de son ingrédient."

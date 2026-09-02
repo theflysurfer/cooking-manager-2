@@ -17,6 +17,9 @@ dependencies = [
 [tool.setuptools.packages.find]
 include = ["cooking_manager*", "backend*"]
 
+[tool.setuptools.package-data]
+cooking_manager = ["*.json"]
+
 [project.scripts]
 cooking-manager = "cooking_manager.__main__:main"
 

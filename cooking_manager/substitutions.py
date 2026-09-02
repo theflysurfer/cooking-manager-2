@@ -2,14 +2,42 @@
 
 from __future__ import annotations
 
+import json
 import re
 import unicodedata
 from collections.abc import Sequence
 from dataclasses import dataclass
+from importlib.resources import files
 
 from cooking_manager.convives import Conflict
 
 DIET_REASON_PREFIX = "régime "
+
+VOCABULARY_FILE = "cooking-vocabulary.json"
+
+
+def load_vocabulary() -> dict:
+    """Le vocabulaire culinaire généré par ontology-manager, tiré et épinglé ici."""
+    return json.loads(
+        (files("cooking_manager") / VOCABULARY_FILE).read_text(encoding="utf-8")
+    )
+
+
+_VOCABULARY = load_vocabulary()
+VOCABULARY_VERSION: str = _VOCABULARY["version"]
+
+
+def _synonyms(facet: str) -> dict[str, tuple[str, ...]]:
+    return {
+        concept["key"]: tuple(concept["synonyms"])
+        for concept in _VOCABULARY[facet]
+        if concept["synonyms"]
+    }
+
+
+def concept_keys(facet: str) -> frozenset[str]:
+    """Toutes les clés déclarées pour une facette, quel que soit leur statut."""
+    return frozenset(concept["key"] for concept in _VOCABULARY[facet])
 
 
 @dataclass(frozen=True)
@@ -300,45 +328,9 @@ RULES_BY_DIET: dict[str, tuple[SubstitutionRule, ...]] = {
     "pescetarian": PESCETARIAN_RULES,
 }
 
-CUISINE_KEYWORDS: dict[str, tuple[str, ...]] = {
-    "asian": ("wok", "soja", "gingembre", "curry vert", "curry rouge", "coco",
-              "citronnelle", "nuoc-mam"),
-    "thai": ("curry vert", "curry rouge", "citronnelle", "coco", "piment thai",
-             "basilic thai"),
-    "chinese": ("wok", "soja", "gingembre", "cinq-epices", "nouilles chinoises"),
-    "vietnamese": ("nuoc-mam", "pho", "banh", "nem", "citronnelle", "menthe fraiche"),
-    "japanese": ("soja", "mirin", "sake", "wasabi", "teriyaki", "katsu", "tempura",
-                 "panko", "gomasio", "japonais"),
-    "indian": ("curry", "tandoori", "tikka", "masala", "garam masala", "cumin",
-               "coriandre", "cardamome"),
-    "pakistani": ("biryani", "karahi", "korma", "garam masala", "tandoori", "ghee"),
-    "mediterranean": ("olive", "tomate", "basilic", "origan", "citron", "ail"),
-    "greek": ("feta", "tzatziki", "kalamata", "yaourt grec", "origan", "aneth"),
-    "spanish": ("chorizo", "pimenton", "paprika fume", "safran", "piquillo", "tapas"),
-    "american": ("burger", "cheddar", "coleslaw", "buffalo", "cajun", "bbq sauce"),
-    "french": ("vin blanc", "vin rouge", "echalote", "beurre", "creme fraiche",
-               "moutarde"),
-    "italian": ("tomate", "basilic", "parmesan", "mozzarella", "pesto"),
-    "mexican": ("cumin", "piment", "avocat", "coriandre", "lime"),
-    "middle_eastern": ("tahini", "cumin", "sumac", "grenade", "menthe"),
-}
+CUISINE_KEYWORDS: dict[str, tuple[str, ...]] = _synonyms("cuisines")
 
-COOKING_METHOD_KEYWORDS: dict[str, tuple[str, ...]] = {
-    "grilled": ("grille", "barbecue", "plancha", "grill"),
-    "pan-fried": ("poele", "saute", "a la poele", "dans une poele", "dans la poele",
-                  "faites dorer"),
-    "pan-seared": ("saisir", "snacke", "poeler"),
-    "glazed": ("laque", "glace"),
-    "oven": ("au four", "roti"),
-    "stew": ("mijote", "ragout", "cocotte", "braise"),
-    "breaded": ("pane", "chapelure", "panko", "katsu", "tempura"),
-    "steamed": ("vapeur", "cuit a la vapeur"),
-    "raw": ("tartare", "carpaccio", "cru", "marine"),
-    "stir-fry": ("wok", "saute", "stir-fry"),
-    "slow-cooked": ("mijote", "slow-cooked", "cuisson lente"),
-    "smoked": ("fume", "au fumoir"),
-    "bbq": ("barbecue", "bbq", "grill"),
-}
+COOKING_METHOD_KEYWORDS: dict[str, tuple[str, ...]] = _synonyms("cooking_methods")
 
 CUISINE_BONUS = 20
 COOKING_METHOD_BONUS = 40

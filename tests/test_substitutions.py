@@ -5,7 +5,9 @@ from cooking_manager.substitutions import (
     COOKING_METHOD_KEYWORDS,
     CUISINE_KEYWORDS,
     PESCETARIAN_RULES,
+    VOCABULARY_VERSION,
     RecipeContext,
+    concept_keys,
     detect_context,
     diets_at_table,
     find_substitution,
@@ -156,9 +158,31 @@ def test_toutes_les_regles_ont_un_motif_et_une_priorite():
         assert rule.target != rule.source, rule
 
 
-def test_les_cles_de_contexte_des_regles_sont_toutes_connues():
+def test_toute_cle_citee_existe_dans_le_vocabulaire():
+    cuisines = concept_keys("cuisines")
+    methods = concept_keys("cooking_methods")
+    textures = concept_keys("textures")
     for rule in PESCETARIAN_RULES:
         for cuisine in rule.cuisines:
-            assert cuisine in CUISINE_KEYWORDS, rule
+            assert cuisine in cuisines, rule
         for method in rule.cooking_methods:
-            assert method in COOKING_METHOD_KEYWORDS, rule
+            assert method in methods, rule
+        if rule.texture:
+            assert rule.texture in textures, rule
+
+
+def test_toute_cle_citee_est_detectable():
+    for rule in PESCETARIAN_RULES:
+        for cuisine in rule.cuisines:
+            assert CUISINE_KEYWORDS.get(cuisine), (
+                f"{rule.source}→{rule.target} cite la cuisine « {cuisine} », "
+                "qui n'a aucun synonyme dans le vocabulaire : son bonus ne peut jamais s'appliquer."
+            )
+        for method in rule.cooking_methods:
+            assert COOKING_METHOD_KEYWORDS.get(method), (
+                f"{rule.source}→{rule.target} cite la cuisson « {method} », sans synonyme."
+            )
+
+
+def test_le_vocabulaire_est_epingle():
+    assert VOCABULARY_VERSION == "0.1.0"

@@ -1,0 +1,468 @@
+{
+  "version": "0.1.0",
+  "slug": "cooking-vocabulary",
+  "origin": "Extrait du moteur de substitutions porté de cooking-manager v1 (server/src/services/intelligentSubstitutions.ts) et mesuré en production dans cooking-manager-2 le 2026-09-02. Voir cooking-manager-2 ADR 0001.",
+  "cooking_methods": [
+    {
+      "key": "stew",
+      "label": "Mijoté",
+      "status": "active",
+      "definition": "Cuisson longue en milieu liquide, à couvert ou à feu doux.",
+      "synonyms": [
+        "mijoté",
+        "ragoût",
+        "cocotte",
+        "braisé",
+        "à feu doux",
+        "à petit feu",
+        "à couvert"
+      ],
+      "applicable_when": ""
+    },
+    {
+      "key": "slow-cooked",
+      "label": "Cuisson lente",
+      "status": "active",
+      "definition": "Cuisson prolongée à basse température.",
+      "synonyms": [
+        "mijoté",
+        "slow-cooked",
+        "cuisson lente"
+      ],
+      "applicable_when": ""
+    },
+    {
+      "key": "grilled",
+      "label": "Grillé",
+      "status": "active",
+      "definition": "Cuisson par contact direct avec une source de chaleur vive.",
+      "synonyms": [
+        "grillé",
+        "barbecue",
+        "plancha",
+        "grill"
+      ],
+      "applicable_when": ""
+    },
+    {
+      "key": "bbq",
+      "label": "Barbecue",
+      "status": "active",
+      "definition": "Grillade au feu de bois ou au charbon.",
+      "synonyms": [
+        "barbecue",
+        "bbq"
+      ],
+      "applicable_when": ""
+    },
+    {
+      "key": "pan-fried",
+      "label": "Poêlé",
+      "status": "active",
+      "definition": "Cuisson à la poêle avec un corps gras.",
+      "synonyms": [
+        "poêlé",
+        "sauté",
+        "à la poêle",
+        "dans une poêle",
+        "dans la poêle",
+        "faites dorer"
+      ],
+      "applicable_when": ""
+    },
+    {
+      "key": "pan-seared",
+      "label": "Saisi",
+      "status": "active",
+      "definition": "Saisie vive et courte, cœur peu cuit.",
+      "synonyms": [
+        "saisir",
+        "snacké",
+        "poêler"
+      ],
+      "applicable_when": ""
+    },
+    {
+      "key": "stir-fry",
+      "label": "Sauté au wok",
+      "status": "active",
+      "definition": "Sauté vif et remué, à feu très fort.",
+      "synonyms": [
+        "wok",
+        "sauté",
+        "stir-fry"
+      ],
+      "applicable_when": ""
+    },
+    {
+      "key": "oven",
+      "label": "Au four",
+      "status": "active",
+      "definition": "Cuisson au four, chaleur enveloppante.",
+      "synonyms": [
+        "au four",
+        "rôti"
+      ],
+      "applicable_when": ""
+    },
+    {
+      "key": "breaded",
+      "label": "Pané",
+      "status": "active",
+      "definition": "Enrobé de chapelure avant cuisson.",
+      "synonyms": [
+        "pané",
+        "chapelure",
+        "panko",
+        "katsu",
+        "tempura"
+      ],
+      "applicable_when": ""
+    },
+    {
+      "key": "steamed",
+      "label": "Vapeur",
+      "status": "active",
+      "definition": "Cuisson à la vapeur, sans contact avec le liquide.",
+      "synonyms": [
+        "vapeur",
+        "cuit à la vapeur"
+      ],
+      "applicable_when": ""
+    },
+    {
+      "key": "glazed",
+      "label": "Laqué",
+      "status": "active",
+      "definition": "Nappé d'une sauce réduite et sucrée en fin de cuisson.",
+      "synonyms": [
+        "laqué",
+        "glacé"
+      ],
+      "applicable_when": ""
+    },
+    {
+      "key": "smoked",
+      "label": "Fumé",
+      "status": "active",
+      "definition": "Aromatisé et conservé par la fumée.",
+      "synonyms": [
+        "fumé",
+        "au fumoir"
+      ],
+      "applicable_when": ""
+    },
+    {
+      "key": "raw",
+      "label": "Cru",
+      "status": "active",
+      "definition": "Servi sans cuisson, éventuellement mariné.",
+      "synonyms": [
+        "tartare",
+        "carpaccio",
+        "cru",
+        "mariné"
+      ],
+      "applicable_when": ""
+    }
+  ],
+  "cuisines": [
+    {
+      "key": "asian",
+      "label": "Asiatique",
+      "status": "active",
+      "definition": "",
+      "synonyms": [
+        "wok",
+        "soja",
+        "gingembre",
+        "curry vert",
+        "curry rouge",
+        "coco",
+        "citronnelle",
+        "nuoc-mam"
+      ],
+      "applicable_when": ""
+    },
+    {
+      "key": "thai",
+      "label": "Thaïlandaise",
+      "status": "active",
+      "definition": "",
+      "synonyms": [
+        "curry vert",
+        "curry rouge",
+        "citronnelle",
+        "coco",
+        "piment thai",
+        "basilic thai"
+      ],
+      "applicable_when": ""
+    },
+    {
+      "key": "chinese",
+      "label": "Chinoise",
+      "status": "active",
+      "definition": "",
+      "synonyms": [
+        "wok",
+        "soja",
+        "gingembre",
+        "cinq-épices",
+        "nouilles chinoises"
+      ],
+      "applicable_when": ""
+    },
+    {
+      "key": "vietnamese",
+      "label": "Vietnamienne",
+      "status": "active",
+      "definition": "",
+      "synonyms": [
+        "nuoc-mam",
+        "pho",
+        "banh",
+        "nem",
+        "citronnelle",
+        "menthe fraîche"
+      ],
+      "applicable_when": ""
+    },
+    {
+      "key": "japanese",
+      "label": "Japonaise",
+      "status": "active",
+      "definition": "",
+      "synonyms": [
+        "soja",
+        "mirin",
+        "saké",
+        "wasabi",
+        "teriyaki",
+        "katsu",
+        "tempura",
+        "panko",
+        "gomasio",
+        "japonais"
+      ],
+      "applicable_when": ""
+    },
+    {
+      "key": "indian",
+      "label": "Indienne",
+      "status": "active",
+      "definition": "",
+      "synonyms": [
+        "curry",
+        "tandoori",
+        "tikka",
+        "masala",
+        "garam masala",
+        "cumin",
+        "coriandre",
+        "cardamome"
+      ],
+      "applicable_when": ""
+    },
+    {
+      "key": "pakistani",
+      "label": "Pakistanaise",
+      "status": "active",
+      "definition": "",
+      "synonyms": [
+        "biryani",
+        "karahi",
+        "korma",
+        "garam masala",
+        "tandoori",
+        "ghee"
+      ],
+      "applicable_when": ""
+    },
+    {
+      "key": "mediterranean",
+      "label": "Méditerranéenne",
+      "status": "active",
+      "definition": "",
+      "synonyms": [
+        "olive",
+        "tomate",
+        "basilic",
+        "origan",
+        "citron",
+        "ail"
+      ],
+      "applicable_when": ""
+    },
+    {
+      "key": "greek",
+      "label": "Grecque",
+      "status": "active",
+      "definition": "",
+      "synonyms": [
+        "feta",
+        "tzatziki",
+        "kalamata",
+        "yaourt grec",
+        "origan",
+        "aneth"
+      ],
+      "applicable_when": ""
+    },
+    {
+      "key": "italian",
+      "label": "Italienne",
+      "status": "active",
+      "definition": "",
+      "synonyms": [
+        "tomate",
+        "basilic",
+        "parmesan",
+        "mozzarella",
+        "pesto"
+      ],
+      "applicable_when": ""
+    },
+    {
+      "key": "french",
+      "label": "Française",
+      "status": "active",
+      "definition": "",
+      "synonyms": [
+        "vin blanc",
+        "vin rouge",
+        "échalote",
+        "beurre",
+        "crème fraîche",
+        "moutarde"
+      ],
+      "applicable_when": ""
+    },
+    {
+      "key": "spanish",
+      "label": "Espagnole",
+      "status": "active",
+      "definition": "",
+      "synonyms": [
+        "chorizo",
+        "pimenton",
+        "paprika fumé",
+        "safran",
+        "piquillo",
+        "tapas"
+      ],
+      "applicable_when": ""
+    },
+    {
+      "key": "american",
+      "label": "Américaine",
+      "status": "active",
+      "definition": "",
+      "synonyms": [
+        "burger",
+        "cheddar",
+        "coleslaw",
+        "buffalo",
+        "cajun",
+        "bbq sauce"
+      ],
+      "applicable_when": ""
+    },
+    {
+      "key": "mexican",
+      "label": "Mexicaine",
+      "status": "active",
+      "definition": "",
+      "synonyms": [
+        "cumin",
+        "piment",
+        "avocat",
+        "coriandre",
+        "lime"
+      ],
+      "applicable_when": ""
+    },
+    {
+      "key": "middle_eastern",
+      "label": "Moyen-orientale",
+      "status": "active",
+      "definition": "",
+      "synonyms": [
+        "tahini",
+        "cumin",
+        "sumac",
+        "grenade",
+        "menthe"
+      ],
+      "applicable_when": ""
+    },
+    {
+      "key": "west_african",
+      "label": "Ouest-africaine",
+      "status": "probation",
+      "definition": "",
+      "synonyms": [],
+      "applicable_when": ""
+    }
+  ],
+  "textures": [
+    {
+      "key": "firm",
+      "label": "Ferme",
+      "status": "active",
+      "definition": "Tient à la cuisson, ne se délite pas.",
+      "synonyms": [],
+      "applicable_when": ""
+    },
+    {
+      "key": "tender",
+      "label": "Tendre",
+      "status": "active",
+      "definition": "Chair moelleuse, cuisson courte.",
+      "synonyms": [],
+      "applicable_when": ""
+    },
+    {
+      "key": "flaky",
+      "label": "Floconneux",
+      "status": "active",
+      "definition": "Se détache en lamelles, supporte la panure.",
+      "synonyms": [],
+      "applicable_when": ""
+    },
+    {
+      "key": "crispy",
+      "label": "Croustillant",
+      "status": "active",
+      "definition": "Recherché pour le croquant après cuisson vive.",
+      "synonyms": [],
+      "applicable_when": ""
+    }
+  ],
+  "accommodations": [
+    {
+      "key": "full_substitution",
+      "label": "Substitution totale",
+      "status": "probation",
+      "definition": "L'ingrédient est remplacé pour tout le monde ; le plat change.",
+      "synonyms": [],
+      "applicable_when": "L'ingrédient est fondu dans la préparation — haché, mariné, mijoté dans la base, réduit en sauce."
+    },
+    {
+      "key": "separate_portion",
+      "label": "Part séparée",
+      "status": "probation",
+      "definition": "Le plat est cuisiné tel quel ; une part reçoit un ingrédient différent au service.",
+      "synonyms": [],
+      "applicable_when": "L'ingrédient est ajouté tard — posé sur le plat, saisi à part, incorporé au service."
+    },
+    {
+      "key": "separate_dish",
+      "label": "Plat séparé",
+      "status": "probation",
+      "definition": "Un plat distinct est préparé pour le convive incompatible.",
+      "synonyms": [],
+      "applicable_when": "Ni la substitution ni la part séparée ne tiennent — le plat est indissociable de son ingrédient."
+    }
+  ]
+}
