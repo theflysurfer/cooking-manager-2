@@ -354,15 +354,21 @@ async def recipe_compatibility(slug: str, present_only: bool = False):
     quel jour. `present_only` n'a de sens qu'une fois la recette posée au menu.
     """
     from cooking_manager.convives import check_ingredients
+    from cooking_manager.substitutions import detect_context, repair_conflicts
 
     pool = await get_pool(DATABASE_DSN)
     async with pool.acquire() as conn:
-        recipe_id = await conn.fetchval("SELECT id FROM recipe WHERE slug = $1", slug)
-        if recipe_id is None:
+        recipe = await conn.fetchrow("SELECT id, title FROM recipe WHERE slug = $1", slug)
+        if recipe is None:
             raise HTTPException(404, f"Recette introuvable : {slug}")
+        recipe_id = recipe["id"]
         rows = await conn.fetch(
             """SELECT raw, name, name_normalized FROM recipe_ingredient
                 WHERE recipe_id = $1 ORDER BY position""",
+            recipe_id,
+        )
+        step_rows = await conn.fetch(
+            "SELECT text FROM recipe_step WHERE recipe_id = $1 ORDER BY position",
             recipe_id,
         )
         # ⚠️ `load_convives_from_db` rend un dict nom → Convive : itérer dessus
@@ -371,6 +377,12 @@ async def recipe_compatibility(slug: str, present_only: bool = False):
 
     ingredients = [dict(r) for r in rows]
     conflicts = check_ingredients(ingredients, convives)
+    context = detect_context(
+        recipe["title"] or slug,
+        ingredients=tuple(str(r["name"] or r["raw"] or "") for r in rows),
+        steps=tuple(str(s["text"] or "") for s in step_rows),
+    )
+    repairs = repair_conflicts(conflicts, context)
     return {
         "slug": slug,
         "ingredients_checked": len(ingredients),
@@ -381,6 +393,21 @@ async def recipe_compatibility(slug: str, present_only: bool = False):
         "conflicts": [
             {"convive": c.convive, "reason": c.reason, "matched": c.matched}
             for c in conflicts
+        ],
+        "context": {
+            "cuisines": list(context.cuisines),
+            "cooking_methods": list(context.cooking_methods),
+        },
+        "repairs": [
+            {
+                "matched": r.matched,
+                "diet": r.diet,
+                "convives": list(r.convives),
+                "substitute": r.substitution.target,
+                "reason": r.substitution.reason,
+                "confidence": round(r.substitution.confidence, 2),
+            }
+            for r in repairs
         ],
     }
 

@@ -4,7 +4,12 @@ from __future__ import annotations
 
 import re
 import unicodedata
+from collections.abc import Sequence
 from dataclasses import dataclass
+
+from cooking_manager.convives import Conflict
+
+DIET_REASON_PREFIX = "régime "
 
 
 @dataclass(frozen=True)
@@ -439,3 +444,41 @@ def find_substitution(
         confidence=min(score_rule(best, resolved) / 100, 1.0),
         rule=best,
     )
+
+
+@dataclass(frozen=True)
+class ConflictRepair:
+    """Un conflit de régime et le remplacement qui le lève, pour qui il le lève."""
+
+    matched: str
+    diet: str
+    convives: tuple[str, ...]
+    substitution: Substitution
+
+
+def repair_conflicts(
+    conflicts: Sequence[Conflict],
+    context: RecipeContext | None = None,
+) -> list[ConflictRepair]:
+    """Réparations proposées pour les conflits de RÉGIME — les aversions n'en relèvent pas."""
+    concerned: dict[tuple[str, str], list[str]] = {}
+    for conflict in conflicts:
+        if not conflict.reason.startswith(DIET_REASON_PREFIX):
+            continue
+        diet = conflict.reason[len(DIET_REASON_PREFIX):].strip()
+        concerned.setdefault((diet, conflict.matched), []).append(conflict.convive)
+
+    repairs: list[ConflictRepair] = []
+    for (diet, matched), convives in concerned.items():
+        substitution = find_substitution(matched, context, diet=diet)
+        if substitution is None:
+            continue
+        repairs.append(
+            ConflictRepair(
+                matched=matched,
+                diet=diet,
+                convives=tuple(convives),
+                substitution=substitution,
+            )
+        )
+    return repairs

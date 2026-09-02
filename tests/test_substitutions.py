@@ -1,5 +1,6 @@
 """Le contexte de la recette, pas le seul nom de la protéine, choisit le substitut."""
 
+from cooking_manager.convives import Conflict
 from cooking_manager.substitutions import (
     COOKING_METHOD_KEYWORDS,
     CUISINE_KEYWORDS,
@@ -7,6 +8,7 @@ from cooking_manager.substitutions import (
     RecipeContext,
     detect_context,
     find_substitution,
+    repair_conflicts,
 )
 
 
@@ -101,6 +103,40 @@ def test_sans_contexte_la_priorite_de_base_decide():
     assert result is not None
     assert result.target == "colin"
     assert result.rule.cooking_methods == ("breaded",)
+
+
+def test_reparation_d_un_conflit_de_regime():
+    conflicts = [Conflict("Clémence", "régime pescetarian", "poulet")]
+    repairs = repair_conflicts(conflicts, detect_context("Poulet grillé au barbecue"))
+    assert len(repairs) == 1
+    assert repairs[0].substitution.target == "thon"
+    assert repairs[0].convives == ("Clémence",)
+    assert repairs[0].diet == "pescetarian"
+
+
+def test_une_aversion_n_est_pas_un_conflit_reparable():
+    conflicts = [Conflict("Clémence", "n'aime pas", "mais")]
+    assert repair_conflicts(conflicts, RecipeContext()) == []
+
+
+def test_un_interdit_n_est_pas_un_conflit_reparable():
+    conflicts = [Conflict("Léa", "interdit", "oeuf dur")]
+    assert repair_conflicts(conflicts, RecipeContext()) == []
+
+
+def test_deux_convives_meme_regime_une_seule_reparation():
+    conflicts = [
+        Conflict("Clémence", "régime pescetarian", "poulet"),
+        Conflict("Invité", "régime pescetarian", "poulet"),
+    ]
+    repairs = repair_conflicts(conflicts, detect_context("Poulet grillé"))
+    assert len(repairs) == 1
+    assert set(repairs[0].convives) == {"Clémence", "Invité"}
+
+
+def test_un_conflit_sans_regle_ne_produit_pas_de_reparation():
+    conflicts = [Conflict("Clémence", "régime pescetarian", "gelatine")]
+    assert repair_conflicts(conflicts, RecipeContext()) == []
 
 
 def test_toutes_les_regles_ont_un_motif_et_une_priorite():
