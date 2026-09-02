@@ -388,6 +388,12 @@ _COOKING_METHOD_PATTERNS: dict[str, tuple[re.Pattern[str], ...]] = {
     for method, keywords in COOKING_METHOD_KEYWORDS.items()
 }
 
+_SOURCE_PATTERNS: dict[str, re.Pattern[str]] = {
+    rule.source: keyword_pattern(rule.source)
+    for rules in RULES_BY_DIET.values()
+    for rule in rules
+}
+
 
 def detect_context(
     name: str,
@@ -432,8 +438,10 @@ def find_substitution(
     if not rules:
         return None
     resolved = context or RecipeContext()
-    needle = fold(protein)
-    candidates = [rule for rule in rules if fold(rule.source) in needle]
+    haystack = fold(protein)
+    candidates = [
+        rule for rule in rules if _SOURCE_PATTERNS[rule.source].search(haystack)
+    ]
     if not candidates:
         return None
     best = max(candidates, key=lambda rule: score_rule(rule, resolved))
@@ -447,38 +455,48 @@ def find_substitution(
 
 
 @dataclass(frozen=True)
-class ConflictRepair:
-    """Un conflit de régime et le remplacement qui le lève, pour qui il le lève."""
+class IngredientRepair:
+    """La ligne d'ingrédient à remplacer, pour quel régime, et par quoi."""
 
-    matched: str
+    ingredient: str
     diet: str
-    convives: tuple[str, ...]
     substitution: Substitution
 
 
-def repair_conflicts(
-    conflicts: Sequence[Conflict],
-    context: RecipeContext | None = None,
-) -> list[ConflictRepair]:
-    """Réparations proposées pour les conflits de RÉGIME — les aversions n'en relèvent pas."""
-    concerned: dict[tuple[str, str], list[str]] = {}
+def diets_at_table(conflicts: Sequence[Conflict]) -> tuple[str, ...]:
+    """Les régimes qui ont réellement bloqué quelque chose, extraits des conflits."""
+    diets: list[str] = []
     for conflict in conflicts:
         if not conflict.reason.startswith(DIET_REASON_PREFIX):
             continue
         diet = conflict.reason[len(DIET_REASON_PREFIX):].strip()
-        concerned.setdefault((diet, conflict.matched), []).append(conflict.convive)
+        if diet not in diets:
+            diets.append(diet)
+    return tuple(diets)
 
-    repairs: list[ConflictRepair] = []
-    for (diet, matched), convives in concerned.items():
-        substitution = find_substitution(matched, context, diet=diet)
-        if substitution is None:
+
+def repair_ingredients(
+    ingredients: Sequence[str],
+    diets: Sequence[str],
+    context: RecipeContext | None = None,
+) -> list[IngredientRepair]:
+    """Balaie TOUTES les lignes d'ingrédients, pas seulement celles qu'un conflit a nommées."""
+    repairs: list[IngredientRepair] = []
+    seen: set[tuple[str, str]] = set()
+    for diet in diets:
+        if diet not in RULES_BY_DIET:
             continue
-        repairs.append(
-            ConflictRepair(
-                matched=matched,
-                diet=diet,
-                convives=tuple(convives),
-                substitution=substitution,
+        for line in ingredients:
+            if not line:
+                continue
+            substitution = find_substitution(line, context, diet=diet)
+            if substitution is None:
+                continue
+            key = (diet, line)
+            if key in seen:
+                continue
+            seen.add(key)
+            repairs.append(
+                IngredientRepair(ingredient=line, diet=diet, substitution=substitution)
             )
-        )
     return repairs

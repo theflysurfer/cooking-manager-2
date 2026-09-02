@@ -354,7 +354,11 @@ async def recipe_compatibility(slug: str, present_only: bool = False):
     quel jour. `present_only` n'a de sens qu'une fois la recette posée au menu.
     """
     from cooking_manager.convives import check_ingredients
-    from cooking_manager.substitutions import detect_context, repair_conflicts
+    from cooking_manager.substitutions import (
+        detect_context,
+        diets_at_table,
+        repair_ingredients,
+    )
 
     pool = await get_pool(DATABASE_DSN)
     async with pool.acquire() as conn:
@@ -382,7 +386,8 @@ async def recipe_compatibility(slug: str, present_only: bool = False):
         ingredients=tuple(str(r["name"] or r["raw"] or "") for r in rows),
         steps=tuple(str(s["text"] or "") for s in step_rows),
     )
-    repairs = repair_conflicts(conflicts, context)
+    ingredient_texts = [str(r["raw"] or r["name"] or "") for r in rows]
+    repairs = repair_ingredients(ingredient_texts, diets_at_table(conflicts), context)
     return {
         "slug": slug,
         "ingredients_checked": len(ingredients),
@@ -400,10 +405,11 @@ async def recipe_compatibility(slug: str, present_only: bool = False):
         },
         "repairs": [
             {
-                "matched": r.matched,
+                "ingredient": r.ingredient,
                 "diet": r.diet,
-                "convives": list(r.convives),
-                "substitute": r.substitution.target,
+                "convives": [c.name for c in convives if c.diet == r.diet],
+                "replace": r.substitution.source,
+                "with": r.substitution.target,
                 "reason": r.substitution.reason,
                 "confidence": round(r.substitution.confidence, 2),
             }

@@ -7,8 +7,9 @@ from cooking_manager.substitutions import (
     PESCETARIAN_RULES,
     RecipeContext,
     detect_context,
+    diets_at_table,
     find_substitution,
-    repair_conflicts,
+    repair_ingredients,
 )
 
 
@@ -105,38 +106,46 @@ def test_sans_contexte_la_priorite_de_base_decide():
     assert result.rule.cooking_methods == ("breaded",)
 
 
-def test_reparation_d_un_conflit_de_regime():
-    conflicts = [Conflict("Clémence", "régime pescetarian", "poulet")]
-    repairs = repair_conflicts(conflicts, detect_context("Poulet grillé au barbecue"))
-    assert len(repairs) == 1
-    assert repairs[0].substitution.target == "thon"
-    assert repairs[0].convives == ("Clémence",)
-    assert repairs[0].diet == "pescetarian"
-
-
-def test_une_aversion_n_est_pas_un_conflit_reparable():
-    conflicts = [Conflict("Clémence", "n'aime pas", "mais")]
-    assert repair_conflicts(conflicts, RecipeContext()) == []
-
-
-def test_un_interdit_n_est_pas_un_conflit_reparable():
-    conflicts = [Conflict("Léa", "interdit", "oeuf dur")]
-    assert repair_conflicts(conflicts, RecipeContext()) == []
-
-
-def test_deux_convives_meme_regime_une_seule_reparation():
+def test_seuls_les_conflits_de_regime_ouvrent_une_reparation():
     conflicts = [
-        Conflict("Clémence", "régime pescetarian", "poulet"),
-        Conflict("Invité", "régime pescetarian", "poulet"),
+        Conflict("Clémence", "régime pescetarian", "600 g de blanc de poulet"),
+        Conflict("Clémence", "n'aime pas", "mais"),
+        Conflict("Léa", "interdit", "oeuf dur"),
     ]
-    repairs = repair_conflicts(conflicts, detect_context("Poulet grillé"))
+    assert diets_at_table(conflicts) == ("pescetarian",)
+
+
+def test_reparation_sur_la_ligne_d_ingredient_entiere():
+    repairs = repair_ingredients(
+        ["600 g de blanc de poulet", "2 oignons"],
+        ("pescetarian",),
+        detect_context("Poulet grillé au barbecue"),
+    )
     assert len(repairs) == 1
-    assert set(repairs[0].convives) == {"Clémence", "Invité"}
+    assert repairs[0].ingredient == "600 g de blanc de poulet"
+    assert repairs[0].substitution.target == "thon"
+    assert repairs[0].substitution.source == "poulet"
 
 
-def test_un_conflit_sans_regle_ne_produit_pas_de_reparation():
-    conflicts = [Conflict("Clémence", "régime pescetarian", "gelatine")]
-    assert repair_conflicts(conflicts, RecipeContext()) == []
+def test_toutes_les_lignes_carnees_sont_balayees_pas_seulement_la_premiere():
+    repairs = repair_ingredients(
+        ["500 ml de bouillon de volaille", "600 g de poulet", "200 g de lardons"],
+        ("pescetarian",),
+        detect_context("Mijoté à la cocotte"),
+    )
+    cibles = {r.substitution.source for r in repairs}
+    assert cibles == {"poulet", "lardons"}
+
+
+def test_un_regime_sans_table_ne_produit_rien():
+    assert repair_ingredients(["600 g de poulet"], ("vegan",), RecipeContext()) == []
+
+
+def test_un_ingredient_sans_regle_ne_produit_rien():
+    repairs = repair_ingredients(
+        ["500 ml de bouillon de volaille"], ("pescetarian",), RecipeContext()
+    )
+    assert repairs == []
 
 
 def test_toutes_les_regles_ont_un_motif_et_une_priorite():
