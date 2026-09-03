@@ -60,11 +60,32 @@ suivants (arbitraire — le « premier » dépend de l'ordre du vocabulaire).
 `pan-seared` (saisir puis enfourner) est plausible et n'a pas été observé : l'y
 inscrire serait le défaut reproché à `separate_dish`.
 
-## Manque de lexique constaté · OUVERT
+## Manque de lexique · TRAITÉ AUTREMENT (2026-09-03)
 
-`canard` (« Salade de lentilles aux crevettes », qui contient du magret) n'est
-**aucune** `source` de règle : la recette ressort sans réparation possible, sans
-que rien ne le dise.
+`canard` (« Salade de lentilles aux crevettes », qui contient du magret) n'était
+source d'aucune règle : la recette ressortait sans réparation possible, **sans
+que rien ne le dise**.
+
+En mesurant, le cas s'est révélé être la règle et non l'exception : `convives.py`
+refuse sur l'ensemble des termes de `DIETS`, dont les règles ne réparaient qu'une
+petite part. Ajouter les manquantes au jugé aurait été le contraire de la
+doctrine du projet — chaque règle porte une raison affichée à l'utilisateur
+(« *Le mafé du foyer se fait déjà au cabillaud* »), et une raison inventée ment
+avec l'aplomb d'une règle mesurée.
+
+**Parade retenue : nommer le trou plutôt que le combler à l'aveugle.**
+`/api/recipes/{slug}/compatibility` rend `unrepaired` — chaque blocage de régime
+sans substitution, avec son motif. Même doctrine que `unresolved` côté macros :
+un `repairs` vide se lisait « rien à réparer ».
+
+**Trois règles seulement ont été ajoutées, chacune adossée à une observation** :
+`magret` et `canard` (ce corpus), `bouillon de volaille` (le vault — c'était le
+conflit réel non réparé de `mafe-poulet`). Les autres attendent une observation.
+
+⚠️ Constat qui recadre le sujet : en cherchant les protéines orphelines **du
+vault**, on n'en trouve aucune. Les deux lignes remontées étaient
+`bouillon de volaille` et `lardons végétariens` — la seconde est un faux positif
+assumé de `convives.py`. Le besoin de lexique vient du **web**, pas du foyer.
 
 ## Filtrage selon les profils — attention au faux positif
 
