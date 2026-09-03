@@ -4,6 +4,7 @@ from cooking_manager.convives import Conflict
 from cooking_manager.substitutions import (
     COOKING_METHOD_DOMINATIONS,
     COOKING_METHOD_KEYWORDS,
+    FALLBACK_CONFIDENCE,
     CUISINE_KEYWORDS,
     PESCETARIAN_RULES,
     VOCABULARY_VERSION,
@@ -12,6 +13,7 @@ from cooking_manager.substitutions import (
     concept_keys,
     load_vocabulary,
     detect_context,
+    fallback_repairs,
     has_anchored_stew,
     is_accommodation_step,
     rule_applies,
@@ -224,6 +226,38 @@ def test_une_vraie_poelee_reste_poelee():
         steps=("Faites dorer les filets à la poêle 6 min de chaque côté.",),
     )
     assert "pan-fried" in context.cooking_methods
+
+
+def test_une_proteine_sans_regle_recoit_un_repli_selon_la_cuisson():
+    """Le catalogue de cibles est déjà qualifié par mode de cuisson : s'en servir."""
+    from cooking_manager.convives import Conflict
+
+    conflicts = [Conflict("Clémence", "régime pescetarian", "300 g de boudin")]
+    context = detect_context("Boudin en cocotte", steps=("Couvrir et mijoter 40 min.",))
+    fallbacks = fallback_repairs(conflicts, repairs=[], context=context)
+    assert len(fallbacks) == 1
+    substitution = fallbacks[0].substitution
+    assert substitution.is_fallback
+    assert substitution.confidence == FALLBACK_CONFIDENCE
+    assert "Aucune règle" in substitution.reason
+    assert "stew" in substitution.reason
+
+
+def test_sans_mode_de_cuisson_connu_aucun_repli_n_est_devine():
+    from cooking_manager.convives import Conflict
+
+    conflicts = [Conflict("Clémence", "régime pescetarian", "300 g de boudin")]
+    assert fallback_repairs(conflicts, repairs=[], context=RecipeContext()) == []
+
+
+def test_un_repli_ne_double_pas_une_regle_nommee():
+    from cooking_manager.convives import Conflict
+
+    line = "1,2 kg de poulet"
+    context = detect_context("Poulet en cocotte", steps=("Couvrir et mijoter 40 min.",))
+    repairs = repair_ingredients([line], ("pescetarian",), context)
+    conflicts = [Conflict("Clémence", "régime pescetarian", line)]
+    assert fallback_repairs(conflicts, repairs, context) == []
 
 
 def test_un_blocage_sans_regle_ressort_en_unrepaired_jamais_en_silence():

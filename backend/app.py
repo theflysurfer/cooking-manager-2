@@ -357,6 +357,7 @@ async def recipe_compatibility(slug: str, present_only: bool = False):
     from cooking_manager.substitutions import (
         detect_context,
         diets_at_table,
+        fallback_repairs,
         repair_ingredients,
         unrepaired_conflicts,
     )
@@ -390,6 +391,7 @@ async def recipe_compatibility(slug: str, present_only: bool = False):
     )
     ingredient_texts = [str(r["raw"] or r["name"] or "") for r in rows]
     repairs = repair_ingredients(ingredient_texts, diets_at_table(conflicts), context)
+    repairs += fallback_repairs(conflicts, repairs, context)
     return {
         "slug": slug,
         "ingredients_checked": len(ingredients),
@@ -414,6 +416,7 @@ async def recipe_compatibility(slug: str, present_only: bool = False):
                 "with": r.substitution.target,
                 "reason": r.substitution.reason,
                 "confidence": round(r.substitution.confidence, 2),
+                "fallback": r.substitution.is_fallback,
             }
             for r in repairs
         ],
@@ -1652,6 +1655,7 @@ class PersonCreate(BaseModel):
     diet: str = "omnivore"
     dislikes: list[str] = []
     forbidden: list[str] = []
+    diet_exceptions: list[str] = []
     notes: str | None = None
     default_attendance: str = "never"
 
@@ -1662,6 +1666,7 @@ class PersonUpdate(BaseModel):
     diet: str | None = None
     dislikes: list[str] | None = None
     forbidden: list[str] | None = None
+    diet_exceptions: list[str] | None = None
     notes: str | None = None
     default_attendance: str | None = None
     is_active: bool | None = None
@@ -1728,10 +1733,11 @@ async def create_person(body: PersonCreate):
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
             """INSERT INTO person (name, full_name, circle, role, diet, dislikes,
-                                   forbidden, notes, default_attendance)
-               VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *""",
+                                   forbidden, diet_exceptions, notes, default_attendance)
+               VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *""",
             body.name, body.full_name, body.circle, body.role, body.diet,
-            body.dislikes, body.forbidden, body.notes, body.default_attendance,
+            body.dislikes, body.forbidden, body.diet_exceptions, body.notes,
+            body.default_attendance,
         )
     return dict(row)
 
@@ -2160,7 +2166,7 @@ async def load_convives_from_db(conn) -> dict:
     from cooking_manager.convives import Convive
 
     rows = await conn.fetch(
-        """SELECT name, diet, dislikes, forbidden, circle
+        """SELECT name, diet, dislikes, forbidden, diet_exceptions, circle
            FROM person WHERE is_active""",
     )
     convives = {}
@@ -2170,6 +2176,7 @@ async def load_convives_from_db(conn) -> dict:
             diet=r["diet"] or "standard",
             dislikes=list(r["dislikes"] or []),
             forbidden=list(r["forbidden"] or []),
+            diet_exceptions=list(r["diet_exceptions"] or []),
             is_guest=(r["circle"] != "household"),
         )
     return convives

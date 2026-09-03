@@ -419,6 +419,7 @@ class Substitution:
     reason: str
     confidence: float
     rule: SubstitutionRule
+    is_fallback: bool = False
 
 
 def fold(text: str) -> str:
@@ -587,6 +588,39 @@ def diets_at_table(conflicts: Sequence[Conflict]) -> tuple[str, ...]:
     return tuple(diets)
 
 
+FALLBACK_CONFIDENCE = 0.4
+
+
+def fallback_substitution(
+    protein: str,
+    context: RecipeContext,
+    diet: str = "pescetarian",
+) -> Substitution | None:
+    """Faute de règle nommée, la meilleure cible du catalogue POUR CE MODE DE CUISSON."""
+    rules = RULES_BY_DIET.get(diet)
+    if not rules or not context.cooking_methods:
+        return None
+    candidates = [
+        rule for rule in rules
+        if any(m in context.cooking_methods for m in rule.cooking_methods)
+    ]
+    if not candidates:
+        return None
+    best = max(candidates, key=lambda rule: rule.priority)
+    method = next(m for m in best.cooking_methods if m in context.cooking_methods)
+    return Substitution(
+        source=protein,
+        target=best.target,
+        reason=(
+            f"Aucune règle pour « {protein} » — {best.target} est la cible que le "
+            f"répertoire retient pour une cuisson « {method} ». À vérifier."
+        ),
+        confidence=FALLBACK_CONFIDENCE,
+        rule=best,
+        is_fallback=True,
+    )
+
+
 @dataclass(frozen=True)
 class UnrepairedConflict:
     """Un conflit de régime qu'aucune règle ne sait réparer, avec son motif."""
@@ -595,6 +629,32 @@ class UnrepairedConflict:
     diet: str
     convive: str
     reason: str
+
+
+def fallback_repairs(
+    conflicts: Sequence[Conflict],
+    repairs: Sequence[IngredientRepair],
+    context: RecipeContext | None = None,
+) -> list[IngredientRepair]:
+    """Un repli par conflit qu'aucune règle nommée ne couvre, si la cuisson est connue."""
+    resolved = context or RecipeContext()
+    repaired = {(r.diet, r.ingredient) for r in repairs}
+    out: list[IngredientRepair] = []
+    for conflict in conflicts:
+        if not conflict.reason.startswith(DIET_REASON_PREFIX):
+            continue
+        diet = conflict.reason[len(DIET_REASON_PREFIX):].strip()
+        key = (diet, conflict.matched)
+        if key in repaired:
+            continue
+        substitution = fallback_substitution(conflict.matched, resolved, diet)
+        if substitution is None:
+            continue
+        repaired.add(key)
+        out.append(IngredientRepair(
+            ingredient=conflict.matched, diet=diet, substitution=substitution,
+        ))
+    return out
 
 
 def unrepaired_conflicts(

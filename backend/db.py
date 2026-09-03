@@ -165,6 +165,7 @@ CREATE TABLE IF NOT EXISTS person (
     diet                TEXT NOT NULL DEFAULT 'omnivore',
     dislikes            TEXT[] DEFAULT '{}',
     forbidden           TEXT[] DEFAULT '{}',
+    diet_exceptions     TEXT[] DEFAULT '{}',
     notes               TEXT,
     default_attendance  TEXT NOT NULL DEFAULT 'never'
                         CHECK (default_attendance IN ('always', 'never', 'scheduled')),
@@ -336,6 +337,12 @@ CREATE TABLE IF NOT EXISTS stay_member (
 """
 
 MIGRATIONS_SQL = """
+-- diet_exceptions : ce que le régime interdit mais que CETTE personne mange.
+-- Sans cette colonne, un régime est un absolu — or Clémence est pescétarienne
+-- ET mange du boudin. Le contrôle bloquait un plat qu'elle accepte, et le seul
+-- contournement était de mentir sur son régime.
+ALTER TABLE person ADD COLUMN IF NOT EXISTS diet_exceptions TEXT[] DEFAULT '{}';
+
 -- recipe column migrations are owned by recipe-manager.
 ALTER TABLE menu ADD COLUMN IF NOT EXISTS meals JSONB;
 ALTER TABLE menu ADD COLUMN IF NOT EXISTS body TEXT;

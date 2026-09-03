@@ -100,13 +100,20 @@ class Convive:
     diet: str = "standard"
     dislikes: list[str] = field(default_factory=list)
     forbidden: list[str] = field(default_factory=list)
+    diet_exceptions: list[str] = field(default_factory=list)
     notes: str = ""
     is_guest: bool = False
 
     @property
+    def diet_terms(self) -> list[str]:
+        """Ce que le régime interdit, MOINS ce que cette personne mange quand même."""
+        spared = {_fold(term) for term in self.diet_exceptions}
+        return [t for t in DIETS.get(self.diet, ()) if _fold(t) not in spared]
+
+    @property
     def excluded_terms(self) -> list[str]:
         """Tout ce qui doit déclencher une alerte pour cette personne."""
-        return list(DIETS.get(self.diet, ())) + self.dislikes + self.forbidden
+        return self.diet_terms + self.dislikes + self.forbidden
 
 
 @dataclass
@@ -278,7 +285,7 @@ def check_meal(description: str, convives: list[Convive]) -> list[Conflict]:
     veggie_declared = _VEGGIE_MARKER.search(folded) is not None
 
     for convive in convives:
-        for term in DIETS.get(convive.diet, ()):
+        for term in convive.diet_terms:
             if veggie_declared and _fold(term) in MEAT_IMPLIED_DISHES:
                 continue
             if _contains_term(folded, _fold(term)):
@@ -325,7 +332,7 @@ def check_ingredients(ingredients: list, convives: list[Convive]) -> list[Confli
     for convive in convives:
         seen: set[str] = set()
         checks = (
-            [(t, f"régime {convive.diet}") for t in DIETS.get(convive.diet, ())]
+            [(t, f"régime {convive.diet}") for t in convive.diet_terms]
             + [(t, "interdit") for t in convive.forbidden]
             + [(t, "n'aime pas") for t in convive.dislikes]
         )

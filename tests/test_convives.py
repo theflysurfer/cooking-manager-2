@@ -235,3 +235,28 @@ class TestCheckIngredients:
 
     def test_empty_is_safe(self):
         assert check_ingredients([], [Convive(name="C", diet="vegan")]) == []
+
+
+class TestDietExceptions:
+    """Un régime n'est pas un absolu : Clémence est pescétarienne ET mange du boudin."""
+
+    def test_une_exception_leve_le_blocage(self):
+        stricte = Convive(name="Clémence", diet="pescetarian")
+        tolerante = Convive(name="Clémence", diet="pescetarian", diet_exceptions=["boudin"])
+        plat = [_ing("300 g de boudin noir", "boudin noir")]
+        assert check_ingredients(plat, [stricte]), "sans exception, le boudin doit bloquer"
+        assert check_ingredients(plat, [tolerante]) == []
+
+    def test_une_exception_ne_leve_que_le_terme_nomme(self):
+        tolerante = Convive(name="Clémence", diet="pescetarian", diet_exceptions=["boudin"])
+        conflicts = check_ingredients([_ing("600 g de poulet", "poulet")], [tolerante])
+        assert [c.matched for c in conflicts] == ["600 g de poulet"]
+
+    def test_une_exception_ne_touche_pas_les_interdits_personnels(self):
+        """`forbidden` est une contrainte propre, pas une clause du régime."""
+        convive = Convive(
+            name="Clémence", diet="pescetarian",
+            forbidden=["oeuf dur"], diet_exceptions=["oeuf dur"],
+        )
+        conflicts = check_ingredients([_ing("2 oeufs durs", "oeuf dur")], [convive])
+        assert [c.reason for c in conflicts] == ["interdit"]
