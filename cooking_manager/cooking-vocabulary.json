@@ -1,5 +1,5 @@
 {
-  "version": "0.2.0",
+  "version": "0.3.0",
   "slug": "cooking-vocabulary",
   "origin": "Extrait du moteur de substitutions porté de cooking-manager v1 (server/src/services/intelligentSubstitutions.ts) et mesuré en production dans cooking-manager-2 le 2026-09-02. Voir cooking-manager-2 ADR 0001.",
   "cooking_methods": [
@@ -17,7 +17,13 @@
         "à petit feu",
         "à couvert"
       ],
-      "applicable_when": ""
+      "applicable_when": "",
+      "dominates": [
+        "pan-fried",
+        "pan-seared",
+        "stir-fry"
+      ],
+      "observed_in": []
     },
     {
       "key": "slow-cooked",
@@ -29,7 +35,13 @@
         "slow-cooked",
         "cuisson lente"
       ],
-      "applicable_when": ""
+      "applicable_when": "",
+      "dominates": [
+        "pan-fried",
+        "pan-seared",
+        "stir-fry"
+      ],
+      "observed_in": []
     },
     {
       "key": "grilled",
@@ -42,7 +54,9 @@
         "plancha",
         "grill"
       ],
-      "applicable_when": ""
+      "applicable_when": "",
+      "dominates": [],
+      "observed_in": []
     },
     {
       "key": "bbq",
@@ -53,7 +67,9 @@
         "barbecue",
         "bbq"
       ],
-      "applicable_when": ""
+      "applicable_when": "",
+      "dominates": [],
+      "observed_in": []
     },
     {
       "key": "pan-fried",
@@ -68,7 +84,9 @@
         "dans la poêle",
         "faites dorer"
       ],
-      "applicable_when": ""
+      "applicable_when": "",
+      "dominates": [],
+      "observed_in": []
     },
     {
       "key": "pan-seared",
@@ -80,7 +98,9 @@
         "snacké",
         "poêler"
       ],
-      "applicable_when": ""
+      "applicable_when": "",
+      "dominates": [],
+      "observed_in": []
     },
     {
       "key": "stir-fry",
@@ -92,7 +112,9 @@
         "sauté",
         "stir-fry"
       ],
-      "applicable_when": ""
+      "applicable_when": "",
+      "dominates": [],
+      "observed_in": []
     },
     {
       "key": "oven",
@@ -103,7 +125,9 @@
         "au four",
         "rôti"
       ],
-      "applicable_when": ""
+      "applicable_when": "",
+      "dominates": [],
+      "observed_in": []
     },
     {
       "key": "breaded",
@@ -117,7 +141,9 @@
         "katsu",
         "tempura"
       ],
-      "applicable_when": ""
+      "applicable_when": "",
+      "dominates": [],
+      "observed_in": []
     },
     {
       "key": "steamed",
@@ -128,7 +154,9 @@
         "vapeur",
         "cuit à la vapeur"
       ],
-      "applicable_when": ""
+      "applicable_when": "",
+      "dominates": [],
+      "observed_in": []
     },
     {
       "key": "glazed",
@@ -139,7 +167,9 @@
         "laqué",
         "glacé"
       ],
-      "applicable_when": ""
+      "applicable_when": "",
+      "dominates": [],
+      "observed_in": []
     },
     {
       "key": "smoked",
@@ -150,7 +180,9 @@
         "fumé",
         "au fumoir"
       ],
-      "applicable_when": ""
+      "applicable_when": "",
+      "dominates": [],
+      "observed_in": []
     },
     {
       "key": "raw",
@@ -163,7 +195,9 @@
         "cru",
         "mariné"
       ],
-      "applicable_when": ""
+      "applicable_when": "",
+      "dominates": [],
+      "observed_in": []
     }
   ],
   "cuisines": [
@@ -182,7 +216,9 @@
         "citronnelle",
         "nuoc-mam"
       ],
-      "applicable_when": ""
+      "applicable_when": "",
+      "dominates": [],
+      "observed_in": []
     },
     {
       "key": "thai",
@@ -197,7 +233,9 @@
         "piment thai",
         "basilic thai"
       ],
-      "applicable_when": ""
+      "applicable_when": "",
+      "dominates": [],
+      "observed_in": []
     },
     {
       "key": "chinese",
@@ -211,7 +249,9 @@
         "cinq-épices",
         "nouilles chinoises"
       ],
-      "applicable_when": ""
+      "applicable_when": "",
+      "dominates": [],
+      "observed_in": []
     },
     {
       "key": "vietnamese",
@@ -226,7 +266,9 @@
         "citronnelle",
         "menthe fraîche"
       ],
-      "applicable_when": ""
+      "applicable_when": "",
+      "dominates": [],
+      "observed_in": []
     },
     {
       "key": "japanese",
@@ -245,7 +287,9 @@
         "gomasio",
         "japonais"
       ],
-      "applicable_when": ""
+      "applicable_when": "",
+      "dominates": [],
+      "observed_in": []
     },
     {
       "key": "indian",
@@ -262,7 +306,9 @@
         "coriandre",
         "cardamome"
       ],
-      "applicable_when": ""
+      "applicable_when": "",
+      "dominates": [],
+      "observed_in": []
     },
     {
       "key": "pakistani",
@@ -277,7 +323,9 @@
         "tandoori",
         "ghee"
       ],
-      "applicable_when": ""
+      "applicable_when": "",
+      "dominates": [],
+      "observed_in": []
     },
     {
       "key": "mediterranean",
@@ -292,7 +340,9 @@
         "citron",
         "ail"
       ],
-      "applicable_when": ""
+      "applicable_when": "",
+      "dominates": [],
+      "observed_in": []
     },
     {
       "key": "greek",
@@ -307,7 +357,9 @@
         "origan",
         "aneth"
       ],
-      "applicable_when": ""
+      "applicable_when": "",
+      "dominates": [],
+      "observed_in": []
     },
     {
       "key": "italian",
@@ -321,7 +373,9 @@
         "mozzarella",
         "pesto"
       ],
-      "applicable_when": ""
+      "applicable_when": "",
+      "dominates": [],
+      "observed_in": []
     },
     {
       "key": "french",
@@ -336,7 +390,9 @@
         "crème fraîche",
         "moutarde"
       ],
-      "applicable_when": ""
+      "applicable_when": "",
+      "dominates": [],
+      "observed_in": []
     },
     {
       "key": "spanish",
@@ -351,7 +407,9 @@
         "piquillo",
         "tapas"
       ],
-      "applicable_when": ""
+      "applicable_when": "",
+      "dominates": [],
+      "observed_in": []
     },
     {
       "key": "american",
@@ -366,7 +424,9 @@
         "cajun",
         "bbq sauce"
       ],
-      "applicable_when": ""
+      "applicable_when": "",
+      "dominates": [],
+      "observed_in": []
     },
     {
       "key": "mexican",
@@ -380,7 +440,9 @@
         "coriandre",
         "lime"
       ],
-      "applicable_when": ""
+      "applicable_when": "",
+      "dominates": [],
+      "observed_in": []
     },
     {
       "key": "middle_eastern",
@@ -394,7 +456,9 @@
         "grenade",
         "menthe"
       ],
-      "applicable_when": ""
+      "applicable_when": "",
+      "dominates": [],
+      "observed_in": []
     },
     {
       "key": "west_african",
@@ -410,7 +474,9 @@
         "thiéboudienne",
         "sénégalais"
       ],
-      "applicable_when": ""
+      "applicable_when": "",
+      "dominates": [],
+      "observed_in": []
     }
   ],
   "textures": [
@@ -420,7 +486,9 @@
       "status": "active",
       "definition": "Tient à la cuisson, ne se délite pas.",
       "synonyms": [],
-      "applicable_when": ""
+      "applicable_when": "",
+      "dominates": [],
+      "observed_in": []
     },
     {
       "key": "tender",
@@ -428,7 +496,9 @@
       "status": "active",
       "definition": "Chair moelleuse, cuisson courte.",
       "synonyms": [],
-      "applicable_when": ""
+      "applicable_when": "",
+      "dominates": [],
+      "observed_in": []
     },
     {
       "key": "flaky",
@@ -436,7 +506,9 @@
       "status": "active",
       "definition": "Se détache en lamelles, supporte la panure.",
       "synonyms": [],
-      "applicable_when": ""
+      "applicable_when": "",
+      "dominates": [],
+      "observed_in": []
     },
     {
       "key": "crispy",
@@ -444,7 +516,9 @@
       "status": "active",
       "definition": "Recherché pour le croquant après cuisson vive.",
       "synonyms": [],
-      "applicable_when": ""
+      "applicable_when": "",
+      "dominates": [],
+      "observed_in": []
     }
   ],
   "accommodations": [
@@ -454,7 +528,14 @@
       "status": "active",
       "definition": "L'ingrédient litigieux est servi à part, chacun se sert ; le convive arbitre, pas la recette.",
       "synonyms": [],
-      "applicable_when": "L'ingrédient est ajoutable après coup sans recuisson — crudité, condiment, garniture."
+      "applicable_when": "L'ingrédient est ajoutable après coup sans recuisson — crudité, condiment, garniture.",
+      "dominates": [],
+      "observed_in": [
+        "salade-vietnamienne",
+        "sandwiches-rillettes-thon",
+        "sandwiches-saumon-fume-saint-moret",
+        "tortilla-pizza-atelier"
+      ]
     },
     {
       "key": "full_substitution",
@@ -462,7 +543,13 @@
       "status": "active",
       "definition": "L'ingrédient est remplacé pour tout le monde ; le plat change.",
       "synonyms": [],
-      "applicable_when": "L'ingrédient est fondu dans la préparation — haché, mariné, mijoté dans la base, réduit en sauce."
+      "applicable_when": "L'ingrédient est fondu dans la préparation — haché, mariné, mijoté dans la base, réduit en sauce.",
+      "dominates": [],
+      "observed_in": [
+        "mafe-poisson-legumes",
+        "salade-lentilles-froides-graines-courge",
+        "tagliatelles-carbonara-vege"
+      ]
     },
     {
       "key": "separate_portion",
@@ -470,7 +557,11 @@
       "status": "probation",
       "definition": "Le plat est cuisiné tel quel ; une part reçoit un ingrédient différent au service.",
       "synonyms": [],
-      "applicable_when": "L'ingrédient est ajouté tard — posé sur le plat, saisi à part, incorporé au service."
+      "applicable_when": "L'ingrédient est ajouté tard — posé sur le plat, saisi à part, incorporé au service.",
+      "dominates": [],
+      "observed_in": [
+        "mafe-poulet"
+      ]
     },
     {
       "key": "separate_dish",
@@ -478,7 +569,9 @@
       "status": "probation",
       "definition": "Un plat distinct est préparé pour le convive incompatible.",
       "synonyms": [],
-      "applicable_when": "Ni la substitution ni la part séparée ne tiennent — le plat est indissociable de son ingrédient."
+      "applicable_when": "Ni la substitution ni la part séparée ne tiennent — le plat est indissociable de son ingrédient.",
+      "dominates": [],
+      "observed_in": []
     }
   ]
 }

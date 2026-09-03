@@ -1,4 +1,4 @@
-version: "0.2.0"
+version: "0.3.0"
 slug: cooking-vocabulary
 kind: cooking
 origin: >-
@@ -26,6 +26,15 @@ origin: >-
 # « milieu liquide + durée » remonte 8 faux positifs (couscous, quinoa, pommes
 # de terre à l'eau bouillante). Il faut un TROISIÈME terme — l'étape doit nommer
 # la protéine à remplacer. C'est `has_anchored_stew()` dans substitutions.py.
+#
+# ⚠️ `dominates` (v0.3.0) — UNE CUISSON PRÉPARATOIRE N'EST PAS LA CUISSON DU PLAT.
+# Mesuré sur SC-68 : « faites dorer la viande », présent dans presque tout mijoté,
+# déclenchait `pan-fried` avec le MÊME bonus (40) que `stew`, et faisait gagner
+# *dorade* (150) sur *lotte* (135) dans une cocotte. Le rissolage est une étape,
+# pas le plat. Un mode qui en `dominates` un autre le retire du contexte quand
+# les deux sont détectés : ce que la cocotte absorbe ne pèse plus dans le score.
+# La relation est ORIENTÉE et ne vaut qu'à l'intérieur d'une facette ; le
+# générateur refuse une clé inconnue ou auto-citée.
 
 cooking_methods:
   - key: stew
@@ -33,11 +42,13 @@ cooking_methods:
     status: active
     definition: "Cuisson longue en milieu liquide, à couvert ou à feu doux."
     synonyms: ["mijoté", "ragoût", "cocotte", "braisé", "à feu doux", "à petit feu", "à couvert"]
+    dominates: ["pan-fried", "pan-seared", "stir-fry"]
   - key: slow-cooked
     label: "Cuisson lente"
     status: active
     definition: "Cuisson prolongée à basse température."
     synonyms: ["mijoté", "slow-cooked", "cuisson lente"]
+    dominates: ["pan-fried", "pan-seared", "stir-fry"]
   - key: grilled
     label: "Grillé"
     status: active
@@ -230,3 +241,10 @@ accommodations:
     observed_in: []
   # ZÉRO observation sur 28 recettes. Conservée — l'absence dans ce corpus n'est
   # pas une preuve d'impossibilité — mais elle ne pèse pas comme les autres.
+  #
+  # ⚠️ Décision du 2026-09-03 : « ne pèse pas comme les autres » était jusqu'ici
+  # une note humaine que rien n'exécutait. `accommodations_by_evidence()` classe
+  # désormais par statut PUIS par nombre d'observations, et un test refuse
+  # qu'une accommodation en probation précède une active. `observed_in` est
+  # propagé jusqu'à l'artefact JSON depuis la v0.3.0 : avant, il s'arrêtait au
+  # YAML, et tout tri par observations aurait compté zéro partout sans erreur.

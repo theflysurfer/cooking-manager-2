@@ -2,12 +2,15 @@
 
 from cooking_manager.convives import Conflict
 from cooking_manager.substitutions import (
+    COOKING_METHOD_DOMINATIONS,
     COOKING_METHOD_KEYWORDS,
     CUISINE_KEYWORDS,
     PESCETARIAN_RULES,
     VOCABULARY_VERSION,
     RecipeContext,
+    accommodations_by_evidence,
     concept_keys,
+    load_vocabulary,
     detect_context,
     has_anchored_stew,
     is_accommodation_step,
@@ -188,7 +191,62 @@ def test_toute_cle_citee_est_detectable():
 
 
 def test_le_vocabulaire_est_epingle():
-    assert VOCABULARY_VERSION == "0.2.0"
+    assert VOCABULARY_VERSION == "0.3.0"
+
+
+def test_une_domination_ne_cite_que_des_cuissons_connues():
+    known = concept_keys("cooking_methods")
+    for method, dominated in COOKING_METHOD_DOMINATIONS.items():
+        assert method in known
+        assert dominated <= known, (
+            f"« {method} » domine {sorted(dominated - known)}, absent du vocabulaire : "
+            "la règle ne s'appliquerait jamais, sans erreur."
+        )
+
+
+def test_le_mijote_absorbe_le_rissolage_preparatoire():
+    """SC-68 : « faites dorer » ouvre presque tout mijoté sans le rendre poêlé."""
+    context = detect_context(
+        "Blanquette de veau",
+        steps=(
+            "Faites dorer la viande dans une cocotte.",
+            "Couvrir et laisser mijoter 40 min.",
+        ),
+    )
+    assert "stew" in context.cooking_methods
+    assert "pan-fried" not in context.cooking_methods
+
+
+def test_une_vraie_poelee_reste_poelee():
+    """Non-régression : sans mijoté détecté, la domination ne retire rien."""
+    context = detect_context(
+        "Filet de poulet poêlé",
+        steps=("Faites dorer les filets à la poêle 6 min de chaque côté.",),
+    )
+    assert "pan-fried" in context.cooking_methods
+
+
+def test_une_accommodation_en_probation_ne_passe_jamais_devant_une_active():
+    ranking = accommodations_by_evidence()
+    statuses = {c["key"]: c["status"] for c in load_vocabulary()["accommodations"]}
+    seen_probation = False
+    for key in ranking:
+        if statuses[key] == "probation":
+            seen_probation = True
+        elif seen_probation:
+            raise AssertionError(
+                f"« {key} » est active mais classée après une accommodation en probation."
+            )
+
+
+def test_les_observations_survivent_a_la_generation():
+    """`observed_in` s'arrêtait au YAML : tout tri par preuve aurait compté zéro partout."""
+    observed = {
+        c["key"]: c.get("observed_in")
+        for c in load_vocabulary()["accommodations"]
+    }
+    assert observed["self_service"], "observed_in perdu à la génération de l'artefact."
+    assert observed["separate_dish"] == []
 
 
 MAFE_POULET_STEPS = (

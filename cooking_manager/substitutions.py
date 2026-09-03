@@ -36,9 +36,43 @@ def _synonyms(facet: str) -> dict[str, tuple[str, ...]]:
     }
 
 
+def _dominations(facet: str) -> dict[str, frozenset[str]]:
+    return {
+        concept["key"]: frozenset(concept.get("dominates") or ())
+        for concept in _VOCABULARY[facet]
+        if concept.get("dominates")
+    }
+
+
 def concept_keys(facet: str) -> frozenset[str]:
     """Toutes les clés déclarées pour une facette, quel que soit leur statut."""
     return frozenset(concept["key"] for concept in _VOCABULARY[facet])
+
+
+_STATUS_RANK = {"active": 0, "probation": 1, "retired": 2}
+
+
+def accommodations_by_evidence() -> tuple[str, ...]:
+    """Les techniques d'accommodation, les mieux attestées d'abord.
+
+    `status` est écrit dans le vocabulaire mais rien ne l'exécutait : une
+    technique à zéro observation (`separate_dish`) pesait autant qu'une pratiquée
+    quatre fois. Le rang classe d'abord par statut, puis par nombre
+    d'observations — un consommateur qui propose dans cet ordre ne peut pas
+    mettre une intuition devant une pratique mesurée.
+    """
+    return tuple(
+        concept["key"]
+        for concept in sorted(
+            _VOCABULARY["accommodations"],
+            key=lambda c: (
+                _STATUS_RANK.get(c["status"], len(_STATUS_RANK)),
+                -len(c.get("observed_in") or ()),
+                c["key"],
+            ),
+        )
+        if concept["status"] != "retired"
+    )
 
 
 @dataclass(frozen=True)
@@ -347,6 +381,8 @@ CUISINE_KEYWORDS: dict[str, tuple[str, ...]] = _synonyms("cuisines")
 
 COOKING_METHOD_KEYWORDS: dict[str, tuple[str, ...]] = _synonyms("cooking_methods")
 
+COOKING_METHOD_DOMINATIONS: dict[str, frozenset[str]] = _dominations("cooking_methods")
+
 CUISINE_BONUS = 20
 COOKING_METHOD_BONUS = 40
 
@@ -438,6 +474,20 @@ def has_anchored_stew(steps: Sequence[str]) -> bool:
     return False
 
 
+def drop_dominated(methods: Sequence[str]) -> tuple[str, ...]:
+    """La cuisson qui définit le plat efface celles qu'elle absorbe (SC-68).
+
+    « Faites dorer » ouvre presque tout mijoté sans le rendre poêlé : sans cette
+    passe, `pan-fried` pesait autant que `stew` dans une cocotte.
+    """
+    absorbed = {
+        dominated
+        for method in methods
+        for dominated in COOKING_METHOD_DOMINATIONS.get(method, ())
+    }
+    return tuple(method for method in methods if method not in absorbed)
+
+
 def detect_context(
     name: str,
     description: str = "",
@@ -462,7 +512,7 @@ def detect_context(
     )
     if "stew" not in methods and has_anchored_stew(dish_steps):
         methods = (*methods, "stew")
-    return RecipeContext(cuisines=cuisines, cooking_methods=methods)
+    return RecipeContext(cuisines=cuisines, cooking_methods=drop_dominated(methods))
 
 
 def rule_applies(rule: SubstitutionRule, context: RecipeContext) -> bool:
