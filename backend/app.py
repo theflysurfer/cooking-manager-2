@@ -2187,9 +2187,11 @@ async def load_convives_from_db(conn) -> dict:
 SEED_PERSONS = [
     {"name": "Julien",   "circle": "household", "role": "adult", "default_attendance": "always"},
     {"name": "Clémence", "circle": "household", "role": "adult", "default_attendance": "always",
-     "diet": "pescetarian", "forbidden": ["oeuf dur", "oeuf poché", "oeuf au plat", "oeuf mollet"]},
+     "diet": "pescetarian",
+     "dislikes": ["oeuf dur", "oeuf poché", "oeuf au plat", "oeuf mollet"],
+     "diet_exceptions": ["boudin", "quenelles de veau", "quenelles de volaille"]},
     {"name": "Léa",      "circle": "household", "role": "child", "default_attendance": "scheduled",
-     "forbidden": ["oeuf dur", "oeuf poché", "oeuf au plat", "oeuf mollet"], "dislikes": ["mais"]},
+     "dislikes": ["oeuf dur", "oeuf poché", "oeuf au plat", "oeuf mollet", "mais"]},
     {"name": "Titouan",  "circle": "household", "role": "child", "default_attendance": "scheduled"},
 ]
 
@@ -2231,16 +2233,20 @@ async def seed_household():
         created_persons = 0
         for p in SEED_PERSONS:
             result = await conn.execute(
+                # ⚠️ `dislikes`, `forbidden` et `diet_exceptions` sont posés à la
+                # CRÉATION et jamais réécrits : ils s'affinent à l'usage, et un
+                # seed qui les réimpose effacerait sans un mot les aversions
+                # saisies depuis (Clémence en avait 4, le seed n'en connaît pas).
                 """INSERT INTO person (name, circle, role, diet, dislikes, forbidden,
-                                       default_attendance)
-                   VALUES ($1, $2, $3, $4, $5, $6, $7)
+                                       diet_exceptions, default_attendance)
+                   VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
                    ON CONFLICT (name, circle) DO UPDATE SET
                        role = EXCLUDED.role, diet = EXCLUDED.diet,
-                       dislikes = EXCLUDED.dislikes, forbidden = EXCLUDED.forbidden,
                        default_attendance = EXCLUDED.default_attendance, updated_at = NOW()""",
                 p["name"], p["circle"], p["role"],
                 p.get("diet", "omnivore"), p.get("dislikes", []),
-                p.get("forbidden", []), p["default_attendance"],
+                p.get("forbidden", []), p.get("diet_exceptions", []),
+                p["default_attendance"],
             )
             if "INSERT" in result:
                 created_persons += 1

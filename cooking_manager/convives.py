@@ -106,9 +106,19 @@ class Convive:
 
     @property
     def diet_terms(self) -> list[str]:
-        """Ce que le régime interdit, MOINS ce que cette personne mange quand même."""
-        spared = {_fold(term) for term in self.diet_exceptions}
-        return [t for t in DIETS.get(self.diet, ()) if _fold(t) not in spared]
+        """Ce que le régime de cette personne interdit."""
+        return list(DIETS.get(self.diet, ()))
+
+    def diet_waived_on(self, folded_text: str) -> str | None:
+        """L'exception qui dispense CE texte du régime — « quenelles de veau », pas « veau ».
+
+        Porte sur une préparation, jamais sur un terme entier du régime : sans
+        quoi lever les quenelles de veau laisserait aussi passer un rôti de veau.
+        """
+        for exception in self.diet_exceptions:
+            if _contains_term(folded_text, _fold(exception)):
+                return exception
+        return None
 
     @property
     def excluded_terms(self) -> list[str]:
@@ -207,10 +217,16 @@ def _contains_term(folded_text: str, term: str) -> bool:
     alors qu'elle ne contient pas un grain de maïs. Un faux positif ruine la
     confiance dans l'alerte aussi sûrement qu'un faux négatif — et pousse à
     désactiver le contrôle.
+
+    ⚠️ Le pluriel EST toléré, et seulement lui (« s » ou « x » final) : les
+    termes du régime sont au singulier, si bien que « 200 g de lardons » et
+    « 2 veaux » ne rencontraient aucune entrée et passaient pour compatibles.
+    Aucun terme carné ne devient un autre mot en prenant sa marque de pluriel,
+    donc « maison » reste hors d'atteinte de « maïs ».
     """
     if not term:
         return False
-    return re.search(rf"(?<!\w){re.escape(term)}(?!\w)", folded_text) is not None
+    return re.search(rf"(?<!\w){re.escape(term)}[sx]?(?!\w)", folded_text) is not None
 
 
 def parse_convives(body: str) -> list[Convive]:
@@ -285,7 +301,11 @@ def check_meal(description: str, convives: list[Convive]) -> list[Conflict]:
     veggie_declared = _VEGGIE_MARKER.search(folded) is not None
 
     for convive in convives:
-        for term in convive.diet_terms:
+        if convive.diet_waived_on(folded) is None:
+            diet_terms = convive.diet_terms
+        else:
+            diet_terms = []
+        for term in diet_terms:
             if veggie_declared and _fold(term) in MEAT_IMPLIED_DISHES:
                 continue
             if _contains_term(folded, _fold(term)):
@@ -339,12 +359,18 @@ def check_ingredients(ingredients: list, convives: list[Convive]) -> list[Confli
         for term, reason in checks:
             if reason in seen:
                 continue
+            is_diet = reason.startswith("régime ")
             for folded, raw in rows:
-                if _contains_term(folded, _fold(term)):
-                    # Le terme sert à détecter, la ligne à retrouver l'ingrédient.
-                    conflicts.append(Conflict(convive.name, reason, raw or term))
-                    seen.add(reason)
-                    break
+                if not _contains_term(folded, _fold(term)):
+                    continue
+                # Une exception dispense LA LIGNE, pas le régime : « quenelles de
+                # veau » passe, le rôti de veau bloque toujours.
+                if is_diet and convive.diet_waived_on(folded) is not None:
+                    continue
+                # Le terme sert à détecter, la ligne à retrouver l'ingrédient.
+                conflicts.append(Conflict(convive.name, reason, raw or term))
+                seen.add(reason)
+                break
     return conflicts
 
 

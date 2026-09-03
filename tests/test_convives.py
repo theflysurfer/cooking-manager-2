@@ -237,6 +237,24 @@ class TestCheckIngredients:
         assert check_ingredients([], [Convive(name="C", diet="vegan")]) == []
 
 
+class TestPluriels:
+    """Les termes du régime sont au singulier, les recettes écrivent au pluriel."""
+
+    def test_le_pluriel_bloque_comme_le_singulier(self):
+        convive = Convive(name="C", diet="pescetarian")
+        for line in ("200 g de lardons", "2 steaks hachés", "6 quenelles de veaux",
+                     "4 saucissons secs", "3 tranches de jambons"):
+            assert check_ingredients([_ing(line, line)], [convive]), (
+                f"« {line} » doit bloquer un pescétarien"
+            )
+
+    def test_le_pluriel_ne_rouvre_pas_le_faux_positif_maison(self):
+        """« maïs » ne doit toujours pas matcher « houmous maison »."""
+        convive = Convive(name="C", diet="standard", dislikes=["mais"])
+        assert check_ingredients([_ing("houmous maison", "houmous maison")], [convive]) == []
+        assert check_ingredients([_ing("200 g de mais", "mais")], [convive])
+
+
 class TestDietExceptions:
     """Un régime n'est pas un absolu : Clémence est pescétarienne ET mange du boudin."""
 
@@ -251,6 +269,29 @@ class TestDietExceptions:
         tolerante = Convive(name="Clémence", diet="pescetarian", diet_exceptions=["boudin"])
         conflicts = check_ingredients([_ing("600 g de poulet", "poulet")], [tolerante])
         assert [c.matched for c in conflicts] == ["600 g de poulet"]
+
+    def test_une_exception_porte_sur_la_preparation_pas_sur_la_viande(self):
+        """« quenelles de veau » se mange, le rôti de veau non — même terme bloquant."""
+        convive = Convive(
+            name="Clémence", diet="pescetarian",
+            diet_exceptions=["quenelles de veau"],
+        )
+        quenelles = [_ing("6 quenelles de veau", "quenelles de veau")]
+        roti = [_ing("1,2 kg de rôti de veau", "rôti de veau")]
+        assert check_ingredients(quenelles, [convive]) == []
+        assert check_ingredients(roti, [convive]), "le rôti de veau doit bloquer"
+
+    def test_une_exception_ne_dispense_que_sa_ligne(self):
+        convive = Convive(
+            name="Clémence", diet="pescetarian",
+            diet_exceptions=["quenelles de veau"],
+        )
+        plat = [
+            _ing("6 quenelles de veau", "quenelles de veau"),
+            _ing("200 g de lardons", "lardons"),
+        ]
+        conflicts = check_ingredients(plat, [convive])
+        assert [c.matched for c in conflicts] == ["200 g de lardons"]
 
     def test_une_exception_ne_touche_pas_les_interdits_personnels(self):
         """`forbidden` est une contrainte propre, pas une clause du régime."""
