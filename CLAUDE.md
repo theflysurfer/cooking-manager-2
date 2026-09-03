@@ -76,10 +76,9 @@ Quatre fichiers font autorité, dans cet ordre de spécificité :
 | `Garde-manger.md` | stock réel par rayon, statuts, quantités | `pantry_item` (DB = source de vérité) |
 | `Presences.md` | ⚠️ **plus lu par l'app depuis 2026-08-12** — présence 100 % DB (`school_period`, `absence`, `stay`). Conservé comme note humaine seulement | — |
 
-⚠️ **`menu.slug` est la clé naturelle.** Sans elle, l'ingestion se protégeait des
-doublons par un `DELETE FROM menu` qui effaçait tout menu absent du vault — un
-menu créé via l'API disparaissait à la première ingestion de recettes, sans
-erreur ni trace. Ne jamais réintroduire ce DELETE.
+⚠️ **`menu.slug` est la clé naturelle.** Ne jamais réintroduire le
+`DELETE FROM menu` qui protégeait l'ingestion des doublons : il effaçait tout
+menu absent du vault, donc un menu créé via l'API, sans erreur ni trace.
 
 ⚠️ **Le `slug` est la clé, pas le nom de fichier — deux fiches peuvent le déclarer
 en double**, et l'upsert n'en garde qu'une. `read_recipes()` les départage sur la date
@@ -89,10 +88,9 @@ est un mount rclone, le mtime date la *copie*, pas la donnée.
 
 ### Relier un repas à sa recette — deux marqueurs dans `meals:`
 
-Chaque repas est éclaté en une ligne `menu_meal` (menu × jour × créneau) à
-l'ingestion, et sa recette résolue. L'appariement par titre échoue toujours
-parce que l'intitulé du menu, rédigé à la main, diverge du titre de la fiche.
-D'où deux marqueurs par créneau :
+Chaque repas devient une ligne `menu_meal` (menu × jour × créneau) à l'ingestion.
+L'appariement par titre échoue toujours — l'intitulé du menu, rédigé à la main,
+diverge du titre de la fiche. D'où deux marqueurs par créneau :
 
 | Marqueur | Effet |
 |---|---|
@@ -111,14 +109,12 @@ panier, ingrédients ancrés sur l'acheté (jamais inventés).
 curl -s https://cooking.srv759970.hstgr.cloud/api/menus/<slug>/compatibility
 ```
 
-Croise **qui est réellement à table** (`Presences.md`) et **ce que chacun ne peut
-pas manger** (`Convives.md`). Les deux sont nécessaires : la grille type de
-`Convives.md` dit « mardi midi, enfants à la cantine » mais porte la mention
-*« hors vacances scolaires »* — en août elle ne s'applique pas, et raisonner
-dessus donne une réponse fausse avec l'aplomb d'une règle écrite.
-
-L'agenda Google **ne suffit pas** comme source : mesuré le 2026-08-04, la semaine
-ne portait qu'un seul événement. Il apporte les exceptions, jamais la trame.
+Croise **qui est réellement à table** et **ce que chacun ne peut pas manger** —
+tout vient de la DB (cf. § Gotchas, Tablée). Ne jamais raisonner sur la grille
+type « mardi midi, enfants à la cantine » : elle porte la mention *« hors
+vacances scolaires »*, donc en août elle donne une réponse fausse avec l'aplomb
+d'une règle écrite. L'agenda Google n'apporte que les exceptions, jamais la
+trame — il ne suffit pas comme source.
 
 ## Commande vocale (STT + LLM)
 
@@ -127,7 +123,7 @@ Pipeline : MediaRecorder (front) → `POST /api/audio` → Deepgram prerecorded 
 - **LLM intent** : Groq `qwen/qwen3.6-27b` (`reasoning_effort: "none"`, ~300 ms). Ollama cloud en fallback si `GROQ_API_KEY` absent
 - **Credentials** : credstore systemd (`cooking-deepgram-key`, `cooking-ollama-key`, `groq-key` partagé avec bibliotheque), lues par `deploy/run-with-cred.sh`
 - **MediaRecorder** exige Safari 14.5+ — le FAB micro est **masqué** sur Safari 12 (feature-detect). Le panneau vocal n'apparaît jamais sur l'iPad mini 2
-- **9 intents** (tous câblés) : `search_recipe`, `adjust_servings`, `swap_recipe`, `pantry_bulk_update`, `product_blacklist`, `recipe_note`, `recipe_edit_step`, `meal_feedback`, `pantry_leftover`
+- **Les intents sont déclarés dans le PROMPT** de `backend/stt.py`, pas dans une table — les lister : `grep -oP '^\d+\. \K\w+' backend/stt.py`. Un intent ajouté au prompt sans être câblé côté exécution échoue en silence
 
 ## Macros — la doctrine vient du vault, pas du code
 
@@ -171,7 +167,7 @@ pas par un flottant, et un test qui passe des `float` ne peut pas voir ce cas.
 ## Gotchas
 
 - **Auchan Drive : une seule voie de connexion — le MCP VPS** (`mcp-vps-auchan`, port 3854, refs #60). Les modules `backend/auchan*.py` sont décommissionnés, contexte magasin compris (`grocery_find_stores`/`grocery_set_store`). La session Auchan du VPS est gérée par le seul **Cookie Health VPS**. HydraSpecter = outil de diagnostic, **pas** une voie de connexion
-- **Tablée : 100 % DB, plus aucune lecture de `Presences.md` ni `Convives.md`** (refs #33). Tout vient de `load_referential_from_db()` (school_period, absence, stay) et `load_convives_from_db()` (`person`). Résolveur : `GET /api/attendance?day=&slot=`, `presence.py::attendees()`. `stay`+`stay_member` corrige F.30 : en location on cuisine sur place, donc les membres du séjour sont à table quelles que soient la trame et les absences. `ADULTS`/`CHILDREN`/`CUSTODY_REFERENCE_WEEK` ne sont plus qu'un **repli** sans `HouseholdConfig`. `convive` (legacy) et `person` coexistent ; `person` fait autorité. `POST /api/seed` est idempotent. ⚠️ **`attendees()` annonce quatre niveaux (override > séjour > trame > absences) mais le sommet est INATTEIGNABLE** : rien n'écrit `meal_attendance`, donc l'override manuel n'arrive jamais, et le résolveur répond avec la trame sans le signaler. Même chose pour `stay.cooking` et `extra_headcount` : écrits ou exposés, lus par aucun calcul. Refs #73 — ne pas raisonner sur ces trois-là comme sur des données vivantes
+- **Tablée : 100 % DB, plus aucune lecture de `Presences.md` ni `Convives.md`** (refs #33). Tout vient de `load_referential_from_db()` (school_period, absence, stay) et `load_convives_from_db()` (`person`). Résolveur : `GET /api/attendance?day=&slot=`, `presence.py::attendees()`. `stay`+`stay_member` corrige F.30 : en location on cuisine sur place, donc les membres du séjour sont à table quelles que soient la trame et les absences. `ADULTS`/`CHILDREN`/`CUSTODY_REFERENCE_WEEK` ne sont plus qu'un **repli** sans `HouseholdConfig`. `convive` (legacy) et `person` coexistent ; `person` fait autorité. ⚠️ **`POST /api/seed` n'est idempotent que depuis le 2026-09-03** : son `DO UPDATE` réimposait `dislikes`/`forbidden` depuis ses constantes, donc il effaçait sans un mot les préférences saisies après coup. Ces listes ne sont désormais posées qu'à la CRÉATION — ne jamais les remettre dans le `DO UPDATE`. ⚠️ **`attendees()` annonce quatre niveaux (override > séjour > trame > absences) mais le sommet est INATTEIGNABLE** : rien n'écrit `meal_attendance`, donc l'override manuel n'arrive jamais, et le résolveur répond avec la trame sans le signaler. Même chose pour `stay.cooking` et `extra_headcount` : écrits ou exposés, lus par aucun calcul. Refs #73 — ne pas raisonner sur ces trois-là comme sur des données vivantes
 - **Une photo qui n'est pas un fichier local est une photo en sursis.** `_scrape_photo()` reconstruit `photo_url` à chaque ingestion depuis un site tiers ; l'upsert doit rester `photo_url=COALESCE($24, recipe.photo_url)`, sans quoi **un scraping qui échoue efface la photo** sans erreur. La parade de fond est le fichier local `web/media/recipes/<slug>.jpg`, prioritaire et insensible au réseau. Générer les manquantes via **recipe-manager** (`POST /recipes/<slug>/generate-image`, port 8796), qui porte le prompt v1.1 — jamais un prompt improvisé, sinon le parc perd son unité visuelle. Récupérer avec `?inline=true` → `image_base64`, écrire dans `web/media/recipes/`, **committer**. Extension **`.jpg` obligatoire** : `ingest.py` ne scanne que celle-là, un `.png` déposé n'est jamais rattaché (refs #70)
 - `httpx`/`selectolax`/`mcp` sont des dépendances déclarées dans `pyproject.toml` — un venv reconstruit à neuf (`pip install .`) est le test de vérité si ce fichier dérive
 - Toute nouvelle colonne dans un CREATE TABLE doit aussi etre dans MIGRATIONS_SQL (`ALTER TABLE ADD COLUMN IF NOT EXISTS`) — le VPS a deja les tables, `CREATE TABLE IF NOT EXISTS` ne rajoute rien
@@ -191,7 +187,9 @@ pas par un flottant, et un test qui passe des `float` ne peut pas voir ce cas.
 - **Une cuisson préparatoire n'est pas la cuisson du plat.** « Faites dorer » ouvre presque tout mijoté : sans la table `dominates` du vocabulaire (`stew`/`slow-cooked` absorbent `pan-fried`/`pan-seared`/`stir-fry`, consommée par `drop_dominated()`), `pan-fried` pesait autant que `stew` et faisait gagner une dorade grillée dans une cocotte. N'y inscrire **que ce qui a été observé** — une dominance plausible mais non mesurée est le défaut reproché à `separate_dish`
 - `cooking_mcp.py` importe `from fastmcp import FastMCP` (pas `from mcp.server.fastmcp`) — seul le package `fastmcp` (v3.4+) expose `host`/`port`/`allowed_hosts` dans `run()`. Le package `mcp` v2 a un `FastMCP.run()` minimaliste
 - Tout MCP VPS derrière nginx avec `Host $host` doit passer `allowed_hosts=[<domaine>]` à `mcp.run()`, sinon Starlette retourne 421
-- **Le régime refuse bien plus large que le moteur ne sait réparer** — `convives.py` bloque sur les termes de `DIETS`, `RULES_BY_DIET` n'en couvre qu'une minorité (compter : `python -c "from cooking_manager.convives import DIETS; from cooking_manager.substitutions import find_substitution; print(sum(1 for t in DIETS['pescetarian'] if find_substitution(f'200 g de {t}') is None), '/', len(DIETS['pescetarian']))"`). Un `repairs` vide ne veut donc PAS dire « rien à réparer » : lire `unrepaired`, qui nomme chaque blocage sans substitution. ⚠️ **Ne jamais ajouter une règle sans observation** — chaque règle porte une raison affichée à l'utilisateur, et une raison inventée ment avec l'aplomb d'une règle mesurée
+- ⚠️ **TOUT terme alimentaire se déclare au SINGULIER** — régimes (`DIETS`), `dislikes`, `forbidden`, `diet_exceptions`. `_contains_term()` compare en mots entiers et tolère la flexion « s »/« x » **sur chaque mot**, mais uniquement du singulier VERS le pluriel : « lardon » rencontre « lardons », « lardons » ne rencontre PAS « lardon ». Le contraire ne produit aucune erreur — juste un plat déclaré compatible. C'est ce qui rendait 82 formes plurielles muettes jusqu'au 2026-09-03 (`lardons`, `veaux`, `steaks`, `jambons`), soit la forme la plus courante d'une ligne d'ingrédient. Les frontières de mot, elles, sont **volontaires** : « maïs » ne doit pas matcher « maison », ni « citron » « citronnelle »
+- **Un régime n'est pas un absolu : `person.diet_exceptions`** — Clémence est pescétarienne ET mange du boudin et les quenelles de veau. Une exception dispense **la ligne** qui porte l'expression, jamais le terme entier — sans quoi lever les quenelles de veau laisserait passer le rôti de veau. Ne pas confondre les trois axes : `forbidden` = ce qui ne se discute pas · `dislikes` = aversion (les cuissons d'œufs en sont) · `diet_exceptions` = ce que le régime interdit mais que la personne mange
+- **Le régime refuse bien plus large que le moteur ne sait réparer** — `convives.py` bloque sur les termes de `DIETS`, `RULES_BY_DIET` n'en couvre qu'une minorité (compter : `python -c "from cooking_manager.convives import DIETS; from cooking_manager.substitutions import find_substitution; print(sum(1 for t in DIETS['pescetarian'] if find_substitution(f'200 g de {t}') is None), '/', len(DIETS['pescetarian']))"`). Un `repairs` vide ne veut donc PAS dire « rien à réparer » : lire `unrepaired`. Une protéine sans règle nommée reçoit un **repli** tiré du catalogue de cibles selon la cuisson détectée (`fallback: true`, confiance 0.4) ; sans cuisson détectée, rien n'est deviné. ⚠️ **Une règle NOMMÉE ne s'ajoute jamais sans observation** — elle porte une raison affichée à l'utilisateur, et une raison inventée ment avec l'aplomb d'une règle mesurée ; c'est précisément ce que le repli, qui se déclare comme tel, permet d'éviter
 - **Une règle de `substitutions.py` qui déclare des `cuisines` doit être bornée par `rule_applies()`** — `score_rule()` bonifie un match de cuisine mais ne pénalise pas son absence, donc une priorité de base élevée suffit à faire gagner une règle hors de son contexte (une règle ouest-africaine s'appliquait à tout mijoté de poulet, y compris un coq au vin). Toute nouvelle règle à forte priorité doit être testée sur un plat d'une AUTRE cuisine
 
 ## Skills liées

@@ -111,13 +111,7 @@ class Convive:
         return list(DIETS.get(self.diet, ()))
 
     def diet_waived_on(self, folded_text: str) -> str | None:
-        """L'exception qui dispense CE texte du régime — « quenelle de veau », pas « veau ».
-
-        Porte sur une préparation, jamais sur un terme entier du régime : sans
-        quoi lever les quenelles de veau laisserait aussi passer un rôti de veau.
-        ⚠️ À déclarer au SINGULIER : la flexion va du singulier vers le pluriel,
-        jamais l'inverse.
-        """
+        """L'exception qui dispense CE texte du régime — voir ADR 0003."""
         for exception in self.diet_exceptions:
             if _contains_term(folded_text, _fold(exception)):
                 return exception
@@ -213,20 +207,7 @@ def _parse_diet(value: str) -> str:
 
 
 def _contains_term(folded_text: str, term: str) -> bool:
-    """Terme présent en tant que MOT, jamais en sous-chaîne.
-
-    ⚠️ Sans frontières de mot, « maïs » matchait dans « hou­mous **mais**on » :
-    l'assiette froide du vendredi ressortait en conflit pour Clémence et Léa
-    alors qu'elle ne contient pas un grain de maïs. Un faux positif ruine la
-    confiance dans l'alerte aussi sûrement qu'un faux négatif — et pousse à
-    désactiver le contrôle.
-
-    ⚠️ Le pluriel EST toléré, et seulement lui (« s » ou « x » final), sur
-    CHAQUE mot : les termes sont au singulier, si bien que « 200 g de lardons »,
-    « 2 veaux » et « 2 oeufs durs » ne rencontraient aucune entrée et passaient
-    pour compatibles. Aucun terme ne devient un autre mot en prenant sa marque
-    de pluriel, donc « maison » reste hors d'atteinte de « maïs ».
-    """
+    """Terme présent en tant que MOT fléchi au pluriel, jamais en sous-chaîne — ADR 0003."""
     if not term:
         return False
     return _term_pattern(term).search(folded_text) is not None
@@ -376,8 +357,6 @@ def check_ingredients(ingredients: list, convives: list[Convive]) -> list[Confli
             for folded, raw in rows:
                 if not _contains_term(folded, _fold(term)):
                     continue
-                # Une exception dispense LA LIGNE, pas le régime : « quenelles de
-                # veau » passe, le rôti de veau bloque toujours.
                 if is_diet and convive.diet_waived_on(folded) is not None:
                     continue
                 # Le terme sert à détecter, la ligne à retrouver l'ingrédient.
