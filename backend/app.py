@@ -358,6 +358,7 @@ async def recipe_compatibility(slug: str, present_only: bool = False):
         detect_context,
         diets_at_table,
         repair_ingredients,
+        unrepaired_conflicts,
     )
 
     pool = await get_pool(DATABASE_DSN)
@@ -415,6 +416,15 @@ async def recipe_compatibility(slug: str, present_only: bool = False):
                 "confidence": round(r.substitution.confidence, 2),
             }
             for r in repairs
+        ],
+        "unrepaired": [
+            {
+                "ingredient": u.ingredient,
+                "diet": u.diet,
+                "convive": u.convive,
+                "reason": u.reason,
+            }
+            for u in unrepaired_conflicts(conflicts, repairs)
         ],
     }
 
@@ -2383,12 +2393,24 @@ async def import_book_page(files: list[UploadFile], source: str = ""):
 
 @app.post("/api/recipes/parse-url")
 async def parse_recipe_url(data: dict):
-    """Extrait une recette d'une URL — rend la recette, PAS un brouillon (recipe-manager#5)."""
+    """Extrait une recette d'une URL — rend la recette telle quelle, sans rien persister."""
     url = (data.get("url") or "").strip()
     if not url:
         raise HTTPException(400, "url manquante")
     return await _rm_request(
         "POST", "/parse-url",
+        json={"url": url, "enable_llm": bool(data.get("enable_llm", False))},
+    )
+
+
+@app.post("/api/recipes/import/url", status_code=201)
+async def import_recipe_url(data: dict):
+    """URL → brouillon révisable, le même garde-fou que le livre photographié (SC-33)."""
+    url = (data.get("url") or "").strip()
+    if not url:
+        raise HTTPException(400, "url manquante")
+    return await _rm_request(
+        "POST", "/recipes/import/url",
         json={"url": url, "enable_llm": bool(data.get("enable_llm", False))},
     )
 

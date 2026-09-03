@@ -328,6 +328,24 @@ PESCETARIAN_RULES: tuple[SubstitutionRule, ...] = (
         priority=85,
     ),
     SubstitutionRule(
+        source="magret", target="pavé de thon rouge",
+        cooking_methods=("pan-seared", "grilled"), texture="firm", budget="high",
+        reason="Se tranche et se sert rosé, comme un magret",
+        priority=90,
+    ),
+    SubstitutionRule(
+        source="canard", target="pavé de thon rouge",
+        cooking_methods=("pan-seared", "grilled"), texture="firm", budget="high",
+        reason="Chair dense et rouge, servie saignante",
+        priority=88,
+    ),
+    SubstitutionRule(
+        source="bouillon de volaille", target="bouillon de légumes",
+        cooking_methods=("stew", "slow-cooked"), texture="firm", budget="low",
+        reason="Même rôle de fond de cuisson, sans la volaille",
+        priority=95,
+    ),
+    SubstitutionRule(
         source="veau", target="sole",
         cooking_methods=("pan-fried", "breaded"), texture="tender", budget="high",
         reason="Chair délicate et tendre, cuisson rapide",
@@ -567,6 +585,45 @@ def diets_at_table(conflicts: Sequence[Conflict]) -> tuple[str, ...]:
         if diet not in diets:
             diets.append(diet)
     return tuple(diets)
+
+
+@dataclass(frozen=True)
+class UnrepairedConflict:
+    """Un conflit de régime qu'aucune règle ne sait réparer, avec son motif."""
+
+    ingredient: str
+    diet: str
+    convive: str
+    reason: str
+
+
+def unrepaired_conflicts(
+    conflicts: Sequence[Conflict],
+    repairs: Sequence[IngredientRepair],
+) -> list[UnrepairedConflict]:
+    """Les blocages de régime laissés sans substitution — jamais omis en silence."""
+    repaired = {(r.diet, r.ingredient) for r in repairs}
+    out: list[UnrepairedConflict] = []
+    seen: set[tuple[str, str]] = set()
+    for conflict in conflicts:
+        if not conflict.reason.startswith(DIET_REASON_PREFIX):
+            continue
+        diet = conflict.reason[len(DIET_REASON_PREFIX):].strip()
+        key = (diet, conflict.matched)
+        if key in repaired or key in seen:
+            continue
+        seen.add(key)
+        out.append(UnrepairedConflict(
+            ingredient=conflict.matched,
+            diet=diet,
+            convive=conflict.convive,
+            reason=(
+                f"aucune règle de substitution ne couvre cet ingrédient pour le régime {diet}"
+                if diet in RULES_BY_DIET
+                else f"aucune règle n'est définie pour le régime {diet}"
+            ),
+        ))
+    return out
 
 
 def repair_ingredients(

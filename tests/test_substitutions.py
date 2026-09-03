@@ -18,6 +18,7 @@ from cooking_manager.substitutions import (
     diets_at_table,
     find_substitution,
     repair_ingredients,
+    unrepaired_conflicts,
 )
 
 
@@ -137,7 +138,7 @@ def test_reparation_sur_la_ligne_d_ingredient_entiere():
 
 def test_toutes_les_lignes_carnees_sont_balayees_pas_seulement_la_premiere():
     repairs = repair_ingredients(
-        ["500 ml de bouillon de volaille", "600 g de poulet", "200 g de lardons"],
+        ["200 g de saucisson", "600 g de poulet", "200 g de lardons"],
         ("pescetarian",),
         detect_context("Mijoté à la cocotte"),
     )
@@ -150,9 +151,8 @@ def test_un_regime_sans_table_ne_produit_rien():
 
 
 def test_un_ingredient_sans_regle_ne_produit_rien():
-    repairs = repair_ingredients(
-        ["500 ml de bouillon de volaille"], ("pescetarian",), RecipeContext()
-    )
+    """Le silence de `repairs` est légitime ici — c'est `unrepaired` qui le nomme."""
+    repairs = repair_ingredients(["200 g de saucisson"], ("pescetarian",), RecipeContext())
     assert repairs == []
 
 
@@ -224,6 +224,34 @@ def test_une_vraie_poelee_reste_poelee():
         steps=("Faites dorer les filets à la poêle 6 min de chaque côté.",),
     )
     assert "pan-fried" in context.cooking_methods
+
+
+def test_un_blocage_sans_regle_ressort_en_unrepaired_jamais_en_silence():
+    """Le trou de couverture est nommé : `repairs` vide se lirait « rien à réparer »."""
+    from cooking_manager.convives import Conflict
+
+    conflicts = [Conflict("Clémence", "régime pescetarian", "200 g de saucisson")]
+    unrepaired = unrepaired_conflicts(conflicts, repairs=[])
+    assert len(unrepaired) == 1
+    assert unrepaired[0].ingredient == "200 g de saucisson"
+    assert unrepaired[0].diet == "pescetarian"
+    assert "aucune règle" in unrepaired[0].reason
+
+
+def test_un_blocage_repare_ne_ressort_pas_en_unrepaired():
+    from cooking_manager.convives import Conflict
+
+    line = "1,2 kg de poulet"
+    repairs = repair_ingredients([line], ("pescetarian",))
+    assert repairs, "le poulet doit avoir une règle"
+    conflicts = [Conflict("Clémence", "régime pescetarian", line)]
+    assert unrepaired_conflicts(conflicts, repairs) == []
+
+
+def test_les_trois_regles_ancrees_sur_une_mesure_couvrent_leur_cas():
+    """`magret`/`canard` viennent du corpus web, `bouillon de volaille` du vault."""
+    for line in ("1 magret de canard", "500 ml eau ou bouillon de volaille"):
+        assert find_substitution(line) is not None, f"« {line} » reste sans réparation"
 
 
 def test_une_accommodation_en_probation_ne_passe_jamais_devant_une_active():
