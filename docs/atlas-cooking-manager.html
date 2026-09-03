@@ -1,0 +1,1294 @@
+<title>Atlas Cooking Manager</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&family=JetBrains+Mono:wght@400;500&display=swap">
+
+<style>
+:root {
+  --ground: #FBFBF9;
+  --surface: #FFFFFF;
+  --ink: #1B1F1C;
+  --ink-soft: #5B625B;
+  --ink-faint: #878E86;
+  --line: #E3E6DF;
+  --line-strong: #C9CFC4;
+  --accent: #3E6B4A;
+  --accent-soft: #EDF2ED;
+  --ok: #3E6B4A;
+  --partial: #9A6716;
+  --absent: #A2493C;
+  --ok-bg: #EDF2ED;
+  --partial-bg: #F7F0E2;
+  --absent-bg: #F7EAE7;
+  --sans: "Montserrat", "Helvetica Neue", Arial, sans-serif;
+  --serif: "Source Serif 4", Georgia, "Times New Roman", serif;
+  --mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Consolas, monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ground: #121511;
+    --surface: #191D18;
+    --ink: #E7EAE3;
+    --ink-soft: #9BA398;
+    --ink-faint: #737A70;
+    --line: #2A2F28;
+    --line-strong: #3D443B;
+    --accent: #86B491;
+    --accent-soft: #1E2A20;
+    --ok: #86B491;
+    --partial: #D6A34E;
+    --absent: #D08476;
+    --ok-bg: #1E2A20;
+    --partial-bg: #2C2416;
+    --absent-bg: #2E1E1B;
+  }
+}
+
+:root[data-theme="dark"] {
+  --ground: #121511;
+  --surface: #191D18;
+  --ink: #E7EAE3;
+  --ink-soft: #9BA398;
+  --ink-faint: #737A70;
+  --line: #2A2F28;
+  --line-strong: #3D443B;
+  --accent: #86B491;
+  --accent-soft: #1E2A20;
+  --ok: #86B491;
+  --partial: #D6A34E;
+  --absent: #D08476;
+  --ok-bg: #1E2A20;
+  --partial-bg: #2C2416;
+  --absent-bg: #2E1E1B;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  background: var(--ground);
+  color: var(--ink);
+  font-family: var(--serif);
+  font-size: 16px;
+  line-height: 1.6;
+  margin: 0;
+  -webkit-font-smoothing: antialiased;
+}
+
+.wrap { max-width: 1120px; margin: 0 auto; padding: 0 24px; }
+
+/* ── En-tête ─────────────────────────────────────────── */
+
+.masthead { border-bottom: 1px solid var(--line); padding: 56px 0 32px; }
+
+.eyebrow {
+  font-family: var(--sans);
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  margin: 0 0 20px;
+}
+
+h1 {
+  font-family: var(--sans);
+  font-weight: 400;
+  font-size: clamp(28px, 4.5vw, 44px);
+  letter-spacing: 0.06em;
+  line-height: 1.15;
+  text-wrap: balance;
+  margin: 0 0 18px;
+}
+
+.standfirst {
+  font-size: 18px;
+  color: var(--ink-soft);
+  max-width: 62ch;
+  margin: 0 0 24px;
+}
+
+.meta {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--ink-faint);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 22px;
+  margin: 0;
+}
+
+/* ── Onglets ─────────────────────────────────────────── */
+
+.tabs {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: var(--ground);
+  border-bottom: 1px solid var(--line);
+}
+
+.tablist { display: flex; gap: 0; overflow-x: auto; }
+
+.tab {
+  font-family: var(--sans);
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 18px 22px 15px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.tab:first-child { padding-left: 0; }
+.tab:hover { color: var(--ink); }
+.tab[aria-selected="true"] { color: var(--accent); border-bottom-color: var(--accent); }
+.tab:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+.tab .count {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-faint);
+  margin-left: 8px;
+}
+
+/* ── Sections ────────────────────────────────────────── */
+
+.panel { padding: 44px 0 96px; }
+
+section { margin: 0 0 60px; }
+
+h2 {
+  font-family: var(--sans);
+  font-weight: 400;
+  font-size: 22px;
+  letter-spacing: 0.08em;
+  margin: 0 0 6px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--line-strong);
+}
+
+h3 {
+  font-family: var(--sans);
+  font-weight: 500;
+  font-size: 14px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  margin: 36px 0 12px;
+}
+
+.lede { color: var(--ink-soft); max-width: 68ch; margin: 16px 0 24px; }
+
+p { max-width: 68ch; }
+
+/* ── Bandeau de couverture ───────────────────────────── */
+
+.coverage {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 1px;
+  background: var(--line);
+  border: 1px solid var(--line);
+  margin: 0 0 40px;
+}
+
+.cov-card { background: var(--surface); padding: 20px 22px; }
+
+.cov-name {
+  font-family: var(--sans);
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  margin: 0 0 12px;
+}
+
+.cov-total {
+  font-family: var(--mono);
+  font-size: 30px;
+  color: var(--ink);
+  line-height: 1;
+  margin: 0 0 4px;
+  font-variant-numeric: tabular-nums;
+}
+
+.cov-unit { font-family: var(--sans); font-size: 11px; letter-spacing: 0.12em; color: var(--ink-faint); text-transform: uppercase; }
+
+.bar { display: flex; height: 6px; margin: 16px 0 10px; }
+.bar span { display: block; }
+.bar .b-ok { background: var(--ok); }
+.bar .b-partial { background: var(--partial); }
+.bar .b-absent { background: var(--absent); }
+
+.cov-split {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-soft);
+  display: flex;
+  gap: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Filtre ──────────────────────────────────────────── */
+
+.filter {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 0 0 22px;
+  padding: 14px 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+.filter-label {
+  font-family: var(--sans);
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  margin-right: 4px;
+}
+
+.chip {
+  font-family: var(--sans);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 6px 13px;
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+
+.chip[aria-pressed="true"] { background: var(--ink); color: var(--ground); border-color: var(--ink); }
+.chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* ── Tables ──────────────────────────────────────────── */
+
+.scroll { overflow-x: auto; margin: 0 0 12px; border: 1px solid var(--line); }
+
+table { border-collapse: collapse; width: 100%; font-size: 14px; min-width: 640px; }
+
+thead th {
+  font-family: var(--sans);
+  font-weight: 500;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  text-align: left;
+  padding: 12px 14px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line-strong);
+  white-space: nowrap;
+}
+
+tbody td { padding: 11px 14px; border-bottom: 1px solid var(--line); vertical-align: top; background: var(--surface); }
+tbody tr:last-child td { border-bottom: none; }
+
+td.id { font-family: var(--mono); font-size: 12px; color: var(--ink-faint); white-space: nowrap; font-variant-numeric: tabular-nums; }
+td.sys { font-size: 13px; color: var(--ink-soft); }
+td.sys code, code { font-family: var(--mono); font-size: 12px; background: var(--accent-soft); padding: 1px 5px; color: var(--ink); }
+
+.tag {
+  font-family: var(--sans);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  padding: 3px 8px;
+  white-space: nowrap;
+}
+
+.t-M { background: var(--ok-bg); color: var(--ok); }
+.t-P { background: var(--partial-bg); color: var(--partial); }
+.t-A { background: var(--absent-bg); color: var(--absent); }
+
+tr[hidden] { display: none; }
+
+/* ── Encarts ─────────────────────────────────────────── */
+
+.note {
+  border-left: 2px solid var(--accent);
+  padding: 4px 0 4px 18px;
+  margin: 22px 0;
+  color: var(--ink-soft);
+  max-width: 68ch;
+}
+
+.note strong { color: var(--ink); font-weight: 600; }
+
+.warn { border-left-color: var(--partial); }
+.stale { border-left-color: var(--absent); }
+
+/* ── Diagrammes ──────────────────────────────────────── */
+
+.diagram {
+  border: 1px solid var(--line);
+  background: var(--surface);
+  padding: 24px;
+  margin: 0 0 10px;
+  overflow-x: auto;
+}
+
+.mermaid { margin: 0; }
+.mermaid svg { width: 100%; height: auto; max-width: none; }
+
+.caption {
+  font-family: var(--sans);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--ink-faint);
+  margin: 0 0 40px;
+}
+
+/* ── Contrats ────────────────────────────────────────── */
+
+.repo {
+  border: 1px solid var(--line);
+  background: var(--surface);
+  padding: 22px 24px;
+  margin: 0 0 18px;
+}
+
+.repo-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 16px; margin: 0 0 4px; }
+
+.repo-name { font-family: var(--sans); font-size: 15px; letter-spacing: 0.06em; margin: 0; }
+
+.repo-addr { font-family: var(--mono); font-size: 12px; color: var(--ink-faint); }
+
+.repo-role { color: var(--ink-soft); font-size: 14px; margin: 8px 0 16px; max-width: 68ch; }
+
+.ep-group { margin: 14px 0 0; }
+
+.ep-group-name {
+  font-family: var(--sans);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  margin: 0 0 7px;
+}
+
+.ep-list { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
+
+.ep {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  border: 1px solid var(--line);
+  padding: 3px 8px;
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+
+.ep b { color: var(--accent); font-weight: 500; margin-right: 5px; }
+
+details { border: 1px solid var(--line); background: var(--surface); margin: 0 0 8px; }
+
+summary {
+  font-family: var(--mono);
+  font-size: 13px;
+  padding: 11px 16px;
+  cursor: pointer;
+  color: var(--ink);
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+summary::-webkit-details-marker { display: none; }
+summary:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+summary .cols { font-family: var(--sans); font-size: 10px; letter-spacing: 0.1em; color: var(--ink-faint); text-transform: uppercase; }
+
+.fields { padding: 4px 16px 16px; display: flex; flex-wrap: wrap; gap: 5px; }
+
+.field { font-family: var(--mono); font-size: 11.5px; color: var(--ink-soft); border: 1px solid var(--line); padding: 2px 7px; }
+.field i { color: var(--ink-faint); font-style: normal; }
+.field.key { border-color: var(--accent); color: var(--ink); }
+
+footer { border-top: 1px solid var(--line); padding: 28px 0 60px; color: var(--ink-faint); font-size: 13px; }
+
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+
+<div class="wrap">
+  <header class="masthead">
+    <p class="eyebrow">Cooking Manager 2 · conception</p>
+    <h1>Atlas du système</h1>
+    <p class="standfirst">Ce que le système sait faire, comment ses quatre dépôts se parlent, et ce qu'ils exposent réellement. Trois vues sur le même objet : les situations, les échanges, les contrats.</p>
+    <p class="meta">
+      <span>Mesuré le 2026-09-02</span>
+      <span>123 cas d'usage</span>
+      <span>API relevées sur srv759970</span>
+      <span>Schéma lu dans postgresql-shared</span>
+    </p>
+  </header>
+</div>
+
+<div class="tabs">
+  <div class="wrap">
+    <div class="tablist" role="tablist">
+      <button class="tab" role="tab" id="tab-usage" aria-controls="p-usage" aria-selected="true">Cas d'usage <span class="count">123</span></button>
+      <button class="tab" role="tab" id="tab-seq" aria-controls="p-seq" aria-selected="false">Séquences <span class="count">5</span></button>
+      <button class="tab" role="tab" id="tab-contracts" aria-controls="p-contracts" aria-selected="false">Contrats <span class="count">97 · 27</span></button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ ONGLET 1 · CAS D'USAGE ══════════ -->
+<div class="wrap">
+<div class="panel" id="p-usage" role="tabpanel" aria-labelledby="tab-usage">
+
+  <div class="coverage">
+    <div class="cov-card">
+      <p class="cov-name">Recettes</p>
+      <p class="cov-total">36</p>
+      <p class="cov-unit">cas · 2026-09-02</p>
+      <div class="bar"><span class="b-ok" style="width:38.9%"></span><span class="b-partial" style="width:19.4%"></span><span class="b-absent" style="width:41.7%"></span></div>
+      <p class="cov-split"><span>14 M</span><span>7 P</span><span>15 A</span></p>
+    </div>
+    <div class="cov-card">
+      <p class="cov-name">Courses</p>
+      <p class="cov-total">47</p>
+      <p class="cov-unit">cas · 2026-08-16</p>
+      <div class="bar"><span class="b-ok" style="width:8.5%"></span><span class="b-partial" style="width:8.5%"></span><span class="b-absent" style="width:83%"></span></div>
+      <p class="cov-split"><span>4 M</span><span>4 P</span><span>39 A</span></p>
+    </div>
+    <div class="cov-card">
+      <p class="cov-name">Tablée</p>
+      <p class="cov-total">40</p>
+      <p class="cov-unit">cas · 2026-08-10 — périmé</p>
+      <div class="bar"><span class="b-ok" style="width:10%"></span><span class="b-partial" style="width:12.5%"></span><span class="b-absent" style="width:77.5%"></span></div>
+      <p class="cov-split"><span>4 M</span><span>5 P</span><span>31 A</span></p>
+    </div>
+  </div>
+
+  <div class="note stale">
+    <strong>La colonne Tablée ne dit plus la vérité.</strong> Ses chiffres datent du 2026-08-10, soit <em>avant</em> le câblage du 2026-08-12 (refs #33) qui a introduit <code>stay</code> / <code>stay_member</code> et corrigé le bug fondateur F.30 — la location de vacances de Bègles, où l'app annonçait « hors foyer, pas de repas » pour dix personnes qui cuisinaient sur place. Au moins F.30 est passé d'absent à modélisé, et la présence est désormais 100 % DB. Le tableau ci-dessous reproduit le document tel qu'il est, sans le corriger d'office : recompter est un travail de relecture, pas une retouche à faire à la volée.
+  </div>
+
+  <div class="filter">
+    <span class="filter-label">Filtrer</span>
+    <button class="chip" data-cvt="M" aria-pressed="true">Modélisé</button>
+    <button class="chip" data-cvt="P" aria-pressed="true">Partiel</button>
+    <button class="chip" data-cvt="A" aria-pressed="true">Absent</button>
+  </div>
+
+  <!-- ─── RECETTES ─── -->
+  <section>
+    <h2>Recettes — acquérir, et faire ressortir</h2>
+    <p class="lede">La base porte 56 recettes, et le menu du 2026-09-01 n'en utilisait aucune : deux plats « inventés » y existaient déjà en fiche. Le problème n'est pas seulement d'acquérir — c'est que ce qu'on a ne sert pas.</p>
+
+    <h3>A · Acquérir depuis le web</h3>
+    <div class="scroll"><table>
+      <thead><tr><th>SC</th><th>Situation</th><th>Cvt</th><th>Système actuel</th></tr></thead>
+      <tbody>
+        <tr data-cvt="P"><td class="id">SC-33</td><td>Coller une URL → brouillon proposé</td><td><span class="tag t-P">P</span></td><td class="sys"><code>/parse-url</code> existe chez recipe-manager ; CM2 ne l'expose pas, et il ne crée pas de draft</td></tr>
+        <tr data-cvt="M"><td class="id">SC-34</td><td>L'URL rend un JSON-LD complet (750g, Ricardo)</td><td><span class="tag t-M">M</span></td><td class="sys">mesuré : 25/34 des URLs ont des étapes</td></tr>
+        <tr data-cvt="A"><td class="id">SC-35</td><td>JSON-LD dégradé (0 quantité, 0 étape) → descendre d'un tier</td><td><span class="tag t-A">A</span></td><td class="sys">la cascade s'arrête : <code>recipe.ingredients</code> suffit à accepter → recipe-manager#4</td></tr>
+        <tr data-cvt="A"><td class="id">SC-36</td><td>L'URL est une page de catégorie déguisée en recette</td><td><span class="tag t-A">A</span></td><td class="sys">mesuré sur les deux implémentations : 14 ingrédients agrégés acceptés</td></tr>
+        <tr data-cvt="M"><td class="id">SC-37</td><td>Le site n'expose son JSON-LD qu'après rendu JS</td><td><span class="tag t-M">M</span></td><td class="sys"><code>fetch_html</code> le récupère en direct ; deep-research passe par HydraSpecter</td></tr>
+        <tr data-cvt="P"><td class="id">SC-38</td><td><code>robots.txt</code> interdit → refus explicite, pas un échec muet</td><td><span class="tag t-P">P</span></td><td class="sys">présent chez deep-research ; non vérifié côté recipe-manager</td></tr>
+        <tr data-cvt="A"><td class="id">SC-39</td><td>Chercher par envie (« un bowl au poisson »), sans URL</td><td><span class="tag t-A">A</span></td><td class="sys">lane <code>recipe_web</code> existe chez deep-research, non branchée</td></tr>
+        <tr data-cvt="A"><td class="id">SC-40</td><td>Recette carnée → proposer la réparation avant import</td><td><span class="tag t-A">A</span></td><td class="sys">le moteur sait le faire, il n'est pas dans le flux d'import</td></tr>
+        <tr data-cvt="A"><td class="id">SC-41</td><td>Aliment refusé par un convive → le dire à l'import</td><td><span class="tag t-A">A</span></td><td class="sys"><code>check_ingredients()</code> existe, pas appelé à l'import</td></tr>
+        <tr data-cvt="A"><td class="id">SC-42</td><td>Import en lot (30 recettes pour étoffer le répertoire)</td><td><span class="tag t-A">A</span></td><td class="sys">fait une fois à la main le 2026-09-02, aucun outil</td></tr>
+        <tr data-cvt="A"><td class="id">SC-43</td><td>Ré-extraire quand le parseur s'améliore</td><td><span class="tag t-A">A</span></td><td class="sys">impossible : le document source n'est pas conservé → recipe-manager#3</td></tr>
+      </tbody>
+    </table></div>
+
+    <div class="note warn">
+      <strong>La présence d'ingrédients ne signifie pas « recette utilisable ».</strong> Un import branché sur ce critère créerait des fiches sans quantités ni étapes — donc ni courses, ni macros, ni substitution possible. Le critère est <em>étapes non vides ET quantités présentes</em>.
+    </div>
+
+    <h3>B · Acquérir depuis un livre photographié</h3>
+    <div class="scroll"><table>
+      <thead><tr><th>SC</th><th>Situation</th><th>Cvt</th><th>Système actuel</th></tr></thead>
+      <tbody>
+        <tr data-cvt="M"><td class="id">SC-44</td><td>Photographier une double page → brouillon structuré</td><td><span class="tag t-M">M</span></td><td class="sys"><code>POST /api/recipes/import</code> → recipe-manager (vision LLM)</td></tr>
+        <tr data-cvt="M"><td class="id">SC-45</td><td>Plusieurs pages en une fois</td><td><span class="tag t-M">M</span></td><td class="sys"><code>files: list[UploadFile]</code></td></tr>
+        <tr data-cvt="M"><td class="id">SC-46</td><td>Sous-sections (« Pour la farce ») préservées</td><td><span class="tag t-M">M</span></td><td class="sys">mappées sur des <code>###</code> — c'est ce qui avait vidé 5 recettes (#58)</td></tr>
+        <tr data-cvt="P"><td class="id">SC-47</td><td>Rendement non numérique (« POUR UNE TRENTAINE DE BISCUITS »)</td><td><span class="tag t-P">P</span></td><td class="sys">reconnu comme piège ; conséquence sur les macros non tranchée</td></tr>
+        <tr data-cvt="P"><td class="id">SC-48</td><td>Texte sous droit d'auteur → jamais republié par l'API</td><td><span class="tag t-P">P</span></td><td class="sys">cadre posé dans l'analyse, aucune garde technique</td></tr>
+        <tr data-cvt="A"><td class="id">SC-49</td><td>Photo du livre → image de la fiche</td><td><span class="tag t-A">A</span></td><td class="sys">interdit par SC-48 ; passer par <code>generate-image</code></td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>C · Acquérir depuis ce qu'on a réellement acheté</h3>
+    <div class="scroll"><table>
+      <thead><tr><th>SC</th><th>Situation</th><th>Cvt</th><th>Système actuel</th></tr></thead>
+      <tbody>
+        <tr data-cvt="P"><td class="id">SC-50</td><td>Un repas au menu n'a pas de fiche → les courses l'ignorent</td><td><span class="tag t-P">P</span></td><td class="sys"><code>meals_unmatched</code> le signale ; rien ne le répare</td></tr>
+        <tr data-cvt="A"><td class="id">SC-51</td><td>Générer la fiche depuis le panier, ancrée sur l'acheté</td><td><span class="tag t-A">A</span></td><td class="sys">fait à la main le 2026-08-04 (1 repas relié sur 20), jamais outillé</td></tr>
+        <tr data-cvt="M"><td class="id">SC-52</td><td>Repas de restes → pas de fiche, par conception</td><td><span class="tag t-M">M</span></td><td class="sys"><code>&lt;slot&gt;_leftovers: true</code> → <code>meals_leftovers</code></td></tr>
+        <tr data-cvt="M"><td class="id">SC-53</td><td>Relier explicitement un repas à sa fiche</td><td><span class="tag t-M">M</span></td><td class="sys"><code>&lt;slot&gt;_slug:</code> court-circuite l'heuristique de titre</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>D · Réviser un brouillon avant de l'accepter</h3>
+    <div class="scroll"><table>
+      <thead><tr><th>SC</th><th>Situation</th><th>Cvt</th><th>Système actuel</th></tr></thead>
+      <tbody>
+        <tr data-cvt="M"><td class="id">SC-54</td><td>Lister les brouillons en attente</td><td><span class="tag t-M">M</span></td><td class="sys"><code>GET …/import/drafts?status=pending</code></td></tr>
+        <tr data-cvt="M"><td class="id">SC-55</td><td>Corriger un champ mal lu avant commit</td><td><span class="tag t-M">M</span></td><td class="sys"><code>PATCH …/drafts/{id}</code></td></tr>
+        <tr data-cvt="M"><td class="id">SC-56</td><td>Jeter un brouillon</td><td><span class="tag t-M">M</span></td><td class="sys"><code>DELETE …/drafts/{id}</code></td></tr>
+        <tr data-cvt="M"><td class="id">SC-57</td><td>Commit → fiche au vault, <code>visible: false</code> assumé (~30 s)</td><td><span class="tag t-M">M</span></td><td class="sys">la fiche transite par Dropbox ; le dire plutôt que de laisser croire à un échec</td></tr>
+        <tr data-cvt="P"><td class="id">SC-58</td><td>Le slug existe déjà → écraser ou refuser</td><td><span class="tag t-P">P</span></td><td class="sys"><code>overwrite</code> ne distingue pas un doublon d'une fiche jumelle légitime (SC-67)</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>E · Faire ressortir le répertoire — issue #72</h3>
+    <div class="scroll"><table>
+      <thead><tr><th>SC</th><th>Situation</th><th>Cvt</th><th>Système actuel</th></tr></thead>
+      <tbody>
+        <tr data-cvt="A"><td class="id">SC-59</td><td>Composer un menu en partant des recettes existantes</td><td><span class="tag t-A">A</span></td><td class="sys">le Coach Nutrition ne voit que le garde-manger, jamais le répertoire</td></tr>
+        <tr data-cvt="A"><td class="id">SC-60</td><td>« Qu'est-ce que je sais faire qui colle à ces macros ? »</td><td><span class="tag t-A">A</span></td><td class="sys"><code>macros_*</code> et <code>protein_density</code> sont en base, aucune requête ne les croise</td></tr>
+        <tr data-cvt="P"><td class="id">SC-61</td><td>Ne pas re-proposer ce qu'on vient de manger</td><td><span class="tag t-P">P</span></td><td class="sys"><code>recipe_execution</code> et <code>execution_count</code> existent, non consommés</td></tr>
+        <tr data-cvt="A"><td class="id">SC-62</td><td>Voir qu'un plat « inventé » existe déjà en fiche</td><td><span class="tag t-A">A</span></td><td class="sys">c'est exactement ce qui a échoué le 2026-09-01</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>F · Réparer une recette incompatible</h3>
+    <div class="scroll"><table>
+      <thead><tr><th>SC</th><th>Situation</th><th>Cvt</th><th>Système actuel</th></tr></thead>
+      <tbody>
+        <tr data-cvt="M"><td class="id">SC-63</td><td>Recette carnée → substitut adapté à la cuisine du plat</td><td><span class="tag t-M">M</span></td><td class="sys"><code>repairs</code> dans <code>/compatibility</code>, borné par <code>rule_applies()</code></td></tr>
+        <tr data-cvt="M"><td class="id">SC-64</td><td>Mijoté décrit sans le mot « mijoter » → détecté quand même</td><td><span class="tag t-M">M</span></td><td class="sys"><code>has_anchored_stew()</code> — liquide ET durée ET protéine nommée</td></tr>
+        <tr data-cvt="M"><td class="id">SC-65</td><td>L'étape qui sert un convive ne pilote pas le contexte du plat</td><td><span class="tag t-M">M</span></td><td class="sys"><code>is_accommodation_step()</code></td></tr>
+        <tr data-cvt="A"><td class="id">SC-66</td><td>Proposer le libre-service, technique la plus pratiquée du foyer</td><td><span class="tag t-A">A</span></td><td class="sys"><code>self_service</code> est au vocabulaire (4 observations) ; <code>repairs</code> ne le propose pas</td></tr>
+        <tr data-cvt="A"><td class="id">SC-67</td><td>Proposer la fiche jumelle plutôt qu'une substitution recomposée</td><td><span class="tag t-A">A</span></td><td class="sys">2 des 3 substitutions du vault sont des fiches jumelles</td></tr>
+        <tr data-cvt="A"><td class="id">SC-68</td><td>Une étape préparatoire ne définit pas le mode de cuisson</td><td><span class="tag t-A">A</span></td><td class="sys">« faites revenir » → <code>pan-fried</code> fait gagner <em>dorade</em> (150) sur <em>lotte</em> (135)</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <!-- ─── COURSES ─── -->
+  <section>
+    <h2>Courses — un tour, un canal, un moment</h2>
+    <p class="lede">La liste paraît persistante alors qu'elle n'est pas persistée du tout : <code>/shopping-list</code> la recalcule à chaque appel, le front la garde en RAM. Un objet sans début ni fin se lit comme permanent. Le tour drive mono-canal fonctionne ; le canal, la cadence et la preuve sont des angles morts complets.</p>
+
+    <h3>A · Le tour simple — un canal, l'existant</h3>
+    <div class="scroll"><table>
+      <thead><tr><th>#</th><th>Situation</th><th>Cvt</th><th>Système actuel</th></tr></thead>
+      <tbody>
+        <tr data-cvt="M"><td class="id">A.1</td><td>Générer le besoin de la semaine depuis le menu</td><td><span class="tag t-M">M</span></td><td class="sys"><code>/shopping-list</code></td></tr>
+        <tr data-cvt="M"><td class="id">A.2</td><td>Déduire le garde-manger du besoin</td><td><span class="tag t-M">M</span></td><td class="sys">différentiel <code>pantry.py</code></td></tr>
+        <tr data-cvt="M"><td class="id">A.3</td><td>Passer la commande drive</td><td><span class="tag t-M">M</span></td><td class="sys">MCP VPS <code>mcp-vps-auchan</code></td></tr>
+        <tr data-cvt="M"><td class="id">A.4</td><td>Enregistrer ce qui a été acheté</td><td><span class="tag t-M">M</span></td><td class="sys"><code>shopping_session</code> + <code>/persist-cart</code></td></tr>
+        <tr data-cvt="A"><td class="id">A.5</td><td>Rouvrir la liste plus tard et retrouver son état</td><td><span class="tag t-A">A</span></td><td class="sys">rien n'est persisté — recalcul intégral</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>B · Répartition entre canaux</h3>
+    <div class="scroll"><table>
+      <thead><tr><th>#</th><th>Situation</th><th>Cvt</th><th>Système actuel</th></tr></thead>
+      <tbody>
+        <tr data-cvt="A"><td class="id">B.6</td><td>Voir le besoin ventilé par canal</td><td><span class="tag t-A">A</span></td><td class="sys">pas de notion de canal</td></tr>
+        <tr data-cvt="A"><td class="id">B.7</td><td>Le pain va à la boulangerie, jamais au drive</td><td><span class="tag t-A">A</span></td><td class="sys">préférence connue, non modélisée</td></tr>
+        <tr data-cvt="A"><td class="id">B.8</td><td>La viande va chez le boucher</td><td><span class="tag t-A">A</span></td><td class="sys">—</td></tr>
+        <tr data-cvt="A"><td class="id">B.9</td><td>Les légumes au marché, le sec au drive</td><td><span class="tag t-A">A</span></td><td class="sys">—</td></tr>
+        <tr data-cvt="A"><td class="id">B.10</td><td>Une ligne qu'aucune règle ne couvre → <em>non attribué</em></td><td><span class="tag t-A">A</span></td><td class="sys">—</td></tr>
+        <tr data-cvt="A"><td class="id">B.11</td><td>Un même ingrédient réparti sur deux canaux</td><td><span class="tag t-A">A</span></td><td class="sys">—</td></tr>
+        <tr data-cvt="A"><td class="id">B.12</td><td>Deux drives : répartition par habitude</td><td><span class="tag t-A">A</span></td><td class="sys">un seul drive câblé</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>C · Réattribution et renoncement</h3>
+    <div class="scroll"><table>
+      <thead><tr><th>#</th><th>Situation</th><th>Cvt</th><th>Système actuel</th></tr></thead>
+      <tbody>
+        <tr data-cvt="A"><td class="id">C.13</td><td>« Pas de marché cette semaine » → basculer ses lignes</td><td><span class="tag t-A">A</span></td><td class="sys">—</td></tr>
+        <tr data-cvt="A"><td class="id">C.14</td><td>Basculer une seule ligne (le reste du canal tient)</td><td><span class="tag t-A">A</span></td><td class="sys">—</td></tr>
+        <tr data-cvt="A"><td class="id">C.15</td><td>Un canal indisponible (boucher fermé, marché annulé)</td><td><span class="tag t-A">A</span></td><td class="sys">—</td></tr>
+        <tr data-cvt="A"><td class="id">C.16</td><td>Renoncer sans réattribuer : la ligne redevient résiduelle</td><td><span class="tag t-A">A</span></td><td class="sys">—</td></tr>
+        <tr data-cvt="A"><td class="id">C.17</td><td>La réattribution ne modifie pas la mémoire d'habitude</td><td><span class="tag t-A">A</span></td><td class="sys">—</td></tr>
+        <tr data-cvt="A"><td class="id">C.18</td><td>Réattribuer vers un canal déjà clos → refus</td><td><span class="tag t-A">A</span></td><td class="sys">—</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>D · Mémoire d'habitude</h3>
+    <div class="scroll"><table>
+      <thead><tr><th>#</th><th>Situation</th><th>Cvt</th><th>Système actuel</th></tr></thead>
+      <tbody>
+        <tr data-cvt="A"><td class="id">D.19</td><td>Apprendre l'attribution après N tours cohérents</td><td><span class="tag t-A">A</span></td><td class="sys">—</td></tr>
+        <tr data-cvt="A"><td class="id">D.20</td><td>Consulter / corriger les règles apprises</td><td><span class="tag t-A">A</span></td><td class="sys"><code>shopping_preference</code> existe, sans UI ni <code>pref_type='channel'</code></td></tr>
+        <tr data-cvt="A"><td class="id">D.21</td><td>Une habitude qui change durablement</td><td><span class="tag t-A">A</span></td><td class="sys">—</td></tr>
+        <tr data-cvt="A"><td class="id">D.22</td><td>Distinguer « appris » de « déclaré par Julien »</td><td><span class="tag t-A">A</span></td><td class="sys">pas de provenance sur <code>shopping_preference</code></td></tr>
+        <tr data-cvt="A"><td class="id">D.23</td><td>Une exception répétée 3 fois : proposer de changer la règle</td><td><span class="tag t-A">A</span></td><td class="sys">—</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>E · Exécution en magasin — téléphone</h3>
+    <div class="scroll"><table>
+      <thead><tr><th>#</th><th>Situation</th><th>Cvt</th><th>Système actuel</th></tr></thead>
+      <tbody>
+        <tr data-cvt="A"><td class="id">E.24</td><td>Ouvrir la liste d'un canal sur téléphone, debout</td><td><span class="tag t-A">A</span></td><td class="sys">pas de vue mobile</td></tr>
+        <tr data-cvt="A"><td class="id">E.25</td><td>Cocher un article d'une main, sans zoom</td><td><span class="tag t-A">A</span></td><td class="sys">—</td></tr>
+        <tr data-cvt="A"><td class="id">E.26</td><td>Cocher hors réseau (marché couvert, sous-sol)</td><td><span class="tag t-A">A</span></td><td class="sys">aucune tolérance offline</td></tr>
+        <tr data-cvt="A"><td class="id">E.27</td><td>Saisir un poids réel au lieu du besoin théorique</td><td><span class="tag t-A">A</span></td><td class="sys">—</td></tr>
+        <tr data-cvt="A"><td class="id">E.28</td><td>Article introuvable → marquer manquant, pas décocher</td><td><span class="tag t-A">A</span></td><td class="sys">—</td></tr>
+        <tr data-cvt="A"><td class="id">E.29</td><td>Clore le tour sur place</td><td><span class="tag t-A">A</span></td><td class="sys">—</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>F · Retour d'exécution vers le garde-manger</h3>
+    <div class="scroll"><table>
+      <thead><tr><th>#</th><th>Situation</th><th>Cvt</th><th>Système actuel</th></tr></thead>
+      <tbody>
+        <tr data-cvt="P"><td class="id">F.30</td><td>Le drive livre → garde-manger mis à jour depuis la facture</td><td><span class="tag t-P">P</span></td><td class="sys"><code>/persist-cart</code>, déclenché à la main</td></tr>
+        <tr data-cvt="A"><td class="id">F.31</td><td>Un canal manuel → garde-manger depuis les coches</td><td><span class="tag t-A">A</span></td><td class="sys">—</td></tr>
+        <tr data-cvt="P"><td class="id">F.32</td><td>Substitution (pas de skyr, pris du fromage blanc)</td><td><span class="tag t-P">P</span></td><td class="sys"><code>alternatives</code> en JSONB, pas de flux</td></tr>
+        <tr data-cvt="A"><td class="id">F.33</td><td>Achat manqué → impact sur les repas à venir</td><td><span class="tag t-A">A</span></td><td class="sys">SC-08 de MOMENTS.md, jamais câblé</td></tr>
+        <tr data-cvt="A"><td class="id">F.34</td><td>Un tour manuel n'enrichit pas la nutrition</td><td><span class="tag t-A">A</span></td><td class="sys">doit être visible, pas silencieux</td></tr>
+        <tr data-cvt="A"><td class="id">F.35</td><td>Deux tours alimentent le même garde-manger sans doublon</td><td><span class="tag t-A">A</span></td><td class="sys">—</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>G · Temporalité</h3>
+    <div class="scroll"><table>
+      <thead><tr><th>#</th><th>Situation</th><th>Cvt</th><th>Système actuel</th></tr></thead>
+      <tbody>
+        <tr data-cvt="P"><td class="id">G.36</td><td>Un tour couvre les repas du X au Y (bornes explicites)</td><td><span class="tag t-P">P</span></td><td class="sys"><code>?from_date=</code> existe, non persisté</td></tr>
+        <tr data-cvt="A"><td class="id">G.37</td><td>Un tour ouvert réserve ses lignes du besoin résiduel</td><td><span class="tag t-A">A</span></td><td class="sys">—</td></tr>
+        <tr data-cvt="A"><td class="id">G.38</td><td>Un tour clos ne réapparaît jamais</td><td><span class="tag t-A">A</span></td><td class="sys">—</td></tr>
+        <tr data-cvt="A"><td class="id">G.39</td><td>Un tour ouvert dont les repas sont passés se périme visiblement</td><td><span class="tag t-A">A</span></td><td class="sys">—</td></tr>
+        <tr data-cvt="A"><td class="id">G.40</td><td>Le menu change après ouverture → signaler l'écart</td><td><span class="tag t-A">A</span></td><td class="sys">recalcul silencieux : l'article coché redeviendrait à acheter</td></tr>
+        <tr data-cvt="P"><td class="id">G.41</td><td>Historique : « qu'ai-je acheté la semaine du X ? »</td><td><span class="tag t-P">P</span></td><td class="sys"><code>/api/shopping/sessions</code> (20 dernières)</td></tr>
+        <tr data-cvt="A"><td class="id">G.42</td><td>Deux tours ouverts simultanément (drive + marché)</td><td><span class="tag t-A">A</span></td><td class="sys">—</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>H · Cas limites</h3>
+    <div class="scroll"><table>
+      <thead><tr><th>#</th><th>Situation</th><th>Cvt</th><th>Système actuel</th></tr></thead>
+      <tbody>
+        <tr data-cvt="A"><td class="id">H.43</td><td>Achat hors besoin (envie, promo) → entre au garde-manger</td><td><span class="tag t-A">A</span></td><td class="sys">—</td></tr>
+        <tr data-cvt="A"><td class="id">H.44</td><td>Course d'urgence à 19 h pour le dîner du soir</td><td><span class="tag t-A">A</span></td><td class="sys">—</td></tr>
+        <tr data-cvt="A"><td class="id">H.45</td><td>Stock long (riz, conserves) acheté en avance, hors menu</td><td><span class="tag t-A">A</span></td><td class="sys">—</td></tr>
+        <tr data-cvt="A"><td class="id">H.46</td><td>Courses pour un séjour — autre lieu</td><td><span class="tag t-A">A</span></td><td class="sys">tablée corrigée, courses non</td></tr>
+        <tr data-cvt="A"><td class="id">H.47</td><td>Quelqu'un d'autre fait une partie des courses</td><td><span class="tag t-A">A</span></td><td class="sys">pas de notion d'acheteur</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <!-- ─── TABLÉE ─── -->
+  <section>
+    <h2>Tablée — qui mange à ce repas</h2>
+    <p class="lede">Pas « qui est à la maison » : le lieu ne décide de rien. Trois dimensions indépendantes que le système confondait dans un seul <code>at_home</code> — la tablée (qui mange), la cuisine (qui prépare), le lieu (informatif).</p>
+
+    <h3>A · Trame de base</h3>
+    <div class="scroll"><table>
+      <thead><tr><th>#</th><th>Situation</th><th>Cvt</th><th>Système actuel</th></tr></thead>
+      <tbody>
+        <tr data-cvt="M"><td class="id">A.1</td><td>Repas normal — tout le foyer à table</td><td><span class="tag t-M">M</span></td><td class="sys"><code>attendees()</code>, trame déterministe</td></tr>
+        <tr data-cvt="M"><td class="id">A.2</td><td>Enfants à la cantine (mar/jeu/ven, hors vacances)</td><td><span class="tag t-M">M</span></td><td class="sys">slot <code>lunch</code> + jour + vacances</td></tr>
+        <tr data-cvt="M"><td class="id">A.3</td><td>Vacances scolaires — enfants à la maison</td><td><span class="tag t-M">M</span></td><td class="sys"><code>is_school_holiday()</code> désactive la cantine</td></tr>
+        <tr data-cvt="M"><td class="id">A.4</td><td>Semaine sans enfants (garde alternée)</td><td><span class="tag t-M">M</span></td><td class="sys"><code>children_present_this_week()</code></td></tr>
+        <tr data-cvt="P"><td class="id">A.5</td><td>Qui mange à quel repas cette semaine ?</td><td><span class="tag t-P">P</span></td><td class="sys">l'API rend <code>attendees</code>, pas d'écran dédié</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>B · Quelqu'un part — absences ponctuelles</h3>
+    <div class="scroll"><table>
+      <thead><tr><th>#</th><th>Situation</th><th>Cvt</th><th>Système actuel</th></tr></thead>
+      <tbody>
+        <tr data-cvt="P"><td class="id">B.6</td><td>Un parent en déplacement pro plusieurs jours</td><td><span class="tag t-P">P</span></td><td class="sys"><code>absence</code></td></tr>
+        <tr data-cvt="A"><td class="id">B.7</td><td>Enfant malade, reste à la maison au lieu de la cantine</td><td><span class="tag t-A">A</span></td><td class="sys">pas d'exception ponctuelle facile</td></tr>
+        <tr data-cvt="A"><td class="id">B.8</td><td>Un enfant dort chez un copain (dîner + petit-déj)</td><td><span class="tag t-A">A</span></td><td class="sys">pas modélisé</td></tr>
+        <tr data-cvt="A"><td class="id">B.9</td><td>Julien jeûne — présent mais ne mange pas ce repas</td><td><span class="tag t-A">A</span></td><td class="sys">pas de concept « à table mais ne mange pas »</td></tr>
+        <tr data-cvt="A"><td class="id">B.10</td><td>Un parent déjeune au bureau ce midi</td><td><span class="tag t-A">A</span></td><td class="sys">pas d'absence par créneau sans éditer le vault</td></tr>
+        <tr data-cvt="P"><td class="id">B.11</td><td>Enfant en colonie une semaine</td><td><span class="tag t-P">P</span></td><td class="sys"><code>absence</code></td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>C · Quelqu'un arrive — invités ponctuels</h3>
+    <div class="scroll"><table>
+      <thead><tr><th>#</th><th>Situation</th><th>Cvt</th><th>Système actuel</th></tr></thead>
+      <tbody>
+        <tr data-cvt="A"><td class="id">C.12</td><td>Les grands-parents viennent déjeuner dimanche (+2)</td><td><span class="tag t-A">A</span></td><td class="sys">pas de concept d'invité</td></tr>
+        <tr data-cvt="A"><td class="id">C.13</td><td>Un copain de l'enfant dort à la maison (+1)</td><td><span class="tag t-A">A</span></td><td class="sys">pas modélisé</td></tr>
+        <tr data-cvt="A"><td class="id">C.14</td><td>On invite 8 amis samedi soir (tablée ×3)</td><td><span class="tag t-A">A</span></td><td class="sys">impact quantités non modélisé</td></tr>
+        <tr data-cvt="A"><td class="id">C.15</td><td>Un invité avec une allergie</td><td><span class="tag t-A">A</span></td><td class="sys">pas de profil alimentaire invité</td></tr>
+        <tr data-cvt="A"><td class="id">C.16</td><td>L'invité annoncé ne vient plus — retirer</td><td><span class="tag t-A">A</span></td><td class="sys">rien à retirer puisque rien n'est ajouté</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>D · Repas pris dehors — pas de cuisine</h3>
+    <div class="scroll"><table>
+      <thead><tr><th>#</th><th>Situation</th><th>Cvt</th><th>Système actuel</th></tr></thead>
+      <tbody>
+        <tr data-cvt="A"><td class="id">D.17</td><td>Restaurant en famille</td><td><span class="tag t-A">A</span></td><td class="sys">pas de concept « repas externe »</td></tr>
+        <tr data-cvt="A"><td class="id">D.18</td><td>Invités chez des amis pour dîner</td><td><span class="tag t-A">A</span></td><td class="sys">pas modélisé</td></tr>
+        <tr data-cvt="A"><td class="id">D.19</td><td>Déjeuner chez les grands-parents (ils cuisinent)</td><td><span class="tag t-A">A</span></td><td class="sys">pas modélisé</td></tr>
+        <tr data-cvt="A"><td class="id">D.20</td><td>Goûter d'anniversaire d'un copain</td><td><span class="tag t-A">A</span></td><td class="sys">pas modélisé</td></tr>
+        <tr data-cvt="A"><td class="id">D.21</td><td>Sortie scolaire, pique-nique fourni par l'école</td><td><span class="tag t-A">A</span></td><td class="sys">pas modélisé</td></tr>
+        <tr data-cvt="A"><td class="id">D.22</td><td>Festival, food trucks, marché de nuit</td><td><span class="tag t-A">A</span></td><td class="sys">pas modélisé</td></tr>
+        <tr data-cvt="A"><td class="id">D.23</td><td>Cérémonie, mariage — repas traiteur</td><td><span class="tag t-A">A</span></td><td class="sys">pas modélisé</td></tr>
+        <tr data-cvt="A"><td class="id">D.24</td><td>Brunch au resto remplaçant petit-déj + déjeuner</td><td><span class="tag t-A">A</span></td><td class="sys">pas de fusion de créneaux</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>E · Cuisine pour ailleurs</h3>
+    <div class="scroll"><table>
+      <thead><tr><th>#</th><th>Situation</th><th>Cvt</th><th>Système actuel</th></tr></thead>
+      <tbody>
+        <tr data-cvt="A"><td class="id">E.25</td><td>Pique-nique — cuisiner puis manger au parc</td><td><span class="tag t-A">A</span></td><td class="sys">pas modélisé</td></tr>
+        <tr data-cvt="A"><td class="id">E.26</td><td>Gamelle pour le bureau (meal prep du midi)</td><td><span class="tag t-A">A</span></td><td class="sys">pas modélisé</td></tr>
+        <tr data-cvt="A"><td class="id">E.27</td><td>Plat à amener chez des amis</td><td><span class="tag t-A">A</span></td><td class="sys">pas modélisé</td></tr>
+        <tr data-cvt="A"><td class="id">E.28</td><td>Gâteau d'anniversaire à préparer pour l'école</td><td><span class="tag t-A">A</span></td><td class="sys">pas modélisé</td></tr>
+        <tr data-cvt="A"><td class="id">E.29</td><td>BBQ chez des amis — on apporte viande et salade</td><td><span class="tag t-A">A</span></td><td class="sys">pas modélisé</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>F · Vacances et séjours</h3>
+    <div class="scroll"><table>
+      <thead><tr><th>#</th><th>Situation</th><th>Cvt</th><th>Système actuel</th></tr></thead>
+      <tbody>
+        <tr data-cvt="A"><td class="id">F.30</td><td>Location de vacances — on cuisine pour 10</td><td><span class="tag t-A">A</span></td><td class="sys">bug fondateur : « hors foyer, pas de repas » — <strong>corrigé le 2026-08-12</strong> par <code>stay</code>, non reflété ici</td></tr>
+        <tr data-cvt="P"><td class="id">F.31</td><td>Hôtel ou club vacances — pas de cuisine</td><td><span class="tag t-P">P</span></td><td class="sys">absence = hors foyer (confus mais fonctionnel)</td></tr>
+        <tr data-cvt="A"><td class="id">F.32</td><td>Vacances chez les grands-parents — ils cuisinent</td><td><span class="tag t-A">A</span></td><td class="sys">pas modélisé</td></tr>
+        <tr data-cvt="A"><td class="id">F.33</td><td>Camping — cuisine sur place, matériel limité</td><td><span class="tag t-A">A</span></td><td class="sys">pas modélisé</td></tr>
+        <tr data-cvt="A"><td class="id">F.34</td><td>Road trip — restos et sandwichs</td><td><span class="tag t-A">A</span></td><td class="sys">pas modélisé</td></tr>
+        <tr data-cvt="A"><td class="id">F.35</td><td>Vacances en deux groupes — famille éclatée</td><td><span class="tag t-A">A</span></td><td class="sys">pas modélisé</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>G · Cas hybrides et limites</h3>
+    <div class="scroll"><table>
+      <thead><tr><th>#</th><th>Situation</th><th>Cvt</th><th>Système actuel</th></tr></thead>
+      <tbody>
+        <tr data-cvt="A"><td class="id">G.36</td><td>Commande livrée — on mange chez soi sans cuisiner</td><td><span class="tag t-A">A</span></td><td class="sys">pas de concept « repas sans cuisine »</td></tr>
+        <tr data-cvt="P"><td class="id">G.37</td><td>Restes réchauffés — pas de cuisine neuve</td><td><span class="tag t-P">P</span></td><td class="sys">tag <code>_leftovers</code> dans le menu</td></tr>
+        <tr data-cvt="A"><td class="id">G.38</td><td>Meal prep du dimanche — cuisiner 5 repas, en manger un</td><td><span class="tag t-A">A</span></td><td class="sys">pas modélisé</td></tr>
+        <tr data-cvt="A"><td class="id">G.39</td><td>Deux tablées au même créneau — enfants tôt, adultes tard</td><td><span class="tag t-A">A</span></td><td class="sys">un créneau = une tablée, pas de split</td></tr>
+        <tr data-cvt="A"><td class="id">G.40</td><td>Invité qui apporte le plat</td><td><span class="tag t-A">A</span></td><td class="sys">pas modélisé</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+</div>
+</div>
+
+<!-- ══════════ ONGLET 2 · SÉQUENCES ══════════ -->
+<div class="wrap">
+<div class="panel" id="p-seq" role="tabpanel" aria-labelledby="tab-seq" hidden>
+
+  <section>
+    <h2>Comment les dépôts se parlent</h2>
+    <p class="lede">Quatre dépôts, une base partagée, deux serveurs MCP et un système extérieur qui ne parle à personne. Les échanges ci-dessous sont relevés dans le code, pas supposés.</p>
+
+    <h3>1 · Import d'une page de livre — le chemin qui existe</h3>
+    <div class="diagram"><pre class="mermaid">
+sequenceDiagram
+    autonumber
+    participant F as Front (iPad)
+    participant CM2 as cooking-manager<br/>:8795
+    participant RM as recipe-manager<br/>:8796
+    participant V as Vision LLM
+    participant DB as postgresql-shared
+    participant DX as Vault Dropbox<br/>(mount rclone)
+
+    F->>CM2: POST /api/recipes/import (images)
+    CM2->>RM: POST /recipes/import/page
+    RM->>V: page → JSON structuré
+    V-->>RM: titre, ingrédients, étapes
+    RM->>DB: INSERT import_draft (status=pending)
+    RM-->>CM2: draft_id
+    CM2-->>F: draft_id
+
+    Note over F,RM: Révision humaine — le garde-fou
+    F->>CM2: PATCH /api/recipes/import/drafts/{id}
+    CM2->>RM: PATCH /recipes/import/drafts/{id}
+
+    F->>CM2: POST .../drafts/{id}/commit
+    CM2->>RM: POST /recipes/import/drafts/{id}/commit
+    RM->>DX: écrit Recettes/<slug>.md
+    RM-->>CM2: committed_path, visible=false
+    Note right of DX: ~30 s de propagation Dropbox<br/>visible=false est structurel
+    CM2-->>F: fiche écrite, pas encore visible
+
+    F->>CM2: POST /api/ingest (plus tard)
+    CM2->>DX: lit Recettes/*.md
+    CM2->>DB: upsert recipe / recipe_ingredient / recipe_step
+</pre></div>
+    <p class="caption">Relevé dans <code>backend/app.py:2374-2413</code> et <code>recipe_manager/app.py</code>. Le brouillon est ce qui protège le vault d'une lecture approximative.</p>
+
+    <h3>2 · Import depuis une URL — et où la cascade se casse</h3>
+    <div class="diagram"><pre class="mermaid">
+sequenceDiagram
+    autonumber
+    participant F as Front
+    participant CM2 as cooking-manager
+    participant RM as recipe-manager<br/>url_parser
+    participant W as Site web
+    participant DB as postgresql-shared
+
+    rect rgba(160,80,60,0.10)
+    Note over F,CM2: MANQUANT — aucun endpoint CM2 n'expose /parse-url (SC-33)
+    F--xCM2: coller une URL
+    end
+
+    CM2->>RM: POST /parse-url {url}
+    RM->>W: fetch_html (repli flaresolverr)
+    W-->>RM: HTML
+
+    Note over RM: Cascade 3 tiers
+    RM->>RM: tier 1 — extract_from_jsonld
+    alt ingrédients non vides
+        RM-->>CM2: ACCEPTÉ
+        Note right of RM: le défaut : ni étapes<br/>ni quantités exigées
+    else vide
+        RM->>RM: tier 2 — extract_from_html
+        RM->>RM: tier 3 — extract_with_llm
+    end
+
+    rect rgba(160,80,60,0.10)
+    Note over RM,DB: MANQUANT — /parse-url ne crée pas d'import_draft (SC-33)
+    RM--xDB: INSERT import_draft
+    end
+</pre></div>
+    <p class="caption">Mesuré le 2026-09-02 : sur papillesetpupilles, le tier 1 rend 13 ingrédients sans une quantité et zéro étape — et il est accepté, donc l'heuristique n'est jamais sollicitée. Suivi : recipe-manager#4.</p>
+
+    <h3>3 · Compatibilité et réparation d'une recette</h3>
+    <div class="diagram"><pre class="mermaid">
+sequenceDiagram
+    autonumber
+    participant F as Front
+    participant CM2 as cooking-manager
+    participant DB as postgresql-shared
+    participant S as substitutions.py
+    participant ONT as cooking-vocabulary.json<br/>(artefact épinglé)
+
+    F->>CM2: GET /api/recipes/{slug}/compatibility
+    CM2->>DB: recipe, recipe_ingredient, recipe_step
+    CM2->>DB: person (diet, forbidden, dislikes)
+    CM2->>CM2: check_ingredients() → conflicts
+
+    CM2->>S: detect_context(titre, ingrédients, étapes, convives)
+    S->>ONT: synonymes cuisines / cuissons
+    S->>S: is_accommodation_step() — exclut les étapes qui servent un convive
+    S->>S: has_anchored_stew() — liquide ET durée ET protéine
+    S-->>CM2: RecipeContext(cuisines, cooking_methods)
+
+    CM2->>S: repair_ingredients(lignes, régimes, contexte)
+    S->>S: rule_applies() — une règle de cuisine ne déborde pas
+    S->>S: score_rule() — priorité + bonus cuisine + bonus cuisson
+    S-->>CM2: repairs (source → target, reason)
+
+    CM2-->>F: conflicts, context, repairs
+</pre></div>
+    <p class="caption">Le vocabulaire n'est pas dans le code : il est tiré de <code>ontology-manager</code> et épinglé (v0.2.0). Deux tests refusent qu'une règle cite une clé absente du vocabulaire.</p>
+
+    <h3>4 · Des courses au panier drive</h3>
+    <div class="diagram"><pre class="mermaid">
+sequenceDiagram
+    autonumber
+    participant F as Front
+    participant CM2 as cooking-manager
+    participant DB as postgresql-shared
+    participant MCP as mcp-vps-auchan<br/>:3854
+    participant A as Auchan Drive
+
+    F->>CM2: GET /api/menus/{slug}/shopping-list
+    CM2->>DB: menu, menu_meal, recipe_ingredient
+    CM2->>DB: présence (school_period, absence, stay) → tablée
+    CM2->>DB: pantry_item → stock réel
+    CM2->>CM2: besoin = menu × tablée − garde-manger
+    CM2-->>F: liste calculée
+    Note right of CM2: rien n'est persisté —<br/>recalcul intégral à chaque appel (A.5)
+
+    Note over F,MCP: hors application — pilotage manuel
+    F->>MCP: grocery_find_stores / set_store / panier
+    MCP->>A: session (Cookie Health VPS)
+    A-->>MCP: panier
+
+    F->>CM2: POST /api/shopping/persist-cart
+    CM2->>DB: shopping_session + shopping_product
+    Note right of DB: compte rendu d'APRÈS COUP,<br/>relié à aucun menu
+</pre></div>
+    <p class="caption">La liste n'est pas un objet stocké, c'est un calcul. Ce qui persiste — <code>shopping_session</code> — est un compte rendu d'après coup : aucune ligne n'a d'état, aucun tour ne se clôt.</p>
+
+    <h3>5 · Le vocabulaire, et le système qui ne parle à personne</h3>
+    <div class="diagram"><pre class="mermaid">
+sequenceDiagram
+    autonumber
+    participant Y as data/ontology/<br/>cooking-vocabulary.yaml
+    participant OM as ontology-manager
+    participant CM2 as cooking-manager
+    participant DX as Vault Dropbox
+    participant CN as Coach Nutrition<br/>(claude.ai)
+
+    Note over Y,CM2: Build-time — motif PULL
+    Y->>OM: source de vérité
+    OM->>OM: generate --ontology cooking-vocabulary
+    OM-->>CM2: cooking-vocabulary.json épinglé (v0.2.0)
+    Note right of CM2: pip install embarque l'artefact<br/>aucun appel réseau au runtime
+
+    Note over DX,CN: Runtime — le découplage
+    CN->>DX: lit et écrit Garde-manger.md
+    CM2->>DX: lit Garde-manger.md (ingestion)
+    CM2->>CM2: pantry_item — la DB fait autorité
+    CN--xCM2: aucun appel, jamais
+    Note over CN,CM2: Deux garde-manger qui divergent sans alerte<br/>constaté 2026-09-01 : 6 articles « ok » n'existaient plus
+</pre></div>
+    <p class="caption">Le Coach Nutrition planifie les menus sans jamais voir le répertoire de 56 recettes — c'est la cause mesurée de l'issue #72.</p>
+  </section>
+</div>
+</div>
+
+<!-- ══════════ ONGLET 3 · CONTRATS ══════════ -->
+<div class="wrap">
+<div class="panel" id="p-contracts" role="tabpanel" aria-labelledby="tab-contracts" hidden>
+
+  <section>
+    <h2>Ce que chaque dépôt expose</h2>
+    <p class="lede">Relevé sur <code>srv759970</code> le 2026-09-02, depuis les <code>openapi.json</code> servis en production — pas depuis le code source, qui peut avoir dérivé du déployé.</p>
+
+    <div class="repo">
+      <div class="repo-head">
+        <p class="repo-name">cooking-manager</p>
+        <span class="repo-addr">:8795 · cooking.srv759970.hstgr.cloud · 76 routes</span>
+      </div>
+      <p class="repo-role">L'application. Possède les menus, le garde-manger, la présence, les courses et le moteur de substitutions. Ne possède pas le modèle recette — il le partage avec recipe-manager en colocataire de la même base.</p>
+
+      <div class="ep-group">
+        <p class="ep-group-name">Recettes</p>
+        <ul class="ep-list">
+          <li class="ep"><b>GET</b>/api/recipes</li>
+          <li class="ep"><b>GET</b>/api/recipes/{slug}</li>
+          <li class="ep"><b>GET</b>/api/recipes/{slug}/compatibility</li>
+          <li class="ep"><b>GET</b>/api/recipes/{slug}/macros</li>
+          <li class="ep"><b>GET</b>/api/recipes/{slug}/executions</li>
+          <li class="ep"><b>POST</b>/api/recipes/{slug}/executions</li>
+          <li class="ep"><b>POST</b>/api/recipes/{slug}/note</li>
+          <li class="ep"><b>PATCH</b>/api/recipes/{slug}/steps/{position}</li>
+        </ul>
+      </div>
+
+      <div class="ep-group">
+        <p class="ep-group-name">Import — proxy vers recipe-manager</p>
+        <ul class="ep-list">
+          <li class="ep"><b>POST</b>/api/recipes/import</li>
+          <li class="ep"><b>GET</b>/api/recipes/import/drafts</li>
+          <li class="ep"><b>GET</b>/api/recipes/import/drafts/{id}</li>
+          <li class="ep"><b>PATCH</b>/api/recipes/import/drafts/{id}</li>
+          <li class="ep"><b>DELETE</b>/api/recipes/import/drafts/{id}</li>
+          <li class="ep"><b>POST</b>/api/recipes/import/drafts/{id}/commit</li>
+        </ul>
+      </div>
+
+      <div class="ep-group">
+        <p class="ep-group-name">Menus et courses</p>
+        <ul class="ep-list">
+          <li class="ep"><b>GET</b>/api/menus</li>
+          <li class="ep"><b>POST</b>/api/menus</li>
+          <li class="ep"><b>DELETE</b>/api/menus/{slug}</li>
+          <li class="ep"><b>GET</b>/api/menus/{slug}/meals</li>
+          <li class="ep"><b>PATCH</b>/api/menus/{slug}/meals/{meal_id}</li>
+          <li class="ep"><b>GET</b>/api/menus/{slug}/compatibility</li>
+          <li class="ep"><b>GET</b>/api/menus/{slug}/shopping-list</li>
+          <li class="ep"><b>POST</b>/api/shopping/import</li>
+          <li class="ep"><b>POST</b>/api/shopping/persist-cart</li>
+          <li class="ep"><b>GET</b>/api/shopping/sessions</li>
+          <li class="ep"><b>GET</b>/api/shopping/sessions/{id}/products</li>
+          <li class="ep"><b>GET</b>/api/shopping/preferences</li>
+          <li class="ep"><b>POST</b>/api/shopping/preferences</li>
+        </ul>
+      </div>
+
+      <div class="ep-group">
+        <p class="ep-group-name">Garde-manger</p>
+        <ul class="ep-list">
+          <li class="ep"><b>GET</b>/api/pantry</li>
+          <li class="ep"><b>PATCH</b>/api/pantry</li>
+          <li class="ep"><b>POST</b>/api/pantry/bulk</li>
+          <li class="ep"><b>POST</b>/api/pantry/items</li>
+          <li class="ep"><b>GET</b>/api/pantry/items/{id}</li>
+          <li class="ep"><b>PUT</b>/api/pantry/items/{id}</li>
+          <li class="ep"><b>DELETE</b>/api/pantry/items/{id}</li>
+          <li class="ep"><b>POST</b>/api/pantry/leftover</li>
+          <li class="ep"><b>GET</b>/api/pantry/search</li>
+        </ul>
+      </div>
+
+      <div class="ep-group">
+        <p class="ep-group-name">Tablée et présence</p>
+        <ul class="ep-list">
+          <li class="ep"><b>GET</b>/api/attendance</li>
+          <li class="ep"><b>GET</b>/api/persons</li>
+          <li class="ep"><b>POST</b>/api/persons</li>
+          <li class="ep"><b>GET</b>/api/persons/{id}</li>
+          <li class="ep"><b>PATCH</b>/api/persons/{id}</li>
+          <li class="ep"><b>DELETE</b>/api/persons/{id}</li>
+          <li class="ep"><b>GET</b>/api/households</li>
+          <li class="ep"><b>POST</b>/api/households/{id}/members</li>
+          <li class="ep"><b>DELETE</b>/api/households/{id}/members/{pid}</li>
+          <li class="ep"><b>GET</b>/api/relationships</li>
+          <li class="ep"><b>POST</b>/api/relationships</li>
+          <li class="ep"><b>DELETE</b>/api/relationships/{id}</li>
+          <li class="ep"><b>GET</b>/api/custody-schedules</li>
+          <li class="ep"><b>POST</b>/api/custody-schedules</li>
+          <li class="ep"><b>GET</b>/api/canteen-schedules</li>
+          <li class="ep"><b>POST</b>/api/canteen-schedules</li>
+          <li class="ep"><b>GET</b>/api/school-periods</li>
+          <li class="ep"><b>POST</b>/api/school-periods</li>
+          <li class="ep"><b>DELETE</b>/api/school-periods/{id}</li>
+          <li class="ep"><b>GET</b>/api/absences</li>
+          <li class="ep"><b>POST</b>/api/absences</li>
+          <li class="ep"><b>DELETE</b>/api/absences/{id}</li>
+          <li class="ep"><b>GET</b>/api/stays</li>
+          <li class="ep"><b>POST</b>/api/stays</li>
+          <li class="ep"><b>POST</b>/api/stays/{id}/members/{pid}</li>
+          <li class="ep"><b>DELETE</b>/api/stays/{id}</li>
+        </ul>
+      </div>
+
+      <div class="ep-group">
+        <p class="ep-group-name">Drive, voix, exploitation</p>
+        <ul class="ep-list">
+          <li class="ep"><b>GET</b>/api/drives/{store}/stores</li>
+          <li class="ep"><b>GET</b>/api/drives/{store}/search</li>
+          <li class="ep"><b>POST</b>/api/drives/map-ingredients</li>
+          <li class="ep"><b>POST</b>/api/drives/compare</li>
+          <li class="ep"><b>POST</b>/api/audio</li>
+          <li class="ep"><b>POST</b>/api/intent</li>
+          <li class="ep"><b>POST</b>/api/feedback</li>
+          <li class="ep"><b>POST</b>/api/ingest</li>
+          <li class="ep"><b>POST</b>/api/seed</li>
+          <li class="ep"><b>POST</b>/api/seed-history</li>
+          <li class="ep"><b>GET</b>/api/stats</li>
+          <li class="ep"><b>GET</b>/api/filters</li>
+          <li class="ep"><b>GET</b>/health</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="repo">
+      <div class="repo-head">
+        <p class="repo-name">recipe-manager</p>
+        <span class="repo-addr">:8796 · 21 routes</span>
+      </div>
+      <p class="repo-role">Propriétaire du modèle recette : il crée les tables que CM2 lit et écrit, porte le parser d'ingrédients, les brouillons d'import et la génération d'images. Waaker le consommera par API. C'est ici que vit la cascade URL → recette.</p>
+      <div class="ep-group">
+        <p class="ep-group-name">Extraction — la cascade 3 tiers</p>
+        <ul class="ep-list">
+          <li class="ep"><b>POST</b>/parse-url</li>
+          <li class="ep"><b>POST</b>/parse-html</li>
+          <li class="ep"><b>POST</b>/parse</li>
+        </ul>
+      </div>
+      <div class="ep-group">
+        <p class="ep-group-name">Recettes et brouillons</p>
+        <ul class="ep-list">
+          <li class="ep"><b>GET</b>/recipes</li>
+          <li class="ep"><b>POST</b>/recipes</li>
+          <li class="ep"><b>GET</b>/recipes/{slug}</li>
+          <li class="ep"><b>PATCH</b>/recipes/{slug}</li>
+          <li class="ep"><b>DELETE</b>/recipes/{slug}</li>
+          <li class="ep"><b>POST</b>/recipes/{slug}/generate-image</li>
+          <li class="ep"><b>POST</b>/recipes/{slug}/note</li>
+          <li class="ep"><b>PATCH</b>/recipes/{slug}/steps/{position}</li>
+          <li class="ep"><b>GET</b>/recipes/{slug}/executions</li>
+          <li class="ep"><b>POST</b>/recipes/{slug}/executions</li>
+          <li class="ep"><b>POST</b>/recipes/import/page</li>
+          <li class="ep"><b>GET</b>/recipes/import/drafts</li>
+          <li class="ep"><b>GET</b>/recipes/import/drafts/{id}</li>
+          <li class="ep"><b>PATCH</b>/recipes/import/drafts/{id}</li>
+          <li class="ep"><b>DELETE</b>/recipes/import/drafts/{id}</li>
+          <li class="ep"><b>POST</b>/recipes/import/drafts/{id}/commit</li>
+          <li class="ep"><b>POST</b>/ingest</li>
+          <li class="ep"><b>GET</b>/filters</li>
+          <li class="ep"><b>GET</b>/health</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="repo">
+      <div class="repo-head">
+        <p class="repo-name">deep-research</p>
+        <span class="repo-addr">bibliothèque Python · pas de service HTTP</span>
+      </div>
+      <p class="repo-role">Moteur de recherche approfondie. Sa voie lifestyle apporte la <em>découverte</em> d'URLs (lane <code>recipe_web</code>, cadrée sur 750g, CuisineAZ, Papilles et Pupilles, HerveCuisine, Jow, Ricardo). Son <code>fetch_structured_recipe()</code> duplique la cascade de recipe-manager — doublon à trancher (deep-research#51).</p>
+      <div class="ep-group">
+        <p class="ep-group-name">Points d'entrée appelés</p>
+        <ul class="ep-list">
+          <li class="ep">fetch_structured_recipe(url)</li>
+          <li class="ep">parse_recipe_jsonld(blocs, url)</li>
+          <li class="ep">extract_recipe_jsonld(html, url)</li>
+          <li class="ep">recipe_web(query, search)</li>
+          <li class="ep">HydraSpecter REST :8765</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="repo">
+      <div class="repo-head">
+        <p class="repo-name">serveurs MCP</p>
+        <span class="repo-addr">cooking-mcp :3868 · mcp-vps-auchan :3854</span>
+      </div>
+      <p class="repo-role">Deux surfaces distinctes. <code>cooking-mcp</code> expose garde-manger, recettes et menus à un agent (Google OAuth, user <code>mcp-run</code>). <code>mcp-vps-auchan</code> est la <em>seule</em> voie de connexion au drive depuis la décision du 2026-08-12 — HydraSpecter reste un outil de diagnostic, pas un chemin d'accès.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>Le schéma — 27 tables</h2>
+    <p class="lede">Lu dans <code>postgresql-shared</code> / <code>cooking_manager</code> le 2026-09-02. Les tables recette appartiennent à recipe-manager ; CM2 les lit et les écrit en colocataire. Déplier une table pour voir ses colonnes.</p>
+
+    <h3>Recettes — propriété de recipe-manager</h3>
+    <details>
+      <summary>recipe <span class="cols">31 colonnes</span></summary>
+      <div class="fields">
+        <span class="field key">id <i>int</i></span><span class="field key">slug <i>text</i></span><span class="field">title <i>text</i></span><span class="field">status <i>text</i></span><span class="field">recipe_type <i>text</i></span><span class="field">family <i>text</i></span><span class="field">servings <i>int</i></span><span class="field">total_time_min <i>int</i></span><span class="field">prep_time_min <i>int</i></span><span class="field">cook_time_min <i>int</i></span><span class="field">tags <i>array</i></span><span class="field">compatible_constraints <i>array</i></span><span class="field">sources <i>array</i></span><span class="field">appreciated_by <i>array</i></span><span class="field">applied_substitutions <i>array</i></span><span class="field">mediterranean_criteria <i>int[]</i></span><span class="field">construction_regime <i>text</i></span><span class="field">execution_count <i>int</i></span><span class="field">lieu_execution <i>text</i></span><span class="field">macros_kcal <i>num</i></span><span class="field">macros_protein <i>num</i></span><span class="field">macros_carbs <i>num</i></span><span class="field">macros_fat <i>num</i></span><span class="field">protein_density <i>num</i></span><span class="field">photo_url <i>text</i></span><span class="field">created <i>date</i></span><span class="field">updated <i>date</i></span><span class="field">ingested_at <i>ts</i></span><span class="field">body <i>text</i></span><span class="field">sub_recipes <i>array</i></span>
+      </div>
+    </details>
+    <details>
+      <summary>recipe_ingredient <span class="cols">11 colonnes</span></summary>
+      <div class="fields">
+        <span class="field key">id <i>int</i></span><span class="field key">recipe_id <i>int</i></span><span class="field">position <i>int</i></span><span class="field">raw <i>text</i></span><span class="field">qty_min <i>num</i></span><span class="field">qty_max <i>num</i></span><span class="field">unit <i>text</i></span><span class="field">name <i>text</i></span><span class="field">name_normalized <i>text</i></span><span class="field">is_optional <i>bool</i></span><span class="field">parsed <i>bool</i></span>
+      </div>
+    </details>
+    <details>
+      <summary>recipe_step <span class="cols">4 colonnes</span></summary>
+      <div class="fields"><span class="field key">id <i>int</i></span><span class="field key">recipe_id <i>int</i></span><span class="field">position <i>int</i></span><span class="field">text <i>text</i></span></div>
+    </details>
+    <details>
+      <summary>recipe_execution <span class="cols">9 colonnes</span></summary>
+      <div class="fields"><span class="field key">id <i>int</i></span><span class="field key">recipe_id <i>int</i></span><span class="field">date <i>date</i></span><span class="field">cooked_by <i>text</i></span><span class="field">rating <i>int</i></span><span class="field">appreciated_by <i>array</i></span><span class="field">notes <i>text</i></span><span class="field">created_at <i>ts</i></span><span class="field">appreciation_date <i>date</i></span></div>
+    </details>
+    <details>
+      <summary>import_draft <span class="cols">10 colonnes</span></summary>
+      <div class="fields"><span class="field key">id <i>int</i></span><span class="field">slug <i>text</i></span><span class="field">title <i>text</i></span><span class="field">source <i>text</i></span><span class="field">status <i>text</i></span><span class="field">draft <i>jsonb</i></span><span class="field">page_count <i>int</i></span><span class="field">committed_path <i>text</i></span><span class="field">created_at <i>ts</i></span><span class="field">updated_at <i>ts</i></span></div>
+    </details>
+
+    <h3>Menus</h3>
+    <details>
+      <summary>menu <span class="cols">13 colonnes</span></summary>
+      <div class="fields"><span class="field key">id <i>int</i></span><span class="field key">slug <i>text</i></span><span class="field">title <i>text</i></span><span class="field">week_start <i>date</i></span><span class="field">week_end <i>date</i></span><span class="field">configuration <i>text</i></span><span class="field">pattern_sport <i>text</i></span><span class="field">status <i>text</i></span><span class="field">linked_recipes <i>array</i></span><span class="field">created <i>date</i></span><span class="field">updated <i>date</i></span><span class="field">ingested_at <i>ts</i></span><span class="field">meals <i>jsonb</i></span><span class="field">body <i>text</i></span></div>
+    </details>
+    <details>
+      <summary>menu_meal <span class="cols">10 colonnes</span></summary>
+      <div class="fields"><span class="field key">id <i>int</i></span><span class="field key">menu_id <i>int</i></span><span class="field">day <i>date</i></span><span class="field">day_label <i>text</i></span><span class="field">position <i>int</i></span><span class="field">slot <i>text</i></span><span class="field">dish <i>text</i></span><span class="field key">recipe_id <i>int</i></span><span class="field">match_kind <i>text</i></span><span class="field">covers <i>int</i></span></div>
+    </details>
+    <details>
+      <summary>meal_attendance <span class="cols">8 colonnes</span></summary>
+      <div class="fields"><span class="field key">id <i>int</i></span><span class="field key">menu_id <i>int</i></span><span class="field">day <i>date</i></span><span class="field">slot <i>text</i></span><span class="field key">person_id <i>int</i></span><span class="field">source <i>text</i></span><span class="field">extra_headcount <i>int</i></span><span class="field">created_at <i>ts</i></span></div>
+    </details>
+
+    <h3>Tablée et présence</h3>
+    <details>
+      <summary>person <span class="cols">14 colonnes</span></summary>
+      <div class="fields"><span class="field key">id <i>int</i></span><span class="field">name <i>text</i></span><span class="field">full_name <i>text</i></span><span class="field">circle <i>text</i></span><span class="field">role <i>text</i></span><span class="field">diet <i>text</i></span><span class="field">dislikes <i>array</i></span><span class="field">forbidden <i>array</i></span><span class="field">notes <i>text</i></span><span class="field">default_attendance <i>text</i></span><span class="field">is_active <i>bool</i></span><span class="field">created_at <i>ts</i></span><span class="field">updated_at <i>ts</i></span></div>
+    </details>
+    <details>
+      <summary>stay <span class="cols">7 colonnes</span></summary>
+      <div class="fields"><span class="field key">id <i>int</i></span><span class="field">label <i>text</i></span><span class="field">start_date <i>date</i></span><span class="field">end_date <i>date</i></span><span class="field">location <i>text</i></span><span class="field">cooking <i>bool</i></span><span class="field">created_at <i>ts</i></span></div>
+    </details>
+    <details>
+      <summary>stay_member <span class="cols">2 colonnes</span></summary>
+      <div class="fields"><span class="field key">stay_id <i>int</i></span><span class="field key">person_id <i>int</i></span></div>
+    </details>
+    <details>
+      <summary>absence <span class="cols">7 colonnes</span></summary>
+      <div class="fields"><span class="field key">id <i>int</i></span><span class="field key">person_id <i>int</i></span><span class="field">start_date <i>date</i></span><span class="field">end_date <i>date</i></span><span class="field">slot <i>text</i></span><span class="field">reason <i>text</i></span><span class="field">created_at <i>ts</i></span></div>
+    </details>
+    <details>
+      <summary>custody_schedule <span class="cols">7 colonnes</span></summary>
+      <div class="fields"><span class="field key">id <i>int</i></span><span class="field key">person_id <i>int</i></span><span class="field">pattern <i>text</i></span><span class="field">reference_date <i>date</i></span><span class="field">reference_present <i>bool</i></span><span class="field">weekday_override <i>jsonb</i></span><span class="field">notes <i>text</i></span></div>
+    </details>
+    <details>
+      <summary>canteen_schedule <span class="cols">5 colonnes</span></summary>
+      <div class="fields"><span class="field key">id <i>int</i></span><span class="field key">person_id <i>int</i></span><span class="field">weekday <i>int</i></span><span class="field">slot <i>text</i></span><span class="field">active_outside_holidays <i>bool</i></span></div>
+    </details>
+    <details>
+      <summary>school_period <span class="cols">5 colonnes</span></summary>
+      <div class="fields"><span class="field key">id <i>int</i></span><span class="field">label <i>text</i></span><span class="field">start_date <i>date</i></span><span class="field">end_date <i>date</i></span><span class="field">created_at <i>ts</i></span></div>
+    </details>
+    <details>
+      <summary>household · household_member · relationship · person_group · person_group_member <span class="cols">structure sociale</span></summary>
+      <div class="fields"><span class="field">household: id, name, is_primary, created_at</span><span class="field">household_member: household_id, person_id, membership</span><span class="field">relationship: id, person_id, related_id, type</span><span class="field">person_group: id, name, auto_generated, created_at</span><span class="field">person_group_member: group_id, person_id</span></div>
+    </details>
+    <details>
+      <summary>convive <span class="cols">legacy</span></summary>
+      <div class="fields"><span class="field key">id <i>int</i></span><span class="field">name <i>text</i></span><span class="field">constraints <i>array</i></span><span class="field">notes <i>text</i></span><span class="field">ingested_at <i>ts</i></span></div>
+    </details>
+
+    <h3>Garde-manger et courses</h3>
+    <details>
+      <summary>pantry_item <span class="cols">16 colonnes</span></summary>
+      <div class="fields"><span class="field key">id <i>int</i></span><span class="field">name <i>text</i></span><span class="field">name_normalized <i>text</i></span><span class="field">section <i>text</i></span><span class="field">qty_text <i>text</i></span><span class="field">qty_value <i>num</i></span><span class="field">unit <i>text</i></span><span class="field">status <i>text</i></span><span class="field">xstatus <i>text</i></span><span class="field">perishable <i>bool</i></span><span class="field">entered_at <i>date</i></span><span class="field">source <i>text</i></span><span class="field key">shopping_product_id <i>int</i></span><span class="field">notes <i>text</i></span><span class="field">created_at <i>ts</i></span><span class="field">updated_at <i>ts</i></span></div>
+    </details>
+    <details>
+      <summary>pantry_alias <span class="cols">4 colonnes</span></summary>
+      <div class="fields"><span class="field key">id <i>int</i></span><span class="field">alias_normalized <i>text</i></span><span class="field key">pantry_item_id <i>int</i></span><span class="field">created_at <i>ts</i></span></div>
+    </details>
+    <details>
+      <summary>shopping_session <span class="cols">10 colonnes</span></summary>
+      <div class="fields"><span class="field key">id <i>int</i></span><span class="field">date <i>date</i></span><span class="field">store <i>text</i></span><span class="field">cart_id <i>text</i></span><span class="field">covers <i>int</i></span><span class="field">people <i>array</i></span><span class="field">total <i>num</i></span><span class="field">items_count <i>int</i></span><span class="field">notes <i>text</i></span><span class="field">created_at <i>ts</i></span></div>
+    </details>
+    <details>
+      <summary>shopping_product <span class="cols">27 colonnes</span></summary>
+      <div class="fields"><span class="field key">id <i>int</i></span><span class="field key">session_id <i>int</i></span><span class="field">item_requested <i>text</i></span><span class="field">product_name <i>text</i></span><span class="field">brand <i>text</i></span><span class="field">product_id <i>text</i></span><span class="field">price_unit <i>num</i></span><span class="field">quantity_bought <i>int</i></span><span class="field">total_price <i>num</i></span><span class="field">status <i>text</i></span><span class="field">rationale <i>text</i></span><span class="field">quantity_rationale <i>text</i></span><span class="field">alternatives <i>jsonb</i></span><span class="field">lesson_learned <i>text</i></span><span class="field">auchan_id <i>text</i></span><span class="field">nutriscore <i>text</i></span><span class="field">nutrition <i>jsonb</i></span><span class="field">ingredients <i>text</i></span><span class="field">allergens <i>text</i></span><span class="field">characteristics <i>jsonb</i></span><span class="field">photo_url <i>text</i></span><span class="field">product_url <i>text</i></span><span class="field">weight <i>text</i></span><span class="field">price_per_kg <i>num</i></span><span class="field">ean <i>text</i></span><span class="field">created_at <i>ts</i></span></div>
+    </details>
+    <details>
+      <summary>shopping_preference <span class="cols">8 colonnes</span></summary>
+      <div class="fields"><span class="field key">id <i>int</i></span><span class="field">pref_type <i>text</i></span><span class="field">key <i>text</i></span><span class="field">value <i>text</i></span><span class="field">reason <i>text</i></span><span class="field">active <i>bool</i></span><span class="field">created_at <i>ts</i></span><span class="field">updated_at <i>ts</i></span></div>
+    </details>
+
+    <div class="note">
+      <strong>Ce que le schéma ne dit pas.</strong> Aucune table ne porte de <em>tour de courses</em> : ni canal, ni cadence, ni état de ligne. <code>shopping_session.store</code> n'est rempli qu'après coup. C'est la raison structurelle des 39 cas absents de la colonne Courses — ils n'attendent pas une fonctionnalité, ils attendent un objet.
+    </div>
+  </section>
+</div>
+</div>
+
+<div class="wrap">
+  <footer>
+    <p>Sources : <code>docs/conception/USE_CASES_RECETTES.md</code>, <code>USE_CASES_COURSES.md</code>, <code>USE_CASES_TABLEE.md</code>, <code>CORPUS_ACCOMMODATIONS.md</code>, <code>CORPUS_WEB_JSONLD.md</code>. API et schéma relevés en production le 2026-09-02. Un chiffre de ce document est une mesure datée, jamais un compte recopié.</p>
+  </footer>
+</div>
+
+<script>
+(function () {
+  var tabs = Array.prototype.slice.call(document.querySelectorAll('.tab'));
+
+  function select(tab) {
+    tabs.forEach(function (t) {
+      var panel = document.getElementById(t.getAttribute('aria-controls'));
+      var on = t === tab;
+      t.setAttribute('aria-selected', on ? 'true' : 'false');
+      if (panel) { panel.hidden = !on; }
+    });
+    window.scrollTo({ top: 0, behavior: 'auto' });
+  }
+
+  tabs.forEach(function (tab) {
+    tab.addEventListener('click', function () { select(tab); });
+    tab.addEventListener('keydown', function (e) {
+      var i = tabs.indexOf(tab);
+      if (e.key === 'ArrowRight') { tabs[(i + 1) % tabs.length].focus(); tabs[(i + 1) % tabs.length].click(); }
+      if (e.key === 'ArrowLeft') { tabs[(i - 1 + tabs.length) % tabs.length].focus(); tabs[(i - 1 + tabs.length) % tabs.length].click(); }
+    });
+  });
+
+  var chips = Array.prototype.slice.call(document.querySelectorAll('.chip'));
+
+  function applyFilter() {
+    var on = {};
+    chips.forEach(function (c) { on[c.getAttribute('data-cvt')] = c.getAttribute('aria-pressed') === 'true'; });
+    Array.prototype.forEach.call(document.querySelectorAll('tr[data-cvt]'), function (row) {
+      row.hidden = !on[row.getAttribute('data-cvt')];
+    });
+  }
+
+  chips.forEach(function (chip) {
+    chip.addEventListener('click', function () {
+      chip.setAttribute('aria-pressed', chip.getAttribute('aria-pressed') === 'true' ? 'false' : 'true');
+      applyFilter();
+    });
+  });
+})();
+</script>
