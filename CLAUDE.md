@@ -144,52 +144,35 @@ du **Coach Nutrition** (`Noyau/Coaches/Coach Nutrition/_coach.md`).
   `shopping_product.nutrition` (étiquette scrapée du drive) > `generiques/`
   (ANSES CIQUAL). Jamais d'estimation implicite en quatrième position.
 
-⚠️ **Trois dispositions de tableau coexistent dans la base aliments**, et les
-trois sont légitimes : (1) métriques en lignes avec colonnes « /100g » ;
-(2) **transposée**, lignes = versions ; (3) **`| Nutriment | Valeur |`**, dont
-la base est annoncée par le *titre de section* (« ## Macros pour 100g ») et non
-par l'en-tête — la plus répandue et la plus facile à rater
-(compte à jour : `julien-audit-cooking-vault`). La 3ᵉ n'est acceptée que si le document mentionne explicitement
-« pour 100 g » : sans mention, la fiche est ignorée plutôt que rapportée à une
-base supposée. Auditer avec `julien-audit-cooking-vault`.
+⚠️ **Trois dispositions de tableau coexistent dans la base aliments**, toutes
+légitimes : métriques en lignes ; **transposée** (lignes = versions) ;
+`| Nutriment | Valeur |` dont la base est annoncée par le *titre de section*
+(« ## Macros pour 100g ») et non par l'en-tête — la plus répandue et la plus
+facile à rater. Cette dernière n'est acceptée que si le document écrit
+explicitement « pour 100 g » ; sans mention, la fiche est **ignorée** plutôt que
+rapportée à une base supposée. Auditer : `julien-audit-cooking-vault`.
 
-⚠️ **La 1ʳᵉ colonne d'une fiche n'est PAS toujours « /100g ».** `lentilles.md`
-porte « Crues /100g » **puis** « Cuites /100g » : la prendre donnait 339 kcal là
-où la recette veut 116 — **facteur 3, sans un signe**. Le parseur lit l'en-tête
-et, quand plusieurs formes coexistent, **refuse de trancher** tant que la recette
-ne nomme pas la sienne. Certaines fiches sont aussi **transposées** (lignes =
-versions, colonnes = métriques) : `fromage-blanc.md` et ses 3 versions n'était
-pas chargée du tout.
+⚠️ **La 1ʳᵉ colonne n'est PAS toujours « /100g »** — une fiche peut porter
+« Crues » *puis* « Cuites », et prendre la première donne un **facteur 3 sans un
+signe**. Le parseur lit l'en-tête et, quand plusieurs formes coexistent,
+**refuse de trancher** tant que la recette ne nomme pas la sienne.
 
 ⚠️ **`coverage` et `conclusive` sont de premier plan.** Une somme sur la moitié
 des ingrédients n'est pas « les macros de la recette ». Les unités-pièce
 (« 4 carottes ») ne se convertissent pas sans poids unitaire.
 
-⚠️ **La base aliments vit sur le mount rclone : ~7 s pour ses ~240 fiches.**
+⚠️ **La base aliments vit sur le mount rclone** (plusieurs secondes de lecture) :
 `load_food_base_cached()` est obligatoire côté API — la relire à chaque requête
 rendait l'endpoint inutilisable *et* masquait les erreurs derrière des timeouts.
 
-⚠️ **`qty_min` arrive en `Decimal`** (colonne NUMERIC via asyncpg) : il ne se
-multiplie pas par un flottant. Un test qui passe des `float` ne peut pas voir
-ce cas — il n'est apparu qu'à l'appel réel.
+⚠️ **`qty_min` arrive en `Decimal`** (NUMERIC via asyncpg) : il ne se multiplie
+pas par un flottant, et un test qui passe des `float` ne peut pas voir ce cas.
 
 ## Gotchas
 
-- **Auchan Drive : une seule voie de connexion — le MCP VPS** (`mcp-vps-auchan`, port 3854 ; décision 2026-08-12, refs #60). `backend/auchan.py`, `backend/auchan_mcp.py` et `backend/auchan_stores.py` ont été **décommissionnés le 2026-08-09** (commit `0d36988`) — leur logique de contexte magasin (`POST /journey/update`) a été portée dans le MCP VPS le 2026-08-12 (`grocery_find_stores`/`grocery_set_store`, mcp-vps#171). La session Auchan du VPS est gérée par le seul **Cookie Health VPS**. HydraSpecter = outil de diagnostic, pas une voie de connexion
-- **Tablée : câblée et 100 % DB depuis 2026-08-12 (refs #33)**. `/api/menus/<slug>/compatibility` ne lit **plus** `Presences.md` ni `Convives.md` — tout vient de la DB via `load_referential_from_db()` (school_period, absence, stay, overrides) et `load_convives_from_db()` (profils depuis `person`). Résolution de présence à 4 niveaux dans `presence.py::attendees()` : **override manuel > séjour (`stay`) > trame garde/cantine > absences**. Le modèle **`stay`+`stay_member`** (tables ajoutées 2026-08-12) corrige le bug fondateur F.30 (Bègles) : en location de vacances on cuisine sur place, donc les membres du séjour sont à table quels que soient les absences et la trame. Endpoint résolveur : `GET /api/attendance?day=&slot=`. Les constantes `ADULTS`/`CHILDREN`/`CUSTODY_REFERENCE_WEEK` restent en **fallback** quand aucune `HouseholdConfig` DB n'est fournie. `convive` (legacy) et `person` coexistent encore ; `person` fait autorité pour la compatibilité. ⚠️ **Après `POST /api/seed`, relancer si besoin — idempotent** ; le séjour Bègles y est seedé (membres = foyer, Julien ajoute les invités via `stay_add`/`POST /api/stays/<id>/members/<pid>`)
-- **Une photo qui n'est pas un fichier local est une photo en sursis.** `_scrape_photo()`
-  reconstruit `photo_url` à chaque ingestion depuis un site tiers (timeout 8 s) : l'upsert
-  écrivait `photo_url=$24` sans condition, donc **un scraping qui échoue effaçait la photo**,
-  sans erreur ni warning (le 2026-08-12 : 11 recettes d'un coup, 9 au menu). Corrigé par
-  `photo_url=COALESCE($24, recipe.photo_url)`. La parade de fond reste le **fichier local** :
-  `web/media/recipes/<slug>.jpg` → rattachement déterministe, prioritaire sur le scraping,
-  insensible au réseau. Générer les manquantes via **recipe-manager**
-  (`POST /recipes/<slug>/generate-image`, port 8796), qui porte le prompt v1.1 — jamais un
-  prompt improvisé, sinon le parc perd son unité visuelle et la grille se disloque. Le
-  fichier écrit vit sur la box : récupérer avec `?inline=true` → `image_base64`, écrire dans
-  `web/media/recipes/`, **committer**. `data/photo-prompt.md` documente le pourquoi mais ne
-  pilote plus rien. Extension **`.jpg` obligatoire** :
-  `ingest.py` ne scanne que celle-là, un `.png` déposé n'est jamais rattaché
+- **Auchan Drive : une seule voie de connexion — le MCP VPS** (`mcp-vps-auchan`, port 3854, refs #60). Les modules `backend/auchan*.py` sont décommissionnés, contexte magasin compris (`grocery_find_stores`/`grocery_set_store`). La session Auchan du VPS est gérée par le seul **Cookie Health VPS**. HydraSpecter = outil de diagnostic, **pas** une voie de connexion
+- **Tablée : 100 % DB, plus aucune lecture de `Presences.md` ni `Convives.md`** (refs #33). Tout vient de `load_referential_from_db()` (school_period, absence, stay) et `load_convives_from_db()` (`person`). Résolveur : `GET /api/attendance?day=&slot=`, `presence.py::attendees()`. `stay`+`stay_member` corrige F.30 : en location on cuisine sur place, donc les membres du séjour sont à table quelles que soient la trame et les absences. `ADULTS`/`CHILDREN`/`CUSTODY_REFERENCE_WEEK` ne sont plus qu'un **repli** sans `HouseholdConfig`. `convive` (legacy) et `person` coexistent ; `person` fait autorité. `POST /api/seed` est idempotent. ⚠️ **`attendees()` annonce quatre niveaux (override > séjour > trame > absences) mais le sommet est INATTEIGNABLE** : rien n'écrit `meal_attendance`, donc l'override manuel n'arrive jamais, et le résolveur répond avec la trame sans le signaler. Même chose pour `stay.cooking` et `extra_headcount` : écrits ou exposés, lus par aucun calcul. Refs #73 — ne pas raisonner sur ces trois-là comme sur des données vivantes
+- **Une photo qui n'est pas un fichier local est une photo en sursis.** `_scrape_photo()` reconstruit `photo_url` à chaque ingestion depuis un site tiers ; l'upsert doit rester `photo_url=COALESCE($24, recipe.photo_url)`, sans quoi **un scraping qui échoue efface la photo** sans erreur. La parade de fond est le fichier local `web/media/recipes/<slug>.jpg`, prioritaire et insensible au réseau. Générer les manquantes via **recipe-manager** (`POST /recipes/<slug>/generate-image`, port 8796), qui porte le prompt v1.1 — jamais un prompt improvisé, sinon le parc perd son unité visuelle. Récupérer avec `?inline=true` → `image_base64`, écrire dans `web/media/recipes/`, **committer**. Extension **`.jpg` obligatoire** : `ingest.py` ne scanne que celle-là, un `.png` déposé n'est jamais rattaché (refs #70)
 - `httpx`/`selectolax`/`mcp` sont des dépendances déclarées dans `pyproject.toml` — un venv reconstruit à neuf (`pip install .`) est le test de vérité si ce fichier dérive
 - Toute nouvelle colonne dans un CREATE TABLE doit aussi etre dans MIGRATIONS_SQL (`ALTER TABLE ADD COLUMN IF NOT EXISTS`) — le VPS a deja les tables, `CREATE TABLE IF NOT EXISTS` ne rajoute rien
 - `menu_meal.position` est **1-based** en DB (`enumerate(meals, start=1)`) — tout consommateur JS doit faire `position - 1` pour indexer le tableau `menu.meals[]`
@@ -204,7 +187,8 @@ ce cas — il n'est apparu qu'à l'appel réel.
   canal, réattribution, besoin résiduel) est dans `docs/conception/USE_CASES_COURSES.md` —
   le lire avant de toucher aux courses. Refs #67, #68
 - `_pantry_from_db()` remplace `_load_pantry()` — le différentiel courses lit la DB, source de vérité pour l'app (le vault n'est qu'une source d'ingestion parmi d'autres ; `source != 'vault'` survit à la ré-ingestion — **donc aucune correction du vault ne les atteint jamais** : une ligne `receipt` est un événement d'achat daté, pas un état de stock, et reste `ok` indéfiniment, refs #69). ⚠️ **`Noyau/Cuisine/Garde-manger.md` est aussi lu/écrit par un système entièrement séparé** — le Coach Nutrition sur claude.ai, qui planifie les menus macro par macro et n'appelle jamais l'app ni sa DB. Les deux garde-manger ne sont **jamais synchronisés** et peuvent diverger sans alerte (constaté 2026-09-01 : 6 articles listés « ok » dans le vault n'existaient plus réellement)
-- **Cuissons, cuisines, textures et techniques d'accommodation viennent de l'ONTOLOGIE, jamais d'une table écrite dans le code.** Source : `data/ontology/cooking-vocabulary.yaml` (ce repo) → `ontology-manager` (`kind: cooking`) → artefact épinglé `cooking_manager/cooking-vocabulary.json`. Modifier le YAML, régénérer (`python -m ontology_manager.cli generate --ontology cooking-vocabulary`), recopier l'artefact. Deux tests refusent qu'une règle cite une clé absente du vocabulaire ou déclarée sans synonyme — donc indétectable
+- **Cuissons, cuisines, textures et techniques d'accommodation viennent de l'ONTOLOGIE, jamais d'une table écrite dans le code.** Source : `data/ontology/cooking-vocabulary.yaml` (ce repo) → `ontology-manager` (`kind: cooking`) → artefact épinglé `cooking_manager/cooking-vocabulary.json`. Modifier le YAML, régénérer (`python -m ontology_manager.cli generate --ontology cooking-vocabulary`), recopier l'artefact. Deux tests refusent qu'une règle cite une clé absente du vocabulaire ou déclarée sans synonyme — donc indétectable. ⚠️ **Le générateur a un jeu de champs FIXE** (`ontology_manager/cooking.py`) : un champ ajouté au YAML n'atteint pas l'artefact tant qu'il n'y est pas propagé, et le consommateur lit alors une valeur vide **sans erreur** — un tri par `observed_in` aurait compté zéro partout en paraissant marcher. Ajouter un champ = toucher les deux dépôts, plus un test qui prouve qu'il survit à la génération
+- **Une cuisson préparatoire n'est pas la cuisson du plat.** « Faites dorer » ouvre presque tout mijoté : sans la table `dominates` du vocabulaire (`stew`/`slow-cooked` absorbent `pan-fried`/`pan-seared`/`stir-fry`, consommée par `drop_dominated()`), `pan-fried` pesait autant que `stew` et faisait gagner une dorade grillée dans une cocotte. N'y inscrire **que ce qui a été observé** — une dominance plausible mais non mesurée est le défaut reproché à `separate_dish`
 - `cooking_mcp.py` importe `from fastmcp import FastMCP` (pas `from mcp.server.fastmcp`) — seul le package `fastmcp` (v3.4+) expose `host`/`port`/`allowed_hosts` dans `run()`. Le package `mcp` v2 a un `FastMCP.run()` minimaliste
 - Tout MCP VPS derrière nginx avec `Host $host` doit passer `allowed_hosts=[<domaine>]` à `mcp.run()`, sinon Starlette retourne 421
 - **Une règle de `substitutions.py` qui déclare des `cuisines` doit être bornée par `rule_applies()`** — `score_rule()` bonifie un match de cuisine mais ne pénalise pas son absence, donc une priorité de base élevée suffit à faire gagner une règle hors de son contexte (une règle ouest-africaine s'appliquait à tout mijoté de poulet, y compris un coq au vin). Toute nouvelle règle à forte priorité doit être testée sur un plat d'une AUTRE cuisine

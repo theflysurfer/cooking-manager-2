@@ -2383,14 +2383,7 @@ async def import_book_page(files: list[UploadFile], source: str = ""):
 
 @app.post("/api/recipes/parse-url")
 async def parse_recipe_url(data: dict):
-    """Extrait une recette d'une URL — cascade JSON-LD → heuristique → LLM (SC-33).
-
-    ⚠️ Rend la recette structurée, PAS un brouillon : recipe-manager ne sait
-    créer un `import_draft` que depuis des images de livre. Tant que
-    recipe-manager#5 n'a pas ouvert cette voie, la révision avant écriture au
-    vault n'existe pas pour une URL — ne pas la simuler par un second magasin de
-    brouillons côté CM2, les deux divergeraient.
-    """
+    """Extrait une recette d'une URL — rend la recette, PAS un brouillon (recipe-manager#5)."""
     url = (data.get("url") or "").strip()
     if not url:
         raise HTTPException(400, "url manquante")

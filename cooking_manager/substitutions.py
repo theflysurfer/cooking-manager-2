@@ -53,14 +53,7 @@ _STATUS_RANK = {"active": 0, "probation": 1, "retired": 2}
 
 
 def accommodations_by_evidence() -> tuple[str, ...]:
-    """Les techniques d'accommodation, les mieux attestées d'abord.
-
-    `status` est écrit dans le vocabulaire mais rien ne l'exécutait : une
-    technique à zéro observation (`separate_dish`) pesait autant qu'une pratiquée
-    quatre fois. Le rang classe d'abord par statut, puis par nombre
-    d'observations — un consommateur qui propose dans cet ordre ne peut pas
-    mettre une intuition devant une pratique mesurée.
-    """
+    """Les techniques d'accommodation, statut puis nombre d'observations — ADR 0002."""
     return tuple(
         concept["key"]
         for concept in sorted(
@@ -475,11 +468,7 @@ def has_anchored_stew(steps: Sequence[str]) -> bool:
 
 
 def drop_dominated(methods: Sequence[str]) -> tuple[str, ...]:
-    """La cuisson qui définit le plat efface celles qu'elle absorbe (SC-68).
-
-    « Faites dorer » ouvre presque tout mijoté sans le rendre poêlé : sans cette
-    passe, `pan-fried` pesait autant que `stew` dans une cocotte.
-    """
+    """La cuisson qui définit le plat efface celles qu'elle absorbe — SC-68, ADR 0002."""
     absorbed = {
         dominated
         for method in methods

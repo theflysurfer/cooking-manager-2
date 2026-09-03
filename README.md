@@ -83,6 +83,7 @@ The vault is mounted read-only on the VPS via rclone. Ingestion: `POST /api/inge
 | POST | `/api/recipes/{slug}/executions` | Log a cooking execution |
 | POST | `/api/recipes/{slug}/note` | Add a note to a recipe |
 | PATCH | `/api/recipes/{slug}/steps/{position}` | Edit a recipe step |
+| POST | `/api/recipes/parse-url` | Extract a recipe from a URL (proxies recipe-manager; returns the recipe, **not** a draft) |
 
 ### Menus
 | Method | Endpoint | Description |
