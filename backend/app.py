@@ -2189,7 +2189,7 @@ SEED_PERSONS = [
     {"name": "Clémence", "circle": "household", "role": "adult", "default_attendance": "always",
      "diet": "pescetarian",
      "dislikes": ["oeuf dur", "oeuf poché", "oeuf au plat", "oeuf mollet"],
-     "diet_exceptions": ["boudin", "quenelles de veau", "quenelles de volaille"]},
+     "diet_exceptions": ["boudin", "quenelle de veau", "quenelle de volaille"]},
     {"name": "Léa",      "circle": "household", "role": "child", "default_attendance": "scheduled",
      "dislikes": ["oeuf dur", "oeuf poché", "oeuf au plat", "oeuf mollet", "mais"]},
     {"name": "Titouan",  "circle": "household", "role": "child", "default_attendance": "scheduled"},

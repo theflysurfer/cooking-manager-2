@@ -17,6 +17,7 @@ from __future__ import annotations
 import re
 import unicodedata
 from dataclasses import dataclass, field
+from functools import lru_cache
 
 # ── Régimes → familles d'aliments exclues ────────────────────────────
 # Volontairement large : mieux vaut une alerte à lever qu'un plat servi à
@@ -110,10 +111,12 @@ class Convive:
         return list(DIETS.get(self.diet, ()))
 
     def diet_waived_on(self, folded_text: str) -> str | None:
-        """L'exception qui dispense CE texte du régime — « quenelles de veau », pas « veau ».
+        """L'exception qui dispense CE texte du régime — « quenelle de veau », pas « veau ».
 
         Porte sur une préparation, jamais sur un terme entier du régime : sans
         quoi lever les quenelles de veau laisserait aussi passer un rôti de veau.
+        ⚠️ À déclarer au SINGULIER : la flexion va du singulier vers le pluriel,
+        jamais l'inverse.
         """
         for exception in self.diet_exceptions:
             if _contains_term(folded_text, _fold(exception)):
@@ -218,15 +221,25 @@ def _contains_term(folded_text: str, term: str) -> bool:
     confiance dans l'alerte aussi sûrement qu'un faux négatif — et pousse à
     désactiver le contrôle.
 
-    ⚠️ Le pluriel EST toléré, et seulement lui (« s » ou « x » final) : les
-    termes du régime sont au singulier, si bien que « 200 g de lardons » et
-    « 2 veaux » ne rencontraient aucune entrée et passaient pour compatibles.
-    Aucun terme carné ne devient un autre mot en prenant sa marque de pluriel,
-    donc « maison » reste hors d'atteinte de « maïs ».
+    ⚠️ Le pluriel EST toléré, et seulement lui (« s » ou « x » final), sur
+    CHAQUE mot : les termes sont au singulier, si bien que « 200 g de lardons »,
+    « 2 veaux » et « 2 oeufs durs » ne rencontraient aucune entrée et passaient
+    pour compatibles. Aucun terme ne devient un autre mot en prenant sa marque
+    de pluriel, donc « maison » reste hors d'atteinte de « maïs ».
     """
     if not term:
         return False
-    return re.search(rf"(?<!\w){re.escape(term)}[sx]?(?!\w)", folded_text) is not None
+    return _term_pattern(term).search(folded_text) is not None
+
+
+@lru_cache(maxsize=None)
+def _term_pattern(term: str) -> re.Pattern[str]:
+    """Le terme en mots entiers, chaque mot tolérant sa marque de pluriel."""
+    words = [re.escape(word) for word in term.split() if word]
+    if not words:
+        return re.compile(r"(?!)")
+    body = r"[sx]?\s+".join(words)
+    return re.compile(rf"(?<!\w){body}[sx]?(?!\w)")
 
 
 def parse_convives(body: str) -> list[Convive]:

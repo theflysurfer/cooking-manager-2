@@ -248,6 +248,19 @@ class TestPluriels:
                 f"« {line} » doit bloquer un pescétarien"
             )
 
+    def test_le_pluriel_interne_d_une_expression_est_tolere(self):
+        """« oeuf dur » doit rencontrer « 2 oeufs durs » — les DEUX mots fléchissent."""
+        convive = Convive(name="C", diet="standard", dislikes=["oeuf dur"])
+        for line in ("1 oeuf dur", "2 oeufs durs"):
+            assert check_ingredients([_ing(line, line)], [convive]), f"« {line} »"
+
+    def test_une_exception_se_declare_au_singulier_et_couvre_le_pluriel(self):
+        convive = Convive(
+            name="Clémence", diet="pescetarian", diet_exceptions=["quenelle de veau"],
+        )
+        for line in ("1 quenelle de veau", "6 quenelles de veau"):
+            assert check_ingredients([_ing(line, line)], [convive]) == [], f"« {line} »"
+
     def test_le_pluriel_ne_rouvre_pas_le_faux_positif_maison(self):
         """« maïs » ne doit toujours pas matcher « houmous maison »."""
         convive = Convive(name="C", diet="standard", dislikes=["mais"])
@@ -274,7 +287,7 @@ class TestDietExceptions:
         """« quenelles de veau » se mange, le rôti de veau non — même terme bloquant."""
         convive = Convive(
             name="Clémence", diet="pescetarian",
-            diet_exceptions=["quenelles de veau"],
+            diet_exceptions=["quenelle de veau"],
         )
         quenelles = [_ing("6 quenelles de veau", "quenelles de veau")]
         roti = [_ing("1,2 kg de rôti de veau", "rôti de veau")]
@@ -284,7 +297,7 @@ class TestDietExceptions:
     def test_une_exception_ne_dispense_que_sa_ligne(self):
         convive = Convive(
             name="Clémence", diet="pescetarian",
-            diet_exceptions=["quenelles de veau"],
+            diet_exceptions=["quenelle de veau"],
         )
         plat = [
             _ing("6 quenelles de veau", "quenelles de veau"),
