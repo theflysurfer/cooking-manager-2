@@ -103,9 +103,7 @@ D'où deux marqueurs par créneau :
 courses** — l'app ne lit QUE les fiches. Les recettes de la semaine vivent
 parfois dans le **panier** (`data/shopping_choices_*.json`, chaque article porte
 son repas) et pas dans `Recettes/` : générer les fiches manquantes depuis le
-panier, ingrédients ancrés sur l'acheté (jamais inventés). *(Incident 2026-08-04 :
-1 repas relié sur 20 — les 19 autres avaient été commandés mais jamais transcrits
-en fiches.)*
+panier, ingrédients ancrés sur l'acheté (jamais inventés).
 
 ## Compatibilité alimentaire — ne pas la vérifier à la main
 
@@ -150,8 +148,8 @@ du **Coach Nutrition** (`Noyau/Coaches/Coach Nutrition/_coach.md`).
 trois sont légitimes : (1) métriques en lignes avec colonnes « /100g » ;
 (2) **transposée**, lignes = versions ; (3) **`| Nutriment | Valeur |`**, dont
 la base est annoncée par le *titre de section* (« ## Macros pour 100g ») et non
-par l'en-tête — **47 fiches sur 247**, la plus répandue et la plus facile à
-rater. La 3ᵉ n'est acceptée que si le document mentionne explicitement
+par l'en-tête — la plus répandue et la plus facile à rater
+(compte à jour : `julien-audit-cooking-vault`). La 3ᵉ n'est acceptée que si le document mentionne explicitement
 « pour 100 g » : sans mention, la fiche est ignorée plutôt que rapportée à une
 base supposée. Auditer avec `julien-audit-cooking-vault`.
 
@@ -209,6 +207,7 @@ ce cas — il n'est apparu qu'à l'appel réel.
 - **Cuissons, cuisines, textures et techniques d'accommodation viennent de l'ONTOLOGIE, jamais d'une table écrite dans le code.** Source : `data/ontology/cooking-vocabulary.yaml` (ce repo) → `ontology-manager` (`kind: cooking`) → artefact épinglé `cooking_manager/cooking-vocabulary.json`. Modifier le YAML, régénérer (`python -m ontology_manager.cli generate --ontology cooking-vocabulary`), recopier l'artefact. Deux tests refusent qu'une règle cite une clé absente du vocabulaire ou déclarée sans synonyme — donc indétectable
 - `cooking_mcp.py` importe `from fastmcp import FastMCP` (pas `from mcp.server.fastmcp`) — seul le package `fastmcp` (v3.4+) expose `host`/`port`/`allowed_hosts` dans `run()`. Le package `mcp` v2 a un `FastMCP.run()` minimaliste
 - Tout MCP VPS derrière nginx avec `Host $host` doit passer `allowed_hosts=[<domaine>]` à `mcp.run()`, sinon Starlette retourne 421
+- **Une règle de `substitutions.py` qui déclare des `cuisines` doit être bornée par `rule_applies()`** — `score_rule()` bonifie un match de cuisine mais ne pénalise pas son absence, donc une priorité de base élevée suffit à faire gagner une règle hors de son contexte (une règle ouest-africaine s'appliquait à tout mijoté de poulet, y compris un coq au vin). Toute nouvelle règle à forte priorité doit être testée sur un plat d'une AUTRE cuisine
 
 ## Skills liées
 
