@@ -36,15 +36,12 @@ docs/veille/       # analyses concurrentielles (auditées par julien-audit-compe
 
 ## Les 3 principes de design
 
-Un par couche de Norman (cf. `2026.08 Product Toolkit/research/EMOTIONAL_DESIGN_METHODS.md`) :
-
-- **Appétissant** *(viscéral)* — la photo mène, le chrome s'efface, la couleur vient des plats
-- **Sans friction** *(comportemental)* — savoir quoi manger ce soir en un coup d'œil
-- **Maîtrisé** *(réflectif)* — macros, garde-manger et courses sous contrôle
-
-Tokens dérivés de healthyfoodcreation.fr : hiérarchie par le **letter-spacing**,
-jamais par la graisse (Montserrat reste en 400 partout), un seul accent, ni
-rayon ni ombre — la carte est une image posée sur du blanc.
+Un par couche de Norman : **Appétissant** *(viscéral, la photo mène)* ·
+**Sans friction** *(comportemental, quoi manger ce soir en un coup d'œil)* ·
+**Maîtrisé** *(réflectif, macros/garde-manger/courses sous contrôle)*. Tokens
+dérivés de healthyfoodcreation.fr — hiérarchie par letter-spacing, jamais par
+la graisse, un seul accent, ni rayon ni ombre. Détail :
+`2026.08 Product Toolkit/research/EMOTIONAL_DESIGN_METHODS.md`.
 
 ## Commandes
 
@@ -140,29 +137,27 @@ du **Coach Nutrition** (`Noyau/Coaches/Coach Nutrition/_coach.md`).
   `shopping_product.nutrition` (étiquette scrapée du drive) > `generiques/`
   (ANSES CIQUAL). Jamais d'estimation implicite en quatrième position.
 
-⚠️ **Trois dispositions de tableau coexistent dans la base aliments**, toutes
-légitimes : métriques en lignes ; **transposée** (lignes = versions) ;
-`| Nutriment | Valeur |` dont la base est annoncée par le *titre de section*
-(« ## Macros pour 100g ») et non par l'en-tête — la plus répandue et la plus
-facile à rater. Cette dernière n'est acceptée que si le document écrit
-explicitement « pour 100 g » ; sans mention, la fiche est **ignorée** plutôt que
-rapportée à une base supposée. Auditer : `julien-audit-cooking-vault`.
+⚠️ **Le Coach Nutrition claude.ai est délibérément séparé de CM2** (§ Gotchas,
+« deux garde-manger ») — mais sur demande **explicite** de Julien, Claude Code
+peut l'**impersonner** dans cette session, en s'appuyant sur `_coach.md` (grille
+kcal/macros par type de journée, règles 1/2bis/3) plutôt qu'en inventant des
+cibles. Ne pas le faire par défaut ; croiser le stock via `pantry_item` (DB),
+jamais `Garde-manger.md` vault seul, dont des postes se sont révélés faux au
+2026-09-01.
 
-⚠️ **La 1ʳᵉ colonne n'est PAS toujours « /100g »** — une fiche peut porter
-« Crues » *puis* « Cuites », et prendre la première donne un **facteur 3 sans un
-signe**. Le parseur lit l'en-tête et, quand plusieurs formes coexistent,
-**refuse de trancher** tant que la recette ne nomme pas la sienne.
+⚠️ **Trois pièges de lecture, tous non détectables sans discipline explicite** :
+la base sans mention « pour 100 g » est **ignorée**, pas supposée (3 dispositions
+de tableau coexistent, transposée comprise — auditer via
+`julien-audit-cooking-vault`) ; une fiche « Crues »/« Cuites » sans que la
+recette ne nomme sa forme **ne tranche pas**, le parseur refuse plutôt que
+deviner (facteur 3 en jeu) ; `coverage`/`conclusive` priment sur le total —
+une somme sur la moitié des ingrédients n'est pas « les macros de la recette »,
+et les unités-pièce ne convertissent pas sans poids unitaire.
 
-⚠️ **`coverage` et `conclusive` sont de premier plan.** Une somme sur la moitié
-des ingrédients n'est pas « les macros de la recette ». Les unités-pièce
-(« 4 carottes ») ne se convertissent pas sans poids unitaire.
-
-⚠️ **La base aliments vit sur le mount rclone** (plusieurs secondes de lecture) :
-`load_food_base_cached()` est obligatoire côté API — la relire à chaque requête
-rendait l'endpoint inutilisable *et* masquait les erreurs derrière des timeouts.
-
-⚠️ **`qty_min` arrive en `Decimal`** (NUMERIC via asyncpg) : il ne se multiplie
-pas par un flottant, et un test qui passe des `float` ne peut pas voir ce cas.
+⚠️ **Deux pièges d'implémentation** : la base aliments vit sur le mount rclone
+(lecture lente) → `load_food_base_cached()` obligatoire, jamais relue par
+requête ; `qty_min` arrive en `Decimal` (NUMERIC asyncpg), ne se multiplie pas
+par un flottant — un test en `float` ne voit pas ce cas.
 
 ## Gotchas
 
