@@ -181,12 +181,8 @@ CREATE TABLE IF NOT EXISTS person (
     UNIQUE (name, circle)
 );
 
--- dietary_preference : le troisième cran, entre l'interdit et l'aversion.
--- `forbidden` ne se discute pas, `dislikes` porte un aliment nommé ; ni l'un ni
--- l'autre ne sait dire « sans gluten AU MAXIMUM », « moins de 25 g de sucres
--- ajoutés par jour » ou « ne jamais restreindre ses portions ». Une préférence
--- ne produit pas un conflit : elle pèse sur la composition.
--- person_id NULL = la règle vaut pour tout le foyer.
+-- dietary_preference : le troisième cran, entre l'interdit et l'aversion — elle
+-- pèse sur la composition sans produire de conflit. person_id NULL = tout le foyer.
 CREATE TABLE IF NOT EXISTS dietary_preference (
     id          SERIAL PRIMARY KEY,
     person_id   INTEGER REFERENCES person(id) ON DELETE CASCADE,
@@ -415,11 +411,7 @@ MIGRATIONS_SQL = """
 -- contournement était de mentir sur son régime.
 ALTER TABLE person ADD COLUMN IF NOT EXISTS diet_exceptions TEXT[] DEFAULT '{}';
 
--- pantry_alias visait un pantry_item_id, avec ON DELETE CASCADE — et l'ingestion
--- supprime les articles de source 'vault' absents du fichier. Sept alias sur dix
--- ont ainsi disparu sans une erreur entre le 2026-09-01 et le 2026-09-08 : du
--- travail humain effacé par une opération de routine. La cible devient un NOM
--- normalisé, qui survit à la recréation de l'article.
+-- Un alias vise un NOM, pas un id que l'ingestion emporte — ADR 0008.
 ALTER TABLE pantry_alias ADD COLUMN IF NOT EXISTS target_normalized TEXT;
 UPDATE pantry_alias a SET target_normalized = p.name_normalized
   FROM pantry_item p WHERE p.id = a.pantry_item_id AND a.target_normalized IS NULL;

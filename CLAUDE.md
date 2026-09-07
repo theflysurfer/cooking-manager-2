@@ -1,225 +1,166 @@
 # Cooking Manager 2
 
-Web app pour parcourir et filtrer les recettes familiales depuis le vault Obsidian.
+App web de cuisine familiale : recettes du vault Obsidian, menus de la semaine,
+courses différentielles, macros. **Cible : iPad mini 2 / Safari 12.5.8**, en cuisine.
 
-## Stack
-
-- **Backend** : FastAPI + asyncpg (PostgreSQL)
-- **Frontend** : vanilla JS, **zéro build** — fichiers statiques servis par FastAPI
-- **DB** : `postgresql-shared` (Docker) → database `cooking_manager`, user `cooking`
-- **Recipe model** : propriété de `recipe-manager` (port 8796) — CM2 lit/écrit les tables recettes en direct (colocataire), ne les crée pas
-- **Deploy** : systemd `cooking-manager.service` (Requires=recipe-manager.service) + nginx sur srv759970, port 8795
-- **MCP** : `cooking-mcp.service` port 3868, `https://cooking-mcp.srv759970.hstgr.cloud/mcp`, user `mcp-run`, Google OAuth (`build_google_auth("cooking")` depuis `/home/automation/shared/mcp_auth.py`)
-
-⚠️ **Cible : iPad mini 2 / Safari 12.5.8**, utilisé en cuisine. Ce n'est pas un
-plancher de compatibilité théorique : l'ancien front y était littéralement cassé
-(le `<dialog>` de la fiche recette ne s'ouvrait jamais, tous les `gap` flex
-s'effondraient à 0, le thème sombre était mort). Voir § Gate iOS 12.
-
-## Architecture
-
-```
-cooking_manager/   # Domaine pur, sans I/O réseau
-  vault.py         # lecture des .md du vault
-  normalizer.py    # frontmatter FR → canonique EN, slugs, dates
-  ingredients.py   # corps markdown → ingrédients + étapes structurés
-  convives.py      # profils alimentaires + contrôle de compatibilité
-  presence.py      # qui est à table (garde alternée × vacances × absences)
-backend/           # FastAPI + schéma DB + ingestion
-  stt.py           # pipeline vocal : Deepgram (STT) + Groq LLM (intent)
-  cooking_mcp.py   # serveur FastMCP (stdio) — garde-manger, recettes, menus
-web/               # Front : index.html + style.css + app.js (+ media/recipes/)
-tests/             # unitaires · gate compat iOS 12 · e2e (opt-in)
-data/              # courses + photo-prompt.md + ontology/cooking-vocabulary.yaml (SOURCE)
-docs/veille/       # analyses concurrentielles (auditées par julien-audit-competitor)
-```
-
-## Les 3 principes de design
-
-Un par couche de Norman : **Appétissant** *(viscéral, la photo mène)* ·
-**Sans friction** *(comportemental, quoi manger ce soir en un coup d'œil)* ·
-**Maîtrisé** *(réflectif, macros/garde-manger/courses sous contrôle)*. Tokens
-dérivés de healthyfoodcreation.fr — hiérarchie par letter-spacing, jamais par
-la graisse, un seul accent, ni rayon ni ombre. Détail :
-`2026.08 Product Toolkit/research/EMOTIONAL_DESIGN_METHODS.md`.
+<!-- fast-search-directive -->
+⚡ Dépôt sous Dropbox : chercher avec les outils **Grep** / **Glob** / **Read**, jamais
+`grep`/`find` en bash (100 à 4000× plus lents). Bash reste bon pour git, ssh, curl, pytest.
+<!-- /fast-search-directive -->
 
 ## Commandes
 
 ```bash
-# Build cuisine.json (legacy, standalone)
-python -m cooking_manager build --vault /path/to/Cuisine
-
-# Run web server
-python -m cooking_manager serve --port 8795
-
-# Deploy on VPS — /opt/cooking-manager-2 est un vrai clone git (depuis 2026-08-04)
+# Déployer (le VPS est un vrai clone git)
 ssh srv759970 'cd /opt/cooking-manager-2 && git pull && .venv/bin/pip install -q . && sudo systemctl restart cooking-manager'
 
-# Interroger la DB sans credentials — /api/ est derriere une basic auth nginx (401 != panne)
+# L'API est derrière une basic auth nginx : toujours passer par le VPS
+ssh srv759970 'curl -s localhost:8795/api/<route>'
+ssh srv759970 'curl -s -X POST localhost:8795/api/ingest'          # après tout rclone copy
 ssh srv759970 'docker exec postgresql-shared psql -U cooking -d cooking_manager -c "SELECT ..."'
 ```
 
-## Vault source
+## Gates avant commit — tous bloquants
 
-Le vault Obsidian `Noyau/Cuisine/` est dans Dropbox, monté en lecture sur le VPS via rclone (`/mnt/dropbox-full/JULIEN/Obsidian/vault/Noyau/Cuisine`). L'ingestion est déclenchée via `POST /api/ingest`.
+```bash
+python -m ruff check cooking_manager/ backend/ tests/
+python -m pyright
+python -m pytest tests/
+python ~/.claude/skills/julien-audit-comments/check_comments.py . --ci
+python ~/.claude/skills/julien-audit-ios12-compat/scripts/audit_ios12.py web   # si web/ touché
+# pytest -m e2e frappe l'API réelle et ÉCRIT EN PRODUCTION : opt-in, jamais par défaut
+```
 
-Quatre fichiers font autorité, dans cet ordre de spécificité :
+## Architecture
 
-| Fichier | Porte | Ingéré vers |
-|---|---|---|
-| `Recettes/*.md` | recettes + ingrédients + étapes (dans le corps) | `recipe`, `recipe_ingredient`, `recipe_step` |
-| `Menus/*.md` | **le bloc `meals:` du frontmatter** fait foi, pas les tableaux du corps | `menu.meals` (JSONB) + `menu_meal` |
-| `Convives.md` | régimes, interdits, cuissons d'œufs refusées, aversions | `convive` |
-| `Garde-manger.md` | stock réel par rayon, statuts, quantités | `pantry_item` (DB = source de vérité) |
+`cooking_manager/` = domaine pur, sans I/O réseau : `vault` `normalizer` `ingredients`
+`convives` (compatibilité) `presence` (qui est à table) `pantry` (stock, différentiel)
+`nutrition` `substitutions`. `backend/` = FastAPI, schéma, ingestion, `stt.py`, `cooking_mcp.py`.
+`web/` = 3 fichiers statiques, zéro build. `data/ontology/` = source du vocabulaire.
+Déploiement : systemd `cooking-manager` (8795) + `cooking-mcp` (3868) sur srv759970 ; les
+tables recette appartiennent à **recipe-manager** (8796), CM2 est colocataire.
 
-⚠️ **`menu.slug` est la clé naturelle.** Ne jamais réintroduire le
-`DELETE FROM menu` qui protégeait l'ingestion des doublons : il effaçait tout
-menu absent du vault, donc un menu créé via l'API, sans erreur ni trace.
-**Même interdit sur `menu_meal`** : l'ingestion upsert sur `(menu_id, position,
-slot)` et ne supprime que les repas disparus du vault — un `DELETE` global y
-effacerait `served` sans une erreur.
+## Vault → base
 
-⚠️ **Un menu est un PLAN, pas un historique — `menu_meal.served` est un
-tri-état** (`NULL` on ne sait pas · `true` mangé · `false` pas fait), posé par
-`POST /api/menus/{slug}/served` (filtrable `day`/`slot`/`position`). Sans lui,
-toute rotation compte des repas fantômes : compter les vrais se mesure
-(`SELECT served, count(*) FROM menu_meal GROUP BY 1`).
+`Noyau/Cuisine/` (Dropbox, monté sur le VPS via rclone). Quatre fichiers font foi : `Recettes/*.md` · `Menus/*.md` · `Convives.md` · `Garde-manger.md`.
 
-⚠️ **Le `slug` est la clé, pas le nom de fichier — deux fiches peuvent le déclarer
-en double**, et l'upsert n'en garde qu'une. `read_recipes()` les départage sur la date
-**déclarée** (`updated`/`created`) et expose `_duplicate_paths`, qu'`ingest.py` remonte en
-warning. ⚠️ **Ne jamais départager au `_mtime`** ni à l'ordre du glob : sur le VPS le vault
-est un mount rclone, le mtime date la *copie*, pas la donnée.
-
-### Relier un repas à sa recette — deux marqueurs dans `meals:`
-
-Chaque repas devient une ligne `menu_meal` (menu × jour × créneau) à l'ingestion.
-L'appariement par titre échoue toujours — l'intitulé du menu, rédigé à la main,
-diverge du titre de la fiche. D'où deux marqueurs par créneau :
-
-| Marqueur | Effet |
+| Règle | Geste |
 |---|---|
-| `<slot>_slug: <recipe-slug>` | **désigne** la fiche explicitement — court-circuite l'heuristique. La seule liaison qui ne redérive pas. Un slug inconnu est journalisé, jamais silencieux. |
-| `<slot>_leftovers: true` | repas de **restes**, sans fiche PAR CONCEPTION — lui en donner une ferait racheter les ingrédients du repas recyclé. Rendu dans `meals_leftovers`, pas `meals_unmatched`. |
+| Le bloc `meals:` du frontmatter fait foi | Les tableaux du corps ne sont **pas** lus |
+| Relier un repas à sa fiche | `<slot>_slug:` (jamais l'appariement par titre) |
+| Repas de restes | `<slot>_leftovers: true` — **sans fiche**, sinon on rachète les ingrédients |
+| Une recette au menu | Sa fiche `Recettes/*.md` existe **avant** le calcul des courses |
+| Après un `rclone copy` | Attendre ~30 s (délai du mount), puis ré-ingérer |
+| Nouvelle colonne dans un `CREATE TABLE` | L'ajouter **aussi** à `MIGRATIONS_SQL` — le VPS a déjà les tables |
+| `menu_meal.position` | 1-based en DB : tout JS fait `position - 1` |
 
-⚠️ **Une recette au menu doit avoir sa fiche `Recettes/*.md` AVANT le calcul des
-courses** — l'app ne lit QUE les fiches. Les recettes de la semaine vivent
-parfois dans le **panier** (`data/shopping_choices_*.json`, chaque article porte
-son repas) et pas dans `Recettes/` : générer les fiches manquantes depuis le
-panier, ingrédients ancrés sur l'acheté (jamais inventés).
+⛔ **Jamais de `DELETE FROM menu` ni `menu_meal`** : l'ingestion upsert, un DELETE global
+efface les menus créés par l'API et la colonne `served`. ⛔ **Jamais départager deux fiches
+au `mtime`** — sur le mount rclone il date la copie ; `read_recipes()` tranche sur la date
+déclarée. Écrire un menu de bout en bout : `julien-cooking-manager-compose-menu` § 4 à 6.
 
-## Compatibilité alimentaire — ne pas la vérifier à la main
-
-```bash
-curl -s https://cooking.srv759970.hstgr.cloud/api/menus/<slug>/compatibility
-```
-
-Croise **qui est réellement à table** et **ce que chacun ne peut pas manger** —
-tout vient de la DB (cf. § Gotchas, Tablée). Ne jamais raisonner sur la grille
-type « mardi midi, enfants à la cantine » : elle porte la mention *« hors
-vacances scolaires »*, donc en août elle donne une réponse fausse avec l'aplomb
-d'une règle écrite. L'agenda Google n'apporte que les exceptions, jamais la
-trame — il ne suffit pas comme source.
-
-## Commande vocale (STT + LLM)
-
-Pipeline : MediaRecorder (front) → `POST /api/audio` → Deepgram prerecorded (STT) → Groq LLM (intent JSON) → exécution. Panneau `#mic-panel` affiche la transcription et l'action interprétée.
-
-- **LLM intent** : Groq `qwen/qwen3.6-27b` (`reasoning_effort: "none"`, ~300 ms). Ollama cloud en fallback si `GROQ_API_KEY` absent
-- **Credentials** : credstore systemd (`cooking-deepgram-key`, `cooking-ollama-key`, `groq-key` partagé avec bibliotheque), lues par `deploy/run-with-cred.sh`
-- **MediaRecorder** exige Safari 14.5+ — le FAB micro est **masqué** sur Safari 12 (feature-detect). Le panneau vocal n'apparaît jamais sur l'iPad mini 2
-- **Les intents sont déclarés dans le PROMPT** de `backend/stt.py`, pas dans une table — les lister : `grep -oP '^\d+\. \K\w+' backend/stt.py`. Un intent ajouté au prompt sans être câblé côté exécution échoue en silence
-
-## Macros — la doctrine vient du vault, pas du code
-
-`cooking_manager/nutrition.py` n'invente aucune donnée : il applique les règles
-du **Coach Nutrition** (`Noyau/Coaches/Coach Nutrition/_coach.md`).
-
-- **Règle 1 — pas d'hypothèse.** Un ingrédient non résolu ressort en
-  `unresolved` **avec son motif**, jamais estimé au jugé ni omis. Une base sans
-  « pour 100 g » est ignorée, une fiche « Crues »/« Cuites » sans forme nommée
-  ne tranche pas, `coverage`/`conclusive` priment sur le total.
-- **Règle 2bis (erreur #25).** `kcal_reconstitué = P×4 + G×4 + L×9` ; au-delà de
-  5 % d'écart, **montrer les deux chiffres** — les fiches CIQUAL ont 5–15 %
-  d'écart structurel, le cacher est le bug.
-- **Trois sources hiérarchisées** : fiche `marques/` > `shopping_product.nutrition`
-  > `generiques/` (CIQUAL). Jamais d'estimation implicite en quatrième position.
-
-⚠️ Le Coach Nutrition claude.ai est **séparé de CM2** (§ Gotchas, « deux
-garde-manger ») ; l'impersonner exige une demande explicite et `_coach.md` en
-main. Croiser le stock via `pantry_item` (DB), jamais le vault seul.
-
-⚠️ Deux pièges d'implémentation : `load_food_base_cached()` obligatoire (la base
-vit sur le mount rclone) ; `qty_min` arrive en `Decimal` et ne se multiplie pas
-par un flottant — un test en `float` ne voit pas ce cas.
-
-Le détail des dispositions de tableau et des cas de refus : `julien-audit-cooking-vault`.
-
-## Gotchas
-
-- **Auchan Drive : une seule voie de connexion — le MCP VPS** (`mcp-vps-auchan`, port 3854, refs #60). Les modules `backend/auchan*.py` sont décommissionnés, contexte magasin compris (`grocery_find_stores`/`grocery_set_store`). La session Auchan du VPS est gérée par le seul **Cookie Health VPS**. HydraSpecter = outil de diagnostic, **pas** une voie de connexion
-- **`dietary_preference` est le troisième cran — et RIEN ne le vérifie.** Entre `forbidden` (ne se discute pas) et `dislikes` (un aliment nommé), cette table porte ce qui pèse sans bloquer : `minimize` · `maximize` · `cap` (avec `value`/`unit`/`scope`) · `rotate` · `no_restriction`, `person_id NULL` valant pour tout le foyer. Le profil (`person.height_cm`, `weight_kg`, `activity_level`, `birth_date`, `nutrition_notes`) vit à côté. ⚠️ **`/api/menus/{slug}/compatibility` n'en lit AUCUN** : un menu « sans conflit » ne dit rien du gluten, des sucres ajoutés ni de la rotation des protéines — les appliquer est un geste de composition, à la main (`julien-cooking-manager-compose-menu` § 3, refs #77 #78). Lire, jamais recopier : `curl -s localhost:8795/api/preferences`
-- **Un terme de régime ambigu se déclare avec son MOTIF** (`CONTEXT_REQUIRED`, ADR 0007). `roti` est à la fois une pièce de viande et le participe passé le plus courant de la cuisine : ajouté en mot nu à `MEAT`, il a fait déclarer « pois chiches rôtis » incompatible pescétarien. Un conflit faux coûte plus qu'un conflit manqué — il apprend à ignorer les alertes. Même piège en embuscade sur `blanc`, `filet`, `cuisse`. ⚠️ Corollaire : un terme ambigu ajouté SANS motif reste muet dans les deux sens
-- **Tablée : 100 % DB, plus aucune lecture de `Presences.md` ni `Convives.md`** (refs #33). Tout vient de `load_referential_from_db()` (school_period, absence, stay) et `load_convives_from_db()` (`person`). Résolveur : `GET /api/attendance?day=&slot=`, `presence.py::attendees()`. `stay`+`stay_member` corrige F.30 : en location on cuisine sur place, donc les membres du séjour sont à table quelles que soient la trame et les absences. `ADULTS`/`CHILDREN`/`CUSTODY_REFERENCE_WEEK` ne sont plus qu'un **repli** sans `HouseholdConfig`. `convive` (legacy) et `person` coexistent ; `person` fait autorité. ⚠️ **La garde alternée vient de gcal, pas d'un calcul de semaine paire** (`custody_schedule.pattern='gcal'`, ADR 0004) : lancer `POST /api/child-week/sync?day=` AVANT toute question de tablée, sinon `/api/attendance` répond **409** — qui veut dire « semaine non synchronisée », jamais « enfants absents ». Un **422** dit que l'event « Semaine enfants » (calendrier CAFS) est introuvable sur ±60 j : demander, ne pas supposer. Repas hors domicile : **lire les events bruts et juger le sens**, jamais chercher « resto » par mot-clé. ⚠️ **`POST /api/seed` n'est idempotent que depuis le 2026-09-03** : son `DO UPDATE` réimposait `dislikes`/`forbidden` depuis ses constantes, donc il effaçait sans un mot les préférences saisies après coup. Ces listes ne sont désormais posées qu'à la CRÉATION — ne jamais les remettre dans le `DO UPDATE`. ⚠️ **`attendees()` annonce quatre niveaux (override > séjour > trame > absences) mais le sommet est INATTEIGNABLE** : rien n'écrit `meal_attendance`, donc l'override manuel n'arrive jamais, et le résolveur répond avec la trame sans le signaler. Même chose pour `stay.cooking` et `extra_headcount` : écrits ou exposés, lus par aucun calcul. Refs #73 — ne pas raisonner sur ces trois-là comme sur des données vivantes
-- **Une photo qui n'est pas un fichier local est une photo en sursis.** `_scrape_photo()` reconstruit `photo_url` à chaque ingestion depuis un site tiers ; l'upsert doit rester `photo_url=COALESCE($24, recipe.photo_url)`, sans quoi **un scraping qui échoue efface la photo** sans erreur. La parade de fond est le fichier local `web/media/recipes/<slug>.jpg`, prioritaire et insensible au réseau. Générer les manquantes via **recipe-manager** (`POST /recipes/<slug>/generate-image`, port 8796), qui porte le prompt v1.1 — jamais un prompt improvisé, sinon le parc perd son unité visuelle. Récupérer avec `?inline=true` → `image_base64`, écrire dans `web/media/recipes/`, **committer**. Extension **`.jpg` obligatoire** : `ingest.py` ne scanne que celle-là, un `.png` déposé n'est jamais rattaché (refs #70)
-- `httpx`/`selectolax`/`mcp` sont des dépendances déclarées dans `pyproject.toml` — un venv reconstruit à neuf (`pip install .`) est le test de vérité si ce fichier dérive
-- Toute nouvelle colonne dans un CREATE TABLE doit aussi etre dans MIGRATIONS_SQL (`ALTER TABLE ADD COLUMN IF NOT EXISTS`) — le VPS a deja les tables, `CREATE TABLE IF NOT EXISTS` ne rajoute rien
-- `menu_meal.position` est **1-based** en DB (`enumerate(meals, start=1)`) — tout consommateur JS doit faire `position - 1` pour indexer le tableau `menu.meals[]`
-- Après un `rclone copy` vers Dropbox, le mount VPS (`/mnt/dropbox-full`) peut avoir un délai de propagation (~30 s) — relancer `POST /api/ingest` si une recette n'apparaît pas
-- **La liste de courses n'est PAS un objet stocké — c'est un calcul.** `GET
-  /api/menus/{slug}/shopping-list` la recalcule à chaque appel (menu × tablée × garde-manger) ;
-  le front la garde en RAM, rien en DB. `shopping_session`/`shopping_product` sont un **compte
-  rendu d'après coup** d'une commande drive, relié à aucun menu : aucune ligne n'a d'état, aucun
-  tour ne se clôt. Lire `docs/conception/USE_CASES_COURSES.md` avant de toucher aux courses,
-  il porte le modèle cible. Refs #67, #68
-- `_pantry_from_db()` remplace `_load_pantry()` — le différentiel courses lit la DB, source de vérité pour l'app (le vault n'est qu'une source d'ingestion parmi d'autres ; `source != 'vault'` survit à la ré-ingestion — **donc aucune correction du vault ne les atteint jamais** : une ligne `receipt` est un événement d'achat daté, pas un état de stock, et reste `ok` indéfiniment, refs #69). ⚠️ **`Noyau/Cuisine/Garde-manger.md` est aussi lu/écrit par un système entièrement séparé** — le Coach Nutrition sur claude.ai, qui planifie les menus macro par macro et n'appelle jamais l'app ni sa DB. Les deux garde-manger ne sont **jamais synchronisés** et peuvent diverger sans alerte (constaté 2026-09-01 : 6 articles listés « ok » dans le vault n'existaient plus réellement)
-- **Cuissons, cuisines, textures et techniques d'accommodation viennent de l'ONTOLOGIE, jamais d'une table écrite dans le code.** Source : `data/ontology/cooking-vocabulary.yaml` (ce repo) → `ontology-manager` (`kind: cooking`) → artefact épinglé `cooking_manager/cooking-vocabulary.json`. Modifier le YAML, régénérer (`python -m ontology_manager.cli generate --ontology cooking-vocabulary`), recopier l'artefact. Deux tests refusent qu'une règle cite une clé absente du vocabulaire ou déclarée sans synonyme — donc indétectable. ⚠️ **Le générateur a un jeu de champs FIXE** (dépôt ontology-manager, `ontology_manager/cooking.py`) : un champ ajouté au YAML n'atteint pas l'artefact tant qu'il n'y est pas propagé, et le consommateur lit alors une valeur vide **sans erreur** — un tri par `observed_in` aurait compté zéro partout en paraissant marcher. Ajouter un champ = toucher les deux dépôts, plus un test qui prouve qu'il survit à la génération
-- **Une cuisson préparatoire n'est pas la cuisson du plat.** « Faites dorer » ouvre presque tout mijoté : sans la table `dominates` du vocabulaire (`stew`/`slow-cooked` absorbent `pan-fried`/`pan-seared`/`stir-fry`, consommée par `drop_dominated()`), `pan-fried` pesait autant que `stew` et faisait gagner une dorade grillée dans une cocotte. N'y inscrire **que ce qui a été observé** — une dominance plausible mais non mesurée est le défaut reproché à `separate_dish`
-- `cooking_mcp.py` importe `from fastmcp import FastMCP` (pas `from mcp.server.fastmcp`) — seul le package `fastmcp` (v3.4+) expose `host`/`port`/`allowed_hosts` dans `run()`. Le package `mcp` v2 a un `FastMCP.run()` minimaliste
-- Tout MCP VPS derrière nginx avec `Host $host` doit passer `allowed_hosts=[<domaine>]` à `mcp.run()`, sinon Starlette retourne 421
-- ⚠️ **TOUT terme alimentaire se déclare au SINGULIER** — régimes (`DIETS`), `dislikes`, `forbidden`, `diet_exceptions`. `_contains_term()` compare en mots entiers et tolère la flexion « s »/« x » **sur chaque mot**, mais uniquement du singulier VERS le pluriel : « lardon » rencontre « lardons », « lardons » ne rencontre PAS « lardon ». Le contraire ne produit aucune erreur — juste un plat déclaré compatible. C'est ce qui rendait 82 formes plurielles muettes jusqu'au 2026-09-03 (`lardons`, `veaux`, `steaks`, `jambons`), soit la forme la plus courante d'une ligne d'ingrédient. Les frontières de mot, elles, sont **volontaires** : « maïs » ne doit pas matcher « maison », ni « citron » « citronnelle »
-- **Un régime n'est pas un absolu : `person.diet_exceptions`** — Clémence est pescétarienne ET mange du boudin et les quenelles de veau. Une exception dispense **la ligne** qui porte l'expression, jamais le terme entier — sans quoi lever les quenelles de veau laisserait passer le rôti de veau. Ne pas confondre les trois axes : `forbidden` = ce qui ne se discute pas · `dislikes` = aversion (les cuissons d'œufs en sont) · `diet_exceptions` = ce que le régime interdit mais que la personne mange
-- **Le régime refuse bien plus large que le moteur ne sait réparer** — `convives.py` bloque sur les termes de `DIETS`, `RULES_BY_DIET` n'en couvre qu'une minorité (compter : `python -c "from cooking_manager.convives import DIETS; from cooking_manager.substitutions import find_substitution; print(sum(1 for t in DIETS['pescetarian'] if find_substitution(f'200 g de {t}') is None), '/', len(DIETS['pescetarian']))"`). Un `repairs` vide ne veut donc PAS dire « rien à réparer » : lire `unrepaired`. Une protéine sans règle nommée reçoit un **repli** tiré du catalogue de cibles selon la cuisson détectée (`fallback: true`, confiance 0.4) ; sans cuisson détectée, rien n'est deviné. ⚠️ **Une règle NOMMÉE ne s'ajoute jamais sans observation** — elle porte une raison affichée à l'utilisateur, et une raison inventée ment avec l'aplomb d'une règle mesurée ; c'est précisément ce que le repli, qui se déclare comme tel, permet d'éviter
-- **Une règle de `substitutions.py` qui déclare des `cuisines` doit être bornée par `rule_applies()`** — `score_rule()` bonifie un match de cuisine mais ne pénalise pas son absence, donc une priorité de base élevée suffit à faire gagner une règle hors de son contexte (une règle ouest-africaine s'appliquait à tout mijoté de poulet, y compris un coq au vin). Toute nouvelle règle à forte priorité doit être testée sur un plat d'une AUTRE cuisine
-
-## Skills liées
-
-- `julien-audit-cooking-vault` — **owner** — audite les données que ce repo ingère
-  (`Noyau/Cuisine/` + la base aliments du Coach Nutrition). À lancer **avant** une
-  génération de courses : c'est là que les défauts de données coûtent de l'argent.
-- `cooking-manager-weekly-pipeline` — **owner** — le pipeline hebdomadaire complet
-  (vault → menu → quantités → compatibilités → courses). Toute modification de
-  l'ingestion ou du différentiel de courses le périme.
-- `cooking-manager-auchan-drive` — **gros-consommateur** — pilote le panier Auchan
-  depuis les courses produites ici.
-
-## Gates avant commit — les trois sont bloquants
+## Qui est à table
 
 ```bash
-python -m ruff check cooking_manager/ backend/ tests/   # All checks passed!
-python -m pyright                                        # 0 errors
-python -m pytest tests/                                  # unitaires + gate compat
-
-# Gate iOS 12 — obligatoire dès qu'on touche à web/
-python ~/.claude/skills/julien-audit-ios12-compat/scripts/audit_ios12.py web
-# → score ≥ 90 et ZÉRO bloquant, sinon exit 1
+ssh srv759970 'curl -s -X POST "localhost:8795/api/child-week/sync?day=AAAA-MM-JJ"'   # D'ABORD
+ssh srv759970 'curl -s "localhost:8795/api/attendance?day=AAAA-MM-JJ"'
 ```
 
-### Tests — trois étages
+- **409** = semaine non synchronisée → lancer le sync. Ne veut **jamais** dire « enfants absents ».
+- **422** = event « Semaine enfants » introuvable sur ±60 j → demander à Julien, ne pas supposer.
+- Tout vient de la **DB** (`person` fait autorité, `convive` est legacy) ; la garde alternée vient de **gcal**, pas d'un calcul de semaine paire (ADR 0004).
+- Repas hors domicile : lire les events bruts et **juger le sens**, jamais chercher « resto » par mot-clé.
+- `POST /api/seed` ne pose `dislikes`/`forbidden` qu'à la **création** : ne pas les remettre dans son `DO UPDATE`.
+- **Données mortes, ne pas raisonner dessus** : `meal_attendance`, `stay.cooking`, `extra_headcount` (#73).
 
-```bash
-pytest              # unitaires + gate compat (rapide, aucun réseau)
-pytest -m e2e       # frappe l'API RÉELLE du VPS — opt-in, écrit en production
-```
+## Contraintes alimentaires — quatre axes distincts
 
-Les e2e créent des objets préfixés `test-e2e-` et les suppriment ; un test
-d'hygiène échoue si un résidu subsiste. Ils sont opt-in précisément parce qu'ils
-écrivent en production.
+| Axe | Sens | Vérifié par `/compatibility` ? |
+|---|---|---|
+| `person.forbidden` | ne se discute pas | ✅ |
+| `person.dislikes` | aversion pour un aliment nommé | ✅ |
+| `person.diet_exceptions` | ce que le régime interdit mais que la personne mange | ✅ |
+| `dietary_preference` | ce qui **pèse sans bloquer** (`minimize`/`maximize`/`cap`/`rotate`/`no_restriction`) | ❌ **rien ne le lit** |
+
+⛔ **Un menu « sans conflit » ne dit rien du gluten, des sucres ajoutés ni de la rotation des
+protéines** : ces règles s'appliquent à la main en composant (`julien-cooking-manager-compose-menu`
+§ 3, #77 #78). Deux autres angles morts : les repas `leftovers` (sans fiche, donc sans ingrédients
+à confronter, #76) et les parts séparées (« pois chiches pour Clémence » reste un conflit poulet).
+
+Lire, jamais recopier : `/api/preferences` · `/api/menus/<slug>/compatibility`.
+
+### Écrire un terme alimentaire
+
+| Règle | Pourquoi ça ne se voit pas sinon |
+|---|---|
+| **Au singulier**, toujours (`DIETS`, `dislikes`, `forbidden`, `diet_exceptions`) | La flexion va du singulier vers le pluriel, jamais l'inverse : « lardons » ne rencontre pas « lardon » |
+| Un terme **ambigu** se déclare avec son motif dans `CONTEXT_REQUIRED` | `roti` en mot nu déclare « pois chiches rôtis » incompatible pescétarien (ADR 0007). Même piège sur `blanc`, `filet`, `cuisse` |
+| Une règle de `substitutions.py` avec `cuisines` se borne par `rule_applies()` | Sinon une règle ouest-africaine gagne sur un coq au vin |
+| Une règle **nommée** ne s'ajoute que sur observation | Sa raison s'affiche à l'utilisateur ; inventée, elle ment. Sinon : laisser le repli, qui se déclare comme tel |
+
+`repairs` vide ne veut pas dire « rien à réparer » — **lire `unrepaired`** : `RULES_BY_DIET` ne couvre qu'une minorité des termes de `DIETS`.
+
+## Courses et garde-manger
+
+La liste **n'est pas stockée, c'est un calcul** : `GET /api/menus/{slug}/shopping-list` la
+recalcule à chaque appel (menu × tablée × stock). `shopping_session`/`shopping_product` sont
+un compte rendu d'après coup, relié à aucun menu (#67, #68).
+
+| Règle | Geste |
+|---|---|
+| La DB est la source de vérité du stock | Le vault n'est qu'une source d'ingestion ; `source != 'vault'` survit à la ré-ingestion (#69) |
+| `normalize_name` a changé | `POST /api/pantry/renormalize?dry_run=true` puis sans — les clés stockées sont figées et désalignent le stock en silence |
+| `normalize_name` retire découpe et pluriel | **Jamais un état** : « sèches », « surgelés », « fraîche », « entier » changent l'identité |
+| Un appariement qu'aucune règle ne peut trancher | `POST /api/pantry/aliases` — l'alias vise un **nom** (`target_normalized`), jamais un id |
+| Auchan Drive | **Seule voie** : MCP VPS `mcp-vps-auchan` (3854). `backend/auchan*.py` est décommissionné, HydraSpecter n'est qu'un outil de diagnostic |
+
+⚠️ **`Garde-manger.md` est aussi lu et écrit par le Coach Nutrition de claude.ai**, qui n'appelle jamais l'app : les deux stocks divergent sans alerte. Croiser via `pantry_item` (DB).
+
+## Photos
+
+Une photo distante est en sursis : le fichier local `web/media/recipes/<slug>.jpg` prime et
+survit au réseau. **Extension `.jpg` obligatoire**, `ingest.py` ne scanne que celle-là (#70).
+Générer via recipe-manager, jamais un prompt improvisé (versionné v1.1 chez lui) :
+`POST localhost:8796/recipes/<slug>/generate-image?inline=true` → écrire dans
+`web/media/recipes/`, **committer**, `git pull` sur le VPS.
+
+L'upsert garde `photo_url=COALESCE($24, recipe.photo_url)` : sinon un scraping en échec efface la photo.
+
+## Vocabulaire (ontologie)
+
+Cuissons, cuisines, textures, accommodations et axes de retour viennent de
+`data/ontology/cooking-vocabulary.yaml` → `ontology-manager` → artefact épinglé
+`cooking_manager/cooking-vocabulary.json` — **jamais d'une table écrite dans le code**.
+Régénérer : `python -m ontology_manager.cli generate --ontology cooking-vocabulary`, puis
+recopier l'artefact.
+
+⚠️ Le générateur a un **jeu de champs fixe** (dépôt ontology-manager) : un champ ajouté au
+YAML n'atteint pas l'artefact, et le consommateur lit une valeur vide sans erreur. Ajouter
+un champ = toucher les deux dépôts **plus un test** qui prouve qu'il survit à la génération.
+`dominates` : une cuisson préparatoire n'est pas celle du plat — n'y inscrire **que ce qui
+a été observé**.
+
+## Macros
+
+`nutrition.py` applique les règles du Coach Nutrition (`Noyau/Coaches/Coach Nutrition/_coach.md`),
+il n'invente rien.
+
+1. **Pas d'hypothèse** — non résolu ⇒ `unresolved` avec son motif. Une base sans « pour 100 g » est ignorée ; une fiche « Crues »/« Cuites » sans forme nommée ne tranche pas.
+2. **Réconcilier** — `kcal = P×4 + G×4 + L×9` ; au-delà de 5 % d'écart, montrer les deux chiffres.
+3. **Trois sources** — `marques/` > `shopping_product.nutrition` > `generiques/` (CIQUAL). Jamais de quatrième position implicite.
+
+`coverage`/`conclusive` priment sur le total (cas de refus : `julien-audit-cooking-vault`).
+Pièges : `load_food_base_cached()` obligatoire ; `qty_min` est un `Decimal`.
+
+## Commande vocale
+
+MediaRecorder → `POST /api/audio` → Deepgram (STT) → Groq (intent JSON) → exécution. Les
+intents sont déclarés **dans le prompt** de `backend/stt.py`, pas dans une table : un intent
+ajouté sans être câblé échoue en silence. Clés en credstore systemd
+(`deploy/run-with-cred.sh`), jamais de `.env` en clair. MediaRecorder exige Safari 14.5+, le
+micro est donc masqué sur l'iPad mini 2.
 
 ## Gate iOS 12
-
-Le front cible Safari 12.5.8. Parades imposées à l'écriture, vérifiées par le
-scanner :
 
 | Interdit | Parade |
 |---|---|
@@ -228,12 +169,31 @@ scanner :
 | `<dialog>` / `showModal()` (15.4) | vue plein écran routée |
 | `@media (prefers-color-scheme)` (13) | attribut `data-theme` sur `<html>` |
 | `:focus-visible` · `text-wrap` · `loading="lazy"` | retirer |
-| `?.` `??` `||=` · champs de classe (16) | `&&` / `||`, écriture explicite |
-| `clamp()` seul | **repli déclaré AVANT** — sinon la règle est jetée en silence |
+| `?.` `??` `\|\|=` · champs de classe (16) | `&&` / `\|\|`, écriture explicite |
+| `clamp()` seul | repli déclaré **avant** — sinon la règle est jetée en silence |
 
-`.browserslistrc` cible `ios_saf 12.2-12.5` (seules les **bornes** de plage sont
-aliasées : `12.3` renvoie *Unknown version*). `package.json` est en
-**devDependencies uniquement** — il n'y a pas de build et il ne faut pas en ajouter.
+Vérifier : `python ~/.claude/skills/julien-audit-ios12-compat/scripts/audit_ios12.py web`
+(score ≥ 90 et zéro bloquant). `package.json` est en devDependencies : **pas de build**.
 
-⚠️ Aucun scanner ne voit les comportements propres à iOS (zoom auto sur `input`
-< 16 px, `100vh` mouvant, `:hover` collant). **Seul l'iPad réel valide.**
+⚠️ Aucun scanner ne voit le zoom auto sur `input` < 16 px, `100vh` mouvant, `:hover`
+collant. **Seul l'iPad réel valide.**
+
+## Design
+
+**Appétissant** (la photo mène) · **Sans friction** (quoi manger ce soir en un coup d'œil) ·
+**Maîtrisé** (macros, stock, courses). Hiérarchie par le letter-spacing jamais par la graisse,
+un seul accent, ni rayon ni ombre. Détail : `2026.08 Product Toolkit/research/`.
+## Skills liées
+
+- `julien-cooking-manager-compose-menu` — **owner** — composer ET écrire le menu (de « qui est à table » au fichier ingéré et contrôlé).
+- `cooking-manager-weekly-pipeline` — **owner** — la suite : quantités, stock, courses, panier, macros.
+- `julien-audit-cooking-vault` — **owner** — auditer les données ingérées, **avant** toute génération de courses.
+- `cooking-manager-auchan-drive` — gros consommateur — pilote le panier depuis ces courses.
+
+## MCP · dépendances
+
+`cooking_mcp.py` importe `from fastmcp import FastMCP` (pas `mcp.server.fastmcp`) : seul
+`fastmcp` v3.4+ expose `host`/`port`/`allowed_hosts` dans `run()`. Derrière nginx avec
+`Host $host`, passer `allowed_hosts=[<domaine>]`, sinon Starlette rend 421.
+`httpx`/`selectolax`/`mcp` sont déclarés dans `pyproject.toml` — un venv reconstruit à neuf
+est le test de vérité.

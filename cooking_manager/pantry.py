@@ -109,10 +109,6 @@ class PantryItem:
 class Pantry:
     items: list[PantryItem] = field(default_factory=list)
     updated: date | None = None
-    # Appariements tranchés à la main, quand aucune règle ne peut décider :
-    # « origan séché » EST le « Hello Fresh Origan » du placard, mais rien dans
-    # le nom du stock ne dit qu'il est séché — deviner produirait un faux
-    # « tu en as ». Clé normalisée du besoin → id de l'article.
     aliases: dict[str, int] = field(default_factory=dict)
 
     # ⚠️ `today` est un paramètre, pas `date.today()` en dur : la règle
@@ -143,8 +139,6 @@ class Pantry:
             return None
         normalized = normalize_name(normalized)
 
-        # L'alias tranche AVANT toute heuristique : c'est une décision humaine,
-        # elle ne se laisse pas déborder par un appariement approchant.
         aliased = self.aliases.get(normalized)
         if aliased is not None:
             for item in self.items:
@@ -162,13 +156,6 @@ class Pantry:
         if contains:
             return _best(sorted(contains, key=lambda i: len(i.name_normalized)))
 
-        # ⚠️ Dernier repli seulement : TOUS les mots porteurs du terme doivent se
-        # retrouver dans l'item, dans n'importe quel ordre. « mélange mâche et
-        # roquette » ne rencontrait pas « Mélange DE mâche et roquette » — un
-        # seul mot-outil suffisait à faire racheter un sachet déjà au frigo.
-        # L'inclusion reste dans ce sens-là : le stock peut être plus précis que
-        # le besoin (« Knorr Bouillon de Légumes » pour « bouillon de légumes »),
-        # jamais l'inverse — « lait de coco » ne doit pas se satisfaire de « lait ».
         words = _content_words(normalized)
         if not words:
             return None
@@ -425,9 +412,6 @@ def build_needs(meals_recipes: list[tuple[str, list, float]]) -> list[Need]:
 
             # Une fourchette « 2–3 c.s. » s'achète au maximum : manquer coûte
             # plus cher qu'avoir un peu trop.
-            # ⚠️ Additionner en unités BRUTES fabrique un chiffre faux à l'aplomb
-            # juste : « 800 g » + « 1 kg » rendait 801, affiché en kg. La clé
-            # regroupe par famille, l'addition doit donc convertir vers sa base.
             qty = ing.get("qty_max") or ing.get("qty_min")
             if qty is not None:
                 base_unit, factor = _TO_BASE.get(unit, (unit, 1.0)) if unit else (unit, 1.0)
