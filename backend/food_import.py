@@ -132,6 +132,52 @@ def _link_products(plan: ImportPlan) -> None:
                                "grams": unit["grams"], "source": "produit"})
 
 
+PERSON_NAMES = ("julien", "clemence", "clémence", "lea", "léa", "titouan", "tabby")
+
+
+def build_report(root: Path, rows: list[dict]) -> dict:
+    """Compare le vault à ce qui est en base — sans rien corriger."""
+    plan = build_records(root)
+    by_key = {r["key"]: r for r in rows}
+
+    missing = [f["key"] for f in plan.foods if f["key"] not in by_key]
+    mismatch = []
+    for food in plan.foods:
+        stored = by_key.get(food["key"])
+        if not stored:
+            continue
+        expected = (food["macros_per_100g"] or {}).get("kcal")
+        actual = (_as_macros(stored.get("macros_per_100g")) or {}).get("kcal")
+        if expected is not None and actual is not None and abs(expected - actual) > 1:
+            mismatch.append({"key": food["key"], "vault": expected, "base": actual})
+
+    constraints = []
+    for path in sorted(root.rglob("*.md")):
+        if path.name.startswith("_"):
+            continue
+        for line in path.read_text(encoding="utf-8").splitlines():
+            low = line.lower()
+            if any(name in low for name in PERSON_NAMES) and ":" in line:
+                constraints.append({"sheet": path.stem, "line": line.strip()})
+
+    return {
+        "total_sheets": len(plan.foods) + len(plan.products) + len(plan.skipped),
+        "imported": len(by_key),
+        "missing": missing,
+        "macro_mismatch": mismatch,
+        "unlinked_products": [p["name"] for p in plan.products
+                              if p["status"] == "a_rapprocher"],
+        "person_constraints": constraints,
+        "skipped": plan.skipped,
+    }
+
+
+def _as_macros(value) -> dict | None:
+    if isinstance(value, str):
+        return json.loads(value)
+    return value
+
+
 async def write_records(conn, plan: ImportPlan) -> dict:
     """Upsert idempotent : rejouer l'import ne duplique rien."""
     for food in plan.foods:

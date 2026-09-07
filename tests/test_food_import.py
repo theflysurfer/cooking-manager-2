@@ -95,6 +95,31 @@ class TestProducts:
         assert plan.products[0]["food_key"] is None
 
 
+class TestReport:
+    def test_a_sheet_absent_from_the_base_is_reported(self, tmp_path):
+        from backend.food_import import build_report
+        report = build_report(make_vault(tmp_path), rows=[])
+        assert report["missing"]
+        assert report["imported"] == 0
+
+    def test_a_macro_gap_is_reported_not_smoothed(self, tmp_path):
+        from backend.food_import import build_report
+        rows = [{"key": "pain complet", "macros_per_100g": {"kcal": 200}}]
+        report = build_report(make_vault(tmp_path), rows=rows)
+        assert report["macro_mismatch"]
+        assert report["macro_mismatch"][0]["key"] == "pain complet"
+
+    def test_person_constraints_found_in_sheets_are_listed(self, tmp_path):
+        """« Léa : pas d'œufs durs » appartient à person.dislikes, pas à un aliment."""
+        from backend.food_import import build_report
+        root = make_vault(tmp_path)
+        sheet = root / "marques" / "oeufs.md"
+        sheet.write_text(sheet.read_text(encoding="utf-8")
+                         + "\n- Lea : pas d'oeufs durs\n", encoding="utf-8")
+        report = build_report(root, rows=[])
+        assert report["person_constraints"]
+
+
 class TestUnits:
     def test_usage_units_are_collected(self, tmp_path):
         plan = build_records(make_vault(tmp_path))

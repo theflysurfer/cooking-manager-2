@@ -294,6 +294,17 @@ async def import_food(dry_run: bool = True):
             "skipped": plan.skipped[:20]}
 
 
+@app.get("/api/food/report")
+async def food_report():
+    """Le vault et la base disent-ils la même chose ?"""
+    from .food_import import build_report
+
+    pool = await get_pool(DATABASE_DSN)
+    async with pool.acquire() as conn:
+        rows = await conn.fetch("SELECT key, macros_per_100g FROM food")
+    return build_report(FOOD_BASE_ROOT, [dict(r) for r in rows])
+
+
 @app.get("/api/recipes/{slug}/macros")
 async def recipe_macros_endpoint(slug: str):
     """Macros calculées depuis les ingrédients, avec leur provenance.
