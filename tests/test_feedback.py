@@ -9,6 +9,7 @@ from cooking_manager.feedback import (
     interpret,
     validate_concept,
 )
+from cooking_manager.substitutions import load_vocabulary
 
 
 def test_les_trois_axes_se_lisent_ensemble():
@@ -73,3 +74,11 @@ def test_les_trois_facettes_survivent_a_la_generation():
     assert "loved" in facet_keys(APPRECIATION_FACET)
     assert "adjust" in facet_keys(VERDICT_FACET)
     assert "effort" in facet_keys(ISSUE_FACET)
+
+
+@pytest.mark.parametrize("facet", (APPRECIATION_FACET, VERDICT_FACET, ISSUE_FACET))
+def test_chaque_concept_porte_un_libelle_affichable(facet):
+    """`GET /api/vocabulary/feedback` rend label et definition : un vide sortirait muet."""
+    for concept in load_vocabulary()[facet]:
+        assert concept.get("label"), concept["key"]
+        assert concept.get("definition"), concept["key"]

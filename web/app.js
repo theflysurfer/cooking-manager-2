@@ -34,8 +34,22 @@ function label(s) {
 
 async function api(path, opts) {
   var r = await fetch(API + path, opts);
-  if (!r.ok) throw new Error(r.status + ' ' + r.statusText);
+  if (!r.ok) {
+    var err = new Error(r.status + ' ' + r.statusText);
+    err.status = r.status;
+    try { err.detail = (await r.json()).detail; } catch (e) { err.detail = null; }
+    throw err;
+  }
   return r.json();
+}
+
+function apiErrorText(e) {
+  var d = e && e.detail;
+  if (!d) return e && e.message ? e.message : 'Échec de l\'enregistrement';
+  if (typeof d === 'string') return d;
+  var text = d.reason || 'Refusé';
+  if (d.candidates && d.candidates.length) text += ' — ' + d.candidates.join(', ');
+  return text;
 }
 
 var app = document.getElementById('app');
@@ -83,6 +97,47 @@ function indexCompat(compat) {
   return idx;
 }
 
+function servedControl(served, position, slot, recipeSlug, date) {
+  var eaten = served === true;
+  var skipped = served === false;
+  var html = '<div class="served" data-position="' + position +
+             '" data-slot="' + esc(slot) + '">' +
+    '<button class="served-btn' + (eaten ? ' served-btn--on' : '') +
+      '" data-served="true" aria-pressed="' + (eaten ? 'true' : 'false') +
+      '">Mangé</button>' +
+    '<button class="served-btn' + (skipped ? ' served-btn--off' : '') +
+      '" data-served="false" aria-pressed="' + (skipped ? 'true' : 'false') +
+      '">Pas fait</button>';
+  if (eaten && recipeSlug) {
+    html += '<a class="served-note" href="#/recette/' +
+      encodeURIComponent(recipeSlug) + '/retour/' + encodeURIComponent(date || '') +
+      '">Noter ›</a>';
+  }
+  return html + '</div>';
+}
+
+async function toggleServed(btn) {
+  var box = btn.closest('.served');
+  if (!box || !state.weekMenu) return;
+  var wanted = btn.getAttribute('data-served') === 'true';
+  var served = btn.getAttribute('aria-pressed') === 'true' ? null : wanted;
+  try {
+    await api('/menus/' + encodeURIComponent(state.weekMenu.slug) + '/served', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        served: served,
+        position: parseInt(box.getAttribute('data-position'), 10),
+        slot: box.getAttribute('data-slot')
+      })
+    });
+  } catch (e) {
+    btn.textContent = 'Échec';
+    return;
+  }
+  viewMenu();
+}
+
 function renderDay(meal, compatIdx, today, mealIndex) {
   var isToday = meal.date === today;
   var cls = 'day' + (isToday ? ' day--today' : '');
@@ -126,6 +181,11 @@ function renderDay(meal, compatIdx, today, mealIndex) {
         ' data-covers="' + (mealCovers || '') + '">' +
         (mealCovers ? mealCovers + ' couv.' : 'Couverts') + '</button>' +
         '</div>';
+    }
+
+    if (mealId) {
+      slots += servedControl(meal[s.key + '_served'], mealIndex + 1, s.key,
+                             slug, meal.date);
     }
 
     if (check && check.attendees && check.attendees.length) {
@@ -197,6 +257,7 @@ async function viewMenu() {
       if (mm.match_kind === 'leftovers') day[mm.slot + '_leftovers'] = true;
       if (mm.match_kind === 'manual') day[mm.slot] = mm.dish;
       if (mm.covers) day[mm.slot + '_covers'] = mm.covers;
+      day[mm.slot + '_served'] = mm.served;
     });
   }
 
@@ -253,7 +314,15 @@ async function viewMenu() {
     });
   }
 
+  if (_menuClickBound) return;
+  _menuClickBound = true;
   app.addEventListener('click', function (e) {
+    var servedBtn = e.target.closest('.served-btn');
+    if (servedBtn) {
+      e.preventDefault();
+      toggleServed(servedBtn);
+      return;
+    }
     var btn = e.target.closest('.swap-btn');
     if (btn) {
       e.preventDefault();
@@ -294,6 +363,7 @@ function promptCovers(btn) {
 }
 
 var _swapMealId = null;
+var _menuClickBound = false;
 
 function openSwapPicker(mealId) {
   _swapMealId = mealId;
@@ -495,7 +565,7 @@ function qtyText(ing, ratio) {
   return q + (ing.unit ? ' ' + ing.unit : '');
 }
 
-async function viewRecipe(slug) {
+async function viewRecipe(slug, servedOn) {
   render(emptyState('Chargement…'));
   var r = await api('/recipes/' + encodeURIComponent(slug));
 
@@ -596,6 +666,9 @@ async function viewRecipe(slug) {
   html += '<h2 class="section-title">Historique</h2><div id="exec">' +
           emptyState('Chargement…') + '</div>';
 
+  html += '<h2 class="section-title" id="retours">Retours de table</h2>' +
+          '<div id="feedback">' + emptyState('Chargement…') + '</div>';
+
   render(html);
 
   if (baseServings) {
@@ -631,6 +704,161 @@ async function viewRecipe(slug) {
              (e.notes ? '<div class="slot__who">' + esc(e.notes) + '</div>' : '') + '</div>';
     }).join('');
   } catch (e) { /* l'historique est secondaire : son échec ne casse pas la fiche */ }
+
+  await paintFeedback(slug, servedOn || todayISO());
+  if (servedOn) {
+    var anchor = document.getElementById('retours');
+    if (anchor) anchor.scrollIntoView();
+  }
+}
+
+/* ── Retours de table ──────────────────────────────────────────────── */
+
+async function feedbackVocabulary() {
+  if (!state.feedbackVocab) {
+    state.feedbackVocab = (await api('/vocabulary/feedback')).facets;
+  }
+  return state.feedbackVocab;
+}
+
+async function feedbackPersons() {
+  if (!state.persons) {
+    state.persons = await api('/persons?circle=household');
+    if (!state.persons.length) state.persons = await api('/persons');
+  }
+  return state.persons;
+}
+
+function conceptOptions(concepts, placeholder) {
+  var html = '<option value="">' + esc(placeholder) + '</option>';
+  concepts.forEach(function (c) {
+    html += '<option value="' + esc(c.key) + '">' + esc(c.label) + '</option>';
+  });
+  return html;
+}
+
+function feedbackHistory(data) {
+  var html = '';
+  (data.verdicts || []).forEach(function (v) {
+    var issues = (v.issue_kinds || []).map(label).join(' · ');
+    html += '<div class="fb-row fb-row--verdict">' +
+      '<span class="fb-row__date">' + esc(v.served_on) + '</span>' +
+      '<span class="fb-row__value">' + esc(label(v.verdict)) + '</span>' +
+      (issues ? '<span class="fb-row__issues">' + esc(issues) + '</span>' : '') +
+      (v.verbatim ? '<div class="fb-row__verbatim">« ' + esc(v.verbatim) + ' »</div>' : '') +
+      '</div>';
+  });
+  (data.feedback || []).forEach(function (f) {
+    html += '<div class="fb-row">' +
+      '<span class="fb-row__date">' + esc(f.served_on) + '</span>' +
+      '<span class="fb-row__who">' + esc(f.person) + '</span>' +
+      '<span class="fb-row__value">' + esc(label(f.appreciation)) + '</span>' +
+      (f.verbatim ? '<div class="fb-row__verbatim">« ' + esc(f.verbatim) + ' »</div>' : '') +
+      '</div>';
+  });
+  return html;
+}
+
+async function paintFeedback(slug, servedOn) {
+  var box = document.getElementById('feedback');
+  if (!box) return;
+  var vocab, persons, data;
+  try {
+    vocab = await feedbackVocabulary();
+    persons = await feedbackPersons();
+    data = await api('/recipes/' + encodeURIComponent(slug) + '/feedback');
+  } catch (e) {
+    box.innerHTML = emptyState('Retours indisponibles', apiErrorText(e));
+    return;
+  }
+
+  var history = feedbackHistory(data);
+  var html = history || '<p class="empty__hint">Aucun retour pour l\'instant.</p>';
+
+  html += '<form class="fb-form" data-slug="' + esc(slug) + '">' +
+    '<input class="fb-date" type="date" value="' + esc(servedOn) + '">' +
+    '<div class="fb-field"><label class="fb-label">Qui</label>' +
+      '<select class="fb-person">' +
+      persons.map(function (p) {
+        return '<option value="' + esc(p.name) + '">' + esc(p.name) + '</option>';
+      }).join('') + '</select></div>' +
+    '<div class="fb-field"><label class="fb-label">Ce qu\'il ou elle en a pensé</label>' +
+      '<select class="fb-appreciation">' +
+      conceptOptions(vocab.appreciations, 'À lire dans le commentaire') +
+      '</select></div>' +
+    '<div class="fb-field"><label class="fb-label">Commentaire</label>' +
+      '<textarea class="fb-verbatim" rows="2" placeholder="Ce qui a été dit à table"></textarea></div>' +
+    '<button type="button" class="btn fb-submit" data-kind="feedback">Enregistrer l\'avis</button>' +
+    '<hr class="fb-sep">' +
+    '<div class="fb-field"><label class="fb-label">Refaire ce plat ?</label>' +
+      '<select class="fb-verdict">' +
+      conceptOptions(vocab.replay_verdicts, 'À lire dans le commentaire') +
+      '</select></div>' +
+    '<div class="fb-field"><label class="fb-label">Ce qu\'il faudrait corriger</label>' +
+      '<div class="fb-issues">' +
+      vocab.issue_kinds.map(function (c) {
+        return '<label class="fb-issue"><input type="checkbox" value="' + esc(c.key) +
+               '"> ' + esc(c.label) + '</label>';
+      }).join('') + '</div></div>' +
+    '<button type="button" class="btn fb-submit" data-kind="verdict">Enregistrer le verdict</button>' +
+    '<p class="fb-msg"></p>' +
+    '</form>';
+
+  box.innerHTML = html;
+}
+
+async function submitFeedback(btn) {
+  var form = btn.closest('.fb-form');
+  if (!form) return;
+  var slug = form.getAttribute('data-slug');
+  var kind = btn.getAttribute('data-kind');
+  var servedOn = form.querySelector('.fb-date').value;
+  var verbatim = form.querySelector('.fb-verbatim').value.trim();
+  var msg = form.querySelector('.fb-msg');
+  var body, path;
+
+  if (!servedOn) {
+    msg.textContent = 'Indiquez le jour où le plat a été mangé.';
+    return;
+  }
+
+  if (kind === 'feedback') {
+    path = '/recipes/' + encodeURIComponent(slug) + '/feedback';
+    body = {
+      person: form.querySelector('.fb-person').value,
+      served_on: servedOn,
+      source: 'app'
+    };
+    var appreciation = form.querySelector('.fb-appreciation').value;
+    if (appreciation) body.appreciation = appreciation;
+    if (verbatim) body.verbatim = verbatim;
+  } else {
+    path = '/recipes/' + encodeURIComponent(slug) + '/verdict';
+    body = { served_on: servedOn };
+    var verdict = form.querySelector('.fb-verdict').value;
+    if (verdict) body.verdict = verdict;
+    if (verbatim) body.verbatim = verbatim;
+    var issues = [];
+    form.querySelectorAll('.fb-issue input:checked').forEach(function (i) {
+      issues.push(i.value);
+    });
+    if (issues.length) body.issue_kinds = issues;
+  }
+
+  btn.disabled = true;
+  msg.textContent = 'Enregistrement…';
+  try {
+    await api(path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+  } catch (e) {
+    msg.textContent = apiErrorText(e);
+    btn.disabled = false;
+    return;
+  }
+  await paintFeedback(slug, servedOn);
 }
 
 /* ── Vue : courses ─────────────────────────────────────────────────── */
@@ -1539,7 +1767,9 @@ async function route() {
 
   try {
     if (parts[0] === 'recette' && parts[1]) {
-      await viewRecipe(decodeURIComponent(parts[1]));
+      var servedOn = (parts[2] === 'retour' && parts[3])
+        ? decodeURIComponent(parts[3]) : null;
+      await viewRecipe(decodeURIComponent(parts[1]), servedOn);
     } else if (parts[0] === 'import' && parts[1]) {
       await viewImportDraft(parts[1]);
     } else {
@@ -1579,6 +1809,9 @@ document.addEventListener('click', function (e) {
       .then(function () { location.hash = '#/import'; });
     return;
   }
+
+  var fbBtn = e.target.closest('.fb-submit');
+  if (fbBtn) { submitFeedback(fbBtn); return; }
 
   var mini = e.target.closest('.mini[data-act]');
   if (mini) {

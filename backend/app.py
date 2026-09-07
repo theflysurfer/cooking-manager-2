@@ -23,7 +23,7 @@ from cooking_manager.feedback import (
     interpret,
     validate_concept,
 )
-from cooking_manager.substitutions import VOCABULARY_VERSION
+from cooking_manager.substitutions import VOCABULARY_VERSION, load_vocabulary
 
 from .config import DATABASE_DSN, VAULT_ROOT
 from .db import get_pool, init_schema, close_pool
@@ -1687,6 +1687,22 @@ async def list_recipe_feedback(slug: str):
     for row in rows + verdict_rows:
         _serialize_dates(row, ("served_on",))
     return {"slug": slug, "feedback": rows, "verdicts": verdict_rows}
+
+
+@app.get("/api/vocabulary/feedback")
+async def get_feedback_vocabulary():
+    """Les trois axes de retour, libellés compris — le front ne les redéclare pas."""
+    vocabulary = load_vocabulary()
+    return {
+        "version": VOCABULARY_VERSION,
+        "facets": {
+            facet: [
+                {"key": c["key"], "label": c["label"], "definition": c["definition"]}
+                for c in vocabulary[facet]
+            ]
+            for facet in (APPRECIATION_FACET, VERDICT_FACET, ISSUE_FACET)
+        },
+    }
 
 
 class LeftoverBody(BaseModel):
