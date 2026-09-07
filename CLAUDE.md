@@ -75,17 +75,15 @@ Quatre fichiers font autorité, dans cet ordre de spécificité :
 ⚠️ **`menu.slug` est la clé naturelle.** Ne jamais réintroduire le
 `DELETE FROM menu` qui protégeait l'ingestion des doublons : il effaçait tout
 menu absent du vault, donc un menu créé via l'API, sans erreur ni trace.
-**Même interdit sur `menu_meal`** (levé le 2026-09-07) : l'ingestion upsert sur
-`(menu_id, position, slot)` et ne supprime que les repas réellement disparus du
-vault. Un `DELETE` global y effacerait `served`, la seule trace de ce qui a été
-mangé, sans une erreur.
+**Même interdit sur `menu_meal`** : l'ingestion upsert sur `(menu_id, position,
+slot)` et ne supprime que les repas disparus du vault — un `DELETE` global y
+effacerait `served` sans une erreur.
 
 ⚠️ **Un menu est un PLAN, pas un historique — `menu_meal.served` est un
-tri-état** : `NULL` « on ne sait pas » (l'état de tout repas non renseigné),
-`true` mangé, `false` prévu mais pas fait. Mesuré le 2026-09-07 : une semaine
-entière de 18 repas n'avait jamais été cuisinée, et rien ne le disait. Sans ce
-champ, toute rotation et tout décompte d'exécution comptent des repas fantômes.
-Le poser : `POST /api/menus/{slug}/served` (filtrable `day`/`slot`/`position`).
+tri-état** (`NULL` on ne sait pas · `true` mangé · `false` pas fait), posé par
+`POST /api/menus/{slug}/served` (filtrable `day`/`slot`/`position`). Sans lui,
+toute rotation compte des repas fantômes : compter les vrais se mesure
+(`SELECT served, count(*) FROM menu_meal GROUP BY 1`).
 
 ⚠️ **Le `slug` est la clé, pas le nom de fichier — deux fiches peuvent le déclarer
 en double**, et l'upsert n'en garde qu'une. `read_recipes()` les départage sur la date
@@ -179,14 +177,11 @@ par un flottant — un test en `float` ne voit pas ce cas.
 - `menu_meal.position` est **1-based** en DB (`enumerate(meals, start=1)`) — tout consommateur JS doit faire `position - 1` pour indexer le tableau `menu.meals[]`
 - Après un `rclone copy` vers Dropbox, le mount VPS (`/mnt/dropbox-full`) peut avoir un délai de propagation (~30 s) — relancer `POST /api/ingest` si une recette n'apparaît pas
 - **La liste de courses n'est PAS un objet stocké — c'est un calcul.** `GET
-  /api/menus/{slug}/shopping-list` la recalcule intégralement à chaque appel (menu × tablée ×
-  garde-manger) ; le front la garde en RAM (`state.shopping`), rien en DB, rien en
-  `localStorage`. Ce qui persiste, `shopping_session`/`shopping_product`, est un **compte rendu
-  d'après coup** d'une commande drive — jamais un plan, et relié à aucun menu. Corollaire :
-  aucune ligne n'a d'état, aucun tour ne se clôt, et rien ne dit **où** un article doit être
-  acheté (`shopping_session.store` n'est rempli qu'après). Le modèle cible (tour borné,
-  canal, réattribution, besoin résiduel) est dans `docs/conception/USE_CASES_COURSES.md` —
-  le lire avant de toucher aux courses. Refs #67, #68
+  /api/menus/{slug}/shopping-list` la recalcule à chaque appel (menu × tablée × garde-manger) ;
+  le front la garde en RAM, rien en DB. `shopping_session`/`shopping_product` sont un **compte
+  rendu d'après coup** d'une commande drive, relié à aucun menu : aucune ligne n'a d'état, aucun
+  tour ne se clôt. Lire `docs/conception/USE_CASES_COURSES.md` avant de toucher aux courses,
+  il porte le modèle cible. Refs #67, #68
 - `_pantry_from_db()` remplace `_load_pantry()` — le différentiel courses lit la DB, source de vérité pour l'app (le vault n'est qu'une source d'ingestion parmi d'autres ; `source != 'vault'` survit à la ré-ingestion — **donc aucune correction du vault ne les atteint jamais** : une ligne `receipt` est un événement d'achat daté, pas un état de stock, et reste `ok` indéfiniment, refs #69). ⚠️ **`Noyau/Cuisine/Garde-manger.md` est aussi lu/écrit par un système entièrement séparé** — le Coach Nutrition sur claude.ai, qui planifie les menus macro par macro et n'appelle jamais l'app ni sa DB. Les deux garde-manger ne sont **jamais synchronisés** et peuvent diverger sans alerte (constaté 2026-09-01 : 6 articles listés « ok » dans le vault n'existaient plus réellement)
 - **Cuissons, cuisines, textures et techniques d'accommodation viennent de l'ONTOLOGIE, jamais d'une table écrite dans le code.** Source : `data/ontology/cooking-vocabulary.yaml` (ce repo) → `ontology-manager` (`kind: cooking`) → artefact épinglé `cooking_manager/cooking-vocabulary.json`. Modifier le YAML, régénérer (`python -m ontology_manager.cli generate --ontology cooking-vocabulary`), recopier l'artefact. Deux tests refusent qu'une règle cite une clé absente du vocabulaire ou déclarée sans synonyme — donc indétectable. ⚠️ **Le générateur a un jeu de champs FIXE** (`ontology_manager/cooking.py`) : un champ ajouté au YAML n'atteint pas l'artefact tant qu'il n'y est pas propagé, et le consommateur lit alors une valeur vide **sans erreur** — un tri par `observed_in` aurait compté zéro partout en paraissant marcher. Ajouter un champ = toucher les deux dépôts, plus un test qui prouve qu'il survit à la génération
 - **Une cuisson préparatoire n'est pas la cuisson du plat.** « Faites dorer » ouvre presque tout mijoté : sans la table `dominates` du vocabulaire (`stew`/`slow-cooked` absorbent `pan-fried`/`pan-seared`/`stir-fry`, consommée par `drop_dominated()`), `pan-fried` pesait autant que `stew` et faisait gagner une dorade grillée dans une cocotte. N'y inscrire **que ce qui a été observé** — une dominance plausible mais non mesurée est le défaut reproché à `separate_dish`
