@@ -1,4 +1,4 @@
-version: "0.3.0"
+version: "0.4.0"
 slug: cooking-vocabulary
 kind: cooking
 origin: >-
@@ -248,3 +248,104 @@ accommodations:
   # qu'une accommodation en probation précède une active. `observed_in` est
   # propagé jusqu'à l'artefact JSON depuis la v0.3.0 : avant, il s'arrêtait au
   # YAML, et tout tri par observations aurait compté zéro partout sans erreur.
+
+# ============================================================================
+# RETOURS DE TABLE (v0.4.0) — trois axes, trois questions distinctes
+# ============================================================================
+# Se tromper d'axe produit une donnée qui ne veut rien dire :
+#   appreciations   → À QUEL POINT CETTE PERSONNE a aimé (une ligne par convive)
+#   replay_verdicts → QUE FAIT-ON DU PLAT ensuite (une ligne par plat)
+#   issue_kinds     → QUELLE EST LA NATURE DU DÉFAUT (facultatif, explique un verdict)
+#
+# Un plat adoré de tous peut être `retire` (trop long un soir de semaine) ; un
+# plat moyen peut être `keep_as_is` (dépannage rapide assumé). Les deux axes ne
+# se déduisent pas l'un de l'autre — c'est pourquoi ils sont séparés.
+#
+# TOUT EN PROBATION : mesuré sur 4 retours réels seulement (recipe_execution au
+# 2026-09-07), tous à 5/5, tous « adoré par tous ». Quatre retours unanimes ne
+# distinguent rien : aucune de ces valeurs n'a encore trié quoi que ce soit.
+
+_scope:
+  applies_to: "Un plat cuisiné à la maison et servi à une tablée identifiée."
+  does_not_apply_to:
+    - "repas hors domicile (ex. « Restaurant Marseille » au menu 2026-09-01) — personne n'a cuisiné, il n'y a rien à rejouer"
+    - "restes (`<slot>_leftovers: true`) — le jugement porte sur le plat d'origine, le noter deux fois le compterait deux fois"
+    - "remplissages macro sans préparation (« Fromage blanc + whey », « Compote + graines de courge ») — la question « c'était bon ? » n'y a pas de sens décisionnel"
+  absence_means: "PAS INSTRUIT ou HORS PÉRIMÈTRE — jamais « personne n'a aimé ». Ne pas combler par défaut."
+  known_tensions:
+    - "`mixed` recouvre deux natures : « bon mais pas terrible » et « une partie du plat oui, une autre non ». Scinder si la distinction devient décisive."
+    - "`effort` est un défaut ressenti par le cuisinier, pas par la tablée — seul axe où l'avis de celui qui cuisine prime."
+
+appreciations:
+  - key: loved
+    label: "Adoré"
+    status: probation
+    definition: "En redemande, à remettre au menu sans hésiter."
+    synonyms: ["adoré", "excellent", "top", "délicieux", "en redemande"]
+  - key: liked
+    label: "Aimé"
+    status: probation
+    definition: "Mangé avec plaisir, sans enthousiasme particulier."
+    synonyms: ["aimé", "bien", "bon", "correct", "sympa"]
+  - key: mixed
+    label: "Mitigé"
+    status: probation
+    definition: "Mangé sans plaisir, ou apprécié seulement en partie."
+    synonyms: ["moyen", "mitigé", "bof", "sans plus", "moyennement"]
+  - key: disliked
+    label: "Pas aimé"
+    status: probation
+    definition: "Mangé à contrecœur, ou laissé en partie."
+    synonyms: ["pas aimé", "pas terrible", "mauvais", "pas fini"]
+  - key: refused
+    label: "Refusé"
+    status: probation
+    definition: "N'a pas été mangé du tout."
+    applicable_when: "Distinguer d'un interdit alimentaire : un refus se constate à table, une contrainte se déclare dans `person`."
+    synonyms: ["refusé", "pas touché", "n'a pas mangé"]
+
+replay_verdicts:
+  - key: keep_as_is
+    label: "À refaire tel quel"
+    status: probation
+    definition: "Le plat rentre dans la rotation sans modification."
+    synonyms: ["à refaire", "à garder", "tel quel", "on garde"]
+  - key: adjust
+    label: "À refaire en modifiant"
+    status: probation
+    definition: "Le plat vaut la peine, mais une correction est nécessaire — laquelle vit dans issue_kinds."
+    applicable_when: "Toujours accompagné d'au moins un issue_kinds, sinon la correction est perdue."
+    synonyms: ["à ajuster", "à modifier", "à revoir", "presque"]
+  - key: retire
+    label: "À ne plus refaire"
+    status: probation
+    definition: "Le plat sort de la rotation."
+    synonyms: ["à oublier", "plus jamais", "on arrête"]
+
+issue_kinds:
+  - key: seasoning
+    label: "Assaisonnement"
+    status: probation
+    definition: "Trop ou pas assez : sel, épices, acidité, sucre."
+    synonyms: ["fade", "trop salé", "trop épicé", "trop piquant", "manque de goût", "trop acide"]
+  - key: texture
+    label: "Texture"
+    status: probation
+    definition: "Consistance ratée indépendamment de la cuisson : pâteux, sec, filandreux, détrempé."
+    synonyms: ["pâteux", "sec", "filandreux", "détrempé", "spongieux"]
+  - key: doneness
+    label: "Cuisson"
+    status: probation
+    definition: "Trop cuit ou pas assez."
+    synonyms: ["trop cuit", "pas assez cuit", "cramé", "cru", "brûlé"]
+  - key: portion
+    label: "Quantité"
+    status: probation
+    definition: "Trop ou pas assez servi — vise le calcul de portions, pas le goût."
+    synonyms: ["trop peu", "pas assez", "il en restait", "on a eu faim"]
+  - key: effort
+    label: "Effort disproportionné"
+    status: probation
+    definition: "Le temps ou la charge de préparation ne valait pas le résultat."
+    applicable_when: "Jugé par celui qui cuisine, pas par la tablée."
+    synonyms: ["trop long", "trop de vaisselle", "pas rentable", "prise de tête"]

@@ -1,5 +1,5 @@
 {
-  "version": "0.3.0",
+  "version": "0.4.0",
   "slug": "cooking-vocabulary",
   "origin": "Extrait du moteur de substitutions porté de cooking-manager v1 (server/src/services/intelligentSubstitutions.ts) et mesuré en production dans cooking-manager-2 le 2026-09-02. Voir cooking-manager-2 ADR 0001.",
   "cooking_methods": [
@@ -570,6 +570,212 @@
       "definition": "Un plat distinct est préparé pour le convive incompatible.",
       "synonyms": [],
       "applicable_when": "Ni la substitution ni la part séparée ne tiennent — le plat est indissociable de son ingrédient.",
+      "dominates": [],
+      "observed_in": []
+    }
+  ],
+  "appreciations": [
+    {
+      "key": "loved",
+      "label": "Adoré",
+      "status": "probation",
+      "definition": "En redemande, à remettre au menu sans hésiter.",
+      "synonyms": [
+        "adoré",
+        "excellent",
+        "top",
+        "délicieux",
+        "en redemande"
+      ],
+      "applicable_when": "",
+      "dominates": [],
+      "observed_in": []
+    },
+    {
+      "key": "liked",
+      "label": "Aimé",
+      "status": "probation",
+      "definition": "Mangé avec plaisir, sans enthousiasme particulier.",
+      "synonyms": [
+        "aimé",
+        "bien",
+        "bon",
+        "correct",
+        "sympa"
+      ],
+      "applicable_when": "",
+      "dominates": [],
+      "observed_in": []
+    },
+    {
+      "key": "mixed",
+      "label": "Mitigé",
+      "status": "probation",
+      "definition": "Mangé sans plaisir, ou apprécié seulement en partie.",
+      "synonyms": [
+        "moyen",
+        "mitigé",
+        "bof",
+        "sans plus",
+        "moyennement"
+      ],
+      "applicable_when": "",
+      "dominates": [],
+      "observed_in": []
+    },
+    {
+      "key": "disliked",
+      "label": "Pas aimé",
+      "status": "probation",
+      "definition": "Mangé à contrecœur, ou laissé en partie.",
+      "synonyms": [
+        "pas aimé",
+        "pas terrible",
+        "mauvais",
+        "pas fini"
+      ],
+      "applicable_when": "",
+      "dominates": [],
+      "observed_in": []
+    },
+    {
+      "key": "refused",
+      "label": "Refusé",
+      "status": "probation",
+      "definition": "N'a pas été mangé du tout.",
+      "synonyms": [
+        "refusé",
+        "pas touché",
+        "n'a pas mangé"
+      ],
+      "applicable_when": "Distinguer d'un interdit alimentaire : un refus se constate à table, une contrainte se déclare dans `person`.",
+      "dominates": [],
+      "observed_in": []
+    }
+  ],
+  "replay_verdicts": [
+    {
+      "key": "keep_as_is",
+      "label": "À refaire tel quel",
+      "status": "probation",
+      "definition": "Le plat rentre dans la rotation sans modification.",
+      "synonyms": [
+        "à refaire",
+        "à garder",
+        "tel quel",
+        "on garde"
+      ],
+      "applicable_when": "",
+      "dominates": [],
+      "observed_in": []
+    },
+    {
+      "key": "adjust",
+      "label": "À refaire en modifiant",
+      "status": "probation",
+      "definition": "Le plat vaut la peine, mais une correction est nécessaire — laquelle vit dans issue_kinds.",
+      "synonyms": [
+        "à ajuster",
+        "à modifier",
+        "à revoir",
+        "presque"
+      ],
+      "applicable_when": "Toujours accompagné d'au moins un issue_kinds, sinon la correction est perdue.",
+      "dominates": [],
+      "observed_in": []
+    },
+    {
+      "key": "retire",
+      "label": "À ne plus refaire",
+      "status": "probation",
+      "definition": "Le plat sort de la rotation.",
+      "synonyms": [
+        "à oublier",
+        "plus jamais",
+        "on arrête"
+      ],
+      "applicable_when": "",
+      "dominates": [],
+      "observed_in": []
+    }
+  ],
+  "issue_kinds": [
+    {
+      "key": "seasoning",
+      "label": "Assaisonnement",
+      "status": "probation",
+      "definition": "Trop ou pas assez : sel, épices, acidité, sucre.",
+      "synonyms": [
+        "fade",
+        "trop salé",
+        "trop épicé",
+        "trop piquant",
+        "manque de goût",
+        "trop acide"
+      ],
+      "applicable_when": "",
+      "dominates": [],
+      "observed_in": []
+    },
+    {
+      "key": "texture",
+      "label": "Texture",
+      "status": "probation",
+      "definition": "Consistance ratée indépendamment de la cuisson : pâteux, sec, filandreux, détrempé.",
+      "synonyms": [
+        "pâteux",
+        "sec",
+        "filandreux",
+        "détrempé",
+        "spongieux"
+      ],
+      "applicable_when": "",
+      "dominates": [],
+      "observed_in": []
+    },
+    {
+      "key": "doneness",
+      "label": "Cuisson",
+      "status": "probation",
+      "definition": "Trop cuit ou pas assez.",
+      "synonyms": [
+        "trop cuit",
+        "pas assez cuit",
+        "cramé",
+        "cru",
+        "brûlé"
+      ],
+      "applicable_when": "",
+      "dominates": [],
+      "observed_in": []
+    },
+    {
+      "key": "portion",
+      "label": "Quantité",
+      "status": "probation",
+      "definition": "Trop ou pas assez servi — vise le calcul de portions, pas le goût.",
+      "synonyms": [
+        "trop peu",
+        "pas assez",
+        "il en restait",
+        "on a eu faim"
+      ],
+      "applicable_when": "",
+      "dominates": [],
+      "observed_in": []
+    },
+    {
+      "key": "effort",
+      "label": "Effort disproportionné",
+      "status": "probation",
+      "definition": "Le temps ou la charge de préparation ne valait pas le résultat.",
+      "synonyms": [
+        "trop long",
+        "trop de vaisselle",
+        "pas rentable",
+        "prise de tête"
+      ],
+      "applicable_when": "Jugé par celui qui cuisine, pas par la tablée.",
       "dominates": [],
       "observed_in": []
     }

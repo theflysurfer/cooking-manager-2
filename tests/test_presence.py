@@ -71,10 +71,7 @@ class TestCanteen:
 
 
 class TestGcalCustodyPattern:
-    """Non-régression 2026-09-07 : la garde alternée calculée depuis une date de
-    référence figée a répondu « enfants absents » pour une semaine où ils étaient
-    là. Le pattern 'gcal' lit une semaine synchronisée, et REFUSE de répondre
-    quand elle ne l'est pas."""
+    """Non-régression 2026-09-07 — voir ADR 0004."""
 
     MONDAY = date(2026, 9, 7)
     GCAL_HOUSEHOLD = HouseholdConfig(
@@ -94,8 +91,7 @@ class TestGcalCustodyPattern:
         ]
 
     def test_unsynced_week_refuses_rather_than_guesses(self):
-        """LE cas de l'incident : une semaine inconnue ne doit JAMAIS se lire
-        comme « enfants absents »."""
+        """LE cas de l'incident : semaine inconnue != enfants absents."""
         with pytest.raises(ChildWeekUnknown):
             attendees(self.MONDAY, "dinner", Referential(), self.GCAL_HOUSEHOLD)
 

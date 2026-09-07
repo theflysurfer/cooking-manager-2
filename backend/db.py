@@ -246,6 +246,38 @@ CREATE TABLE IF NOT EXISTS custody_schedule (
     UNIQUE (person_id)
 );
 
+-- recipe_feedback : appréciation d'UNE personne sur UN plat servi. Les valeurs
+-- viennent de cooking-vocabulary (facettes appreciations / replay_verdicts /
+-- issue_kinds), pas d'un enum écrit ici — voir ADR 0005.
+CREATE TABLE IF NOT EXISTS recipe_feedback (
+    id             SERIAL PRIMARY KEY,
+    recipe_id      INTEGER REFERENCES recipe(id) ON DELETE CASCADE,
+    menu_meal_id   INTEGER REFERENCES menu_meal(id) ON DELETE SET NULL,
+    person_id      INTEGER NOT NULL REFERENCES person(id) ON DELETE CASCADE,
+    served_on      DATE NOT NULL,
+    appreciation   TEXT NOT NULL,
+    verbatim       TEXT,
+    source         TEXT NOT NULL DEFAULT 'review',
+    created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (person_id, served_on, recipe_id)
+);
+CREATE INDEX IF NOT EXISTS idx_recipe_feedback_recipe ON recipe_feedback(recipe_id);
+CREATE INDEX IF NOT EXISTS idx_recipe_feedback_person ON recipe_feedback(person_id);
+
+-- recipe_verdict : que fait-on du PLAT ensuite — une ligne par plat servi, pas
+-- par convive. Un plat adoré peut sortir de la rotation (trop long) : ce verdict
+-- ne se déduit pas des appréciations.
+CREATE TABLE IF NOT EXISTS recipe_verdict (
+    id           SERIAL PRIMARY KEY,
+    recipe_id    INTEGER NOT NULL REFERENCES recipe(id) ON DELETE CASCADE,
+    served_on    DATE NOT NULL,
+    verdict      TEXT NOT NULL,
+    issue_kinds  TEXT[] NOT NULL DEFAULT '{}',
+    verbatim     TEXT,
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (recipe_id, served_on)
+);
+
 -- child_week_presence : cache par semaine de l'event gcal, voir ADR 0004.
 CREATE TABLE IF NOT EXISTS child_week_presence (
     week_monday DATE PRIMARY KEY,

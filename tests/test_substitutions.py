@@ -1,5 +1,7 @@
 """Le contexte de la recette, pas le seul nom de la protéine, choisit le substitut."""
 
+import pytest
+
 from cooking_manager.convives import Conflict
 from cooking_manager.substitutions import (
     COOKING_METHOD_DOMINATIONS,
@@ -193,7 +195,30 @@ def test_toute_cle_citee_est_detectable():
 
 
 def test_le_vocabulaire_est_epingle():
-    assert VOCABULARY_VERSION == "0.3.0"
+    assert VOCABULARY_VERSION == "0.4.0"
+
+
+FEEDBACK_FACETS = {
+    "appreciations": {"loved", "liked", "mixed", "disliked", "refused"},
+    "replay_verdicts": {"keep_as_is", "adjust", "retire"},
+    "issue_kinds": {"seasoning", "texture", "doneness", "portion", "effort"},
+}
+
+
+@pytest.mark.parametrize(("facet", "expected"), sorted(FEEDBACK_FACETS.items()))
+def test_les_facettes_de_retour_survivent_a_la_generation(facet, expected):
+    """Le jeu de facettes du générateur est FIXE — non propagée, une facette arrive vide."""
+    assert concept_keys(facet) == expected
+
+
+@pytest.mark.parametrize("facet", sorted(FEEDBACK_FACETS))
+def test_toute_valeur_de_retour_est_detectable_dans_du_texte_libre(facet):
+    """Une valeur sans synonyme ne peut jamais être reconnue dans du texte libre."""
+    for concept in load_vocabulary()[facet]:
+        assert concept["synonyms"], (
+            f"{facet}/{concept['key']} n'a aucun synonyme : "
+            "aucune formulation libre ne pourra jamais s'y rattacher."
+        )
 
 
 def test_une_domination_ne_cite_que_des_cuissons_connues():
