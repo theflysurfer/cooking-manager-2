@@ -3,7 +3,6 @@
 import json
 import logging
 import os
-import re
 from contextlib import asynccontextmanager
 import datetime
 from pathlib import Path
@@ -761,79 +760,64 @@ class PantryUpdate(BaseModel):
     qty_text: str | None = None       # requis pour `update`
 
 
+PANTRY_ACTION_STATUS = {"have": "ok", "missing": "out", "partial": "low", "update": "ok"}
+
+
 @app.patch("/api/pantry")
 async def update_pantry(body: PantryUpdate):
-    """Écrit un geste dans `Garde-manger.md`.
-
-    ⚠️ Écriture **ciblée ligne à ligne**, jamais de réécriture globale : le
-    fichier est aussi lu par le family-dashboard et éditable depuis Obsidian,
-    et une session parallèle peut le modifier entre-temps. Réécrire tout le
-    fichier écraserait son travail sans un mot.
-
-    ⚠️ L'app Dropbox desktop est désactivée : cette écriture ne remonte au cloud
-    qu'après un bisync (`julien-vault-bisync`). Le champ `needs_bisync` du
-    retour est là pour qu'on ne l'oublie pas.
-    """
-    actions = {"have", "missing", "partial", "update"}
-    if body.action not in actions:
-        raise HTTPException(400, f"action inconnue : {body.action} (attendu {actions})")
+    """Déclare l'état d'un article du garde-manger, désigné par son nom."""
+    if body.action not in PANTRY_ACTION_STATUS:
+        raise HTTPException(
+            400, f"action inconnue : {body.action} (attendu {sorted(PANTRY_ACTION_STATUS)})")
     if body.action == "update" and not body.qty_text:
         raise HTTPException(400, "`qty_text` est requis pour l'action `update`")
 
-    path = Path(VAULT_ROOT) / "Garde-manger.md"
-    if not path.exists():
-        raise HTTPException(404, f"Garde-manger introuvable : {path}")
+    from cooking_manager.ingredients import normalize_name
 
-    text = path.read_text(encoding="utf-8")
-    lines = text.splitlines(keepends=True)
+    wanted = body.item_name.strip()
+    pool = await get_pool(DATABASE_DSN)
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """SELECT id, name, qty_text, status, section, entered_at
+                 FROM pantry_item
+                WHERE lower(name) = lower($1) OR name_normalized = $2
+                ORDER BY id""",
+            wanted, normalize_name(wanted))
+        if not rows:
+            raise HTTPException(404, f"Article introuvable au garde-manger : {wanted}")
 
-    target, needle = None, body.item_name.strip().lower()
-    for idx, line in enumerate(lines):
-        if not line.lstrip().startswith("- "):
-            continue
-        head = re.split(r"\s+[—–]\s+", line.lstrip()[2:], maxsplit=1)[0]
-        if re.sub(r"\*\*", "", head).strip().lower() == needle:
-            target = idx
-            break
-    if target is None:
-        raise HTTPException(404, f"Ligne introuvable dans le garde-manger : {body.item_name}")
+        exact = [r for r in rows if r["name"].strip().lower() == wanted.lower()]
+        candidates = exact or list(rows)
+        if len(candidates) > 1:
+            raise HTTPException(409, {
+                "error": f"{len(candidates)} articles portent ce nom — préciser lequel",
+                "hint": "Reprendre le `name` exact d'un candidat, ou passer par "
+                        "PUT /api/pantry/items/{id}",
+                "candidates": [
+                    {"id": r["id"], "name": r["name"], "qty_text": r["qty_text"],
+                     "section": r["section"], "status": r["status"]}
+                    for r in candidates],
+            })
 
-    original = lines[target]
-    today = datetime.date.today().isoformat()
+        before = candidates[0]
+        after = await conn.fetchrow(
+            """UPDATE pantry_item
+                  SET status = $2,
+                      qty_text = COALESCE($3, qty_text),
+                      updated_at = NOW()
+                WHERE id = $1
+            RETURNING id, name, qty_text, status""",
+            before["id"], PANTRY_ACTION_STATUS[body.action], body.qty_text)
 
-    if body.action == "have":
-        # Rien à changer : l'utilisateur confirme simplement le stock.
-        return {"changed": False, "line": original.strip(), "needs_bisync": False}
-
-    new_status = {"missing": "out", "partial": "low", "update": "ok"}[body.action]
-    updated = re.sub(r"#\s*status\s*=\s*[\w\-àéèêëîïôöûü]+",
-                     f"# status={new_status}", original)
-    if "status=" not in updated:
-        updated = updated.rstrip("\n") + f" # status={new_status}\n"
-
-    if body.action == "update" and body.qty_text:
-        # Remplacer la quantité, en préservant le nom et les annotations.
-        parts = re.split(r"(\s+[—–]\s+)", updated.rstrip("\n"), maxsplit=1)
-        if len(parts) == 3:
-            tail = re.search(r"(\(entré[^)]*\))", parts[2])
-            suffix = f" {tail.group(1)}" if tail else ""
-            status = re.search(r"(#\s*status=[^\s]+.*)$", parts[2])
-            updated = (f"{parts[0]}{parts[1]}{body.qty_text}{suffix} "
-                       f"{status.group(1) if status else ''}".rstrip() + "\n")
-
-    updated = re.sub(r"\(constaté [^)]*\)", "", updated).rstrip("\n")
-    updated = f"{updated} (constaté {today})\n"
-
-    lines[target] = updated
-    path.write_text("".join(lines), encoding="utf-8")
+    if after is None:
+        raise HTTPException(500, f"Écriture perdue sur l'article {before['id']}")
 
     return {
-        "changed": True,
-        "before": original.strip(),
-        "after": updated.strip(),
-        "needs_bisync": True,
-        "hint": "Lancer la skill julien-vault-bisync pour propager au cloud "
-                "(l'app Dropbox desktop est désactivée).",
+        "changed": before["status"] != after["status"] or bool(body.qty_text),
+        "id": after["id"],
+        "name": after["name"],
+        "before": {"status": before["status"], "qty_text": before["qty_text"]},
+        "after": {"status": after["status"], "qty_text": after["qty_text"]},
     }
 
 

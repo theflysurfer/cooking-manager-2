@@ -1,0 +1,375 @@
+<title>Courses par recette</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+:root {
+  --ground: #F6F4F2;
+  --surface: #FFFFFF;
+  --sunken: #EFEBE9;
+  --ink: #23181F;
+  --muted: #6E6069;
+  --hairline: #DFD8DB;
+  --accent: #5C3A52;
+  --accent-soft: #EDE3EA;
+  --ok: #3F7A55;
+  --ok-soft: #E4EFE7;
+  --buy: #B5541F;
+  --buy-soft: #F7E7DC;
+  --partial: #97701A;
+  --partial-soft: #F5EDD9;
+  --unknown: #6E6069;
+  --unknown-soft: #E9E5E7;
+  --shadow: 0 1px 2px rgba(35,24,31,.06);
+}
+:root:not([data-theme="light"]) { }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ground: #161215;
+    --surface: #1E1920;
+    --sunken: #191419;
+    --ink: #F0EAEE;
+    --muted: #A2939C;
+    --hairline: #332B32;
+    --accent: #D8A9C8;
+    --accent-soft: #33222E;
+    --ok: #7FBF95;
+    --ok-soft: #1E2C22;
+    --buy: #E89B67;
+    --buy-soft: #33231A;
+    --partial: #D6B65E;
+    --partial-soft: #2E2718;
+    --unknown: #9C8F97;
+    --unknown-soft: #262027;
+    --shadow: 0 1px 2px rgba(0,0,0,.4);
+  }
+}
+:root[data-theme="dark"] {
+  --ground: #161215;
+  --surface: #1E1920;
+  --sunken: #191419;
+  --ink: #F0EAEE;
+  --muted: #A2939C;
+  --hairline: #332B32;
+  --accent: #D8A9C8;
+  --accent-soft: #33222E;
+  --ok: #7FBF95;
+  --ok-soft: #1E2C22;
+  --buy: #E89B67;
+  --buy-soft: #33231A;
+  --partial: #D6B65E;
+  --partial-soft: #2E2718;
+  --unknown: #9C8F97;
+  --unknown-soft: #262027;
+  --shadow: 0 1px 2px rgba(0,0,0,.4);
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--ground);
+  color: var(--ink);
+  font-family: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: 15px;
+  line-height: 1.55;
+  margin: 0;
+  padding: 0 20px 72px;
+}
+.wrap { max-width: 940px; margin: 0 auto; }
+
+header { padding: 40px 0 22px; }
+.eyebrow {
+  font-size: 11px; letter-spacing: .13em; text-transform: uppercase;
+  color: var(--accent); font-weight: 600; margin: 0 0 10px;
+}
+h1 {
+  font-family: Fraunces, Georgia, serif;
+  font-weight: 600; font-size: clamp(27px, 4.4vw, 40px);
+  line-height: 1.12; margin: 0 0 6px; text-wrap: balance;
+  letter-spacing: -.012em;
+}
+.sub { color: var(--muted); margin: 0; font-size: 14.5px; }
+
+.figures {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(148px, 1fr));
+  gap: 10px; margin: 24px 0 8px;
+}
+.fig {
+  background: var(--surface); border: 1px solid var(--hairline);
+  border-radius: 10px; padding: 13px 15px; box-shadow: var(--shadow);
+}
+.fig b {
+  display: block; font-family: "IBM Plex Mono", monospace;
+  font-size: 25px; font-weight: 500; line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+.fig span { font-size: 12.5px; color: var(--muted); }
+.fig.buy b { color: var(--buy); }
+.fig.ok b { color: var(--ok); }
+
+.notice {
+  display: flex; gap: 11px; align-items: flex-start;
+  background: var(--partial-soft); border-left: 3px solid var(--partial);
+  border-radius: 0 8px 8px 0; padding: 12px 15px; margin: 18px 0 0;
+  font-size: 13.5px;
+}
+.notice strong { color: var(--partial); }
+
+h2 {
+  font-family: Fraunces, Georgia, serif; font-weight: 600;
+  font-size: 21px; margin: 44px 0 4px; letter-spacing: -.008em;
+}
+.section-note { color: var(--muted); font-size: 13.5px; margin: 0 0 18px; }
+
+.recipe {
+  background: var(--surface); border: 1px solid var(--hairline);
+  border-radius: 11px; margin-bottom: 12px; overflow: hidden;
+  box-shadow: var(--shadow);
+}
+.recipe > summary {
+  cursor: pointer; list-style: none; padding: 14px 17px;
+  display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap;
+}
+.recipe > summary::-webkit-details-marker { display: none; }
+.recipe > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.rname { font-weight: 600; font-size: 15.5px; flex: 1 1 260px; }
+.rmeta {
+  font-family: "IBM Plex Mono", monospace; font-size: 12px;
+  color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.rmeta .n-buy { color: var(--buy); font-weight: 500; }
+
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.tscroll { overflow-x: auto; border-top: 1px solid var(--hairline); }
+td { padding: 9px 17px; border-bottom: 1px solid var(--hairline); vertical-align: baseline; }
+tr:last-child td { border-bottom: none; }
+.c-name { width: 52%; }
+.c-qty {
+  font-family: "IBM Plex Mono", monospace; font-variant-numeric: tabular-nums;
+  white-space: nowrap; color: var(--muted); font-size: 13px;
+}
+.c-state { text-align: right; white-space: nowrap; }
+
+.pill {
+  display: inline-block; font-size: 11.5px; font-weight: 500;
+  padding: 2px 9px; border-radius: 999px; letter-spacing: .01em;
+}
+.pill.ok { background: var(--ok-soft); color: var(--ok); }
+.pill.buy { background: var(--buy-soft); color: var(--buy); }
+.pill.partial { background: var(--partial-soft); color: var(--partial); }
+.pill.unknown { background: var(--unknown-soft); color: var(--unknown); }
+
+.shared {
+  display: inline-block; margin-left: 8px; font-size: 11.5px;
+  color: var(--accent); background: var(--accent-soft);
+  padding: 1px 8px; border-radius: 999px; white-space: nowrap;
+}
+.merged { display: block; font-size: 12px; color: var(--muted); font-style: italic; }
+
+.basket { background: var(--surface); border: 1px solid var(--hairline); border-radius: 11px; box-shadow: var(--shadow); }
+.basket td:first-child { width: 46%; }
+.kind {
+  font-family: "IBM Plex Mono", monospace; font-size: 11.5px;
+  color: var(--muted); text-transform: uppercase; letter-spacing: .05em;
+}
+.why { display: block; font-size: 12.5px; color: var(--muted); }
+
+.leftovers { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+.left-chip {
+  background: var(--sunken); border: 1px solid var(--hairline);
+  border-radius: 8px; padding: 7px 11px; font-size: 13px;
+}
+.left-chip b { font-weight: 600; }
+.left-chip span { color: var(--muted); }
+
+footer {
+  margin-top: 48px; padding-top: 18px; border-top: 1px solid var(--hairline);
+  color: var(--muted); font-size: 12.5px;
+}
+footer code { font-family: "IBM Plex Mono", monospace; font-size: 12px; }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <p class="eyebrow" id="eyebrow">Courses de la semaine</p>
+    <h1 id="title">Courses par recette</h1>
+    <p class="sub" id="sub"></p>
+    <div class="figures" id="figures"></div>
+    <div class="notice" id="notice" hidden></div>
+  </header>
+
+  <section>
+    <h2>Ce que chaque plat demande</h2>
+    <p class="section-note">Chaque bloc est un plat du menu, avec ses ingrédients et leur état en stock. Un ingrédient qui sert à plusieurs plats le dit — on ne l'achète qu'une fois.</p>
+    <div id="recipes"></div>
+  </section>
+
+  <section>
+    <h2>À emporter au drive</h2>
+    <p class="section-note" id="basket-note"></p>
+    <div class="basket tscroll"><table id="basket"></table></div>
+  </section>
+
+  <section id="leftovers-section" hidden>
+    <h2>Repas de restes</h2>
+    <p class="section-note">Sans fiche par conception : ils ne demandent aucun achat, et aucun contrôle de compatibilité ne les voit.</p>
+    <div class="leftovers" id="leftovers"></div>
+  </section>
+
+  <footer id="footer"></footer>
+</div>
+
+<script type="application/json" id="data">{"slug": "2026-09-07_semaine-aubagne-enfants", "title": "Semaine du 7 au 14 septembre — Aubagne, avec les enfants", "covers": 4, "recipes_matched": 11, "meals_total": 15, "meals_leftovers": [{"day": "mardi", "slot": "lunch", "dish": "Restes du bar de la veille"}, {"day": "jeudi", "slot": "lunch", "dish": "Restes du gratin de polenta"}, {"day": "dimanche", "slot": "lunch", "dish": "Restes du chili + salade batavia (déjeuner tardif, retour du refuge à 12h45)"}, {"day": "lundi", "slot": "lunch", "dish": "Restes du dahl"}], "counts": {"inconnu": 25, "absent": 7, "suffisant": 14, "insuffisant": 4}, "purchase_counts": {"dose": 12, "comptable": 15, "mesure": 22, "non_resolu": 1}, "pantry": {"age_days": 0}, "generated_at": "08/09/2026 à 00h33", "lines": [{"name": "ail", "qty": 21.0, "unit": "gousse", "recipes": ["Bar au four citron-persil, pommes de terre grenaille", "Risotto aux champignons et poivrons", "Gratin de polenta aux légumes du soleil et scamorza", "Pilons de poulet paprika-citron, patates douces (+ pois chiches rôtis pour Clémence)", "Saumon au four, écrasé de patate douce, légumes verts", "Chili sin carne, riz basmati complet", "Dahl de lentilles corail, riz basmati complet", "Poêlée de légumes verts, pois chiches rôtis et comté"], "merged_from": [], "outcome": "inconnu", "purchase": {"kind": "dose", "qty": 1.0, "unit": "conditionnement", "reason": "besoin de 21.0 gousse — une dose, pas une quantité d'achat"}, "to_buy": null}, {"name": "bar entier de 1,2 kg, vidé et écaillé", "qty": 1.0, "unit": "pièce", "recipes": ["Bar au four citron-persil, pommes de terre grenaille"], "merged_from": [], "outcome": "inconnu", "purchase": {"kind": "comptable", "qty": 1.0, "unit": "pièce", "reason": "unité déjà commandable"}, "to_buy": null}, {"name": "beurre", "qty": 20.0, "unit": "g", "recipes": ["Risotto aux champignons et poivrons"], "merged_from": [], "outcome": "inconnu", "purchase": {"kind": "mesure", "qty": 20.0, "unit": "g", "reason": "quantité directement commandable"}, "to_buy": null}, {"name": "bouillon de légumes", "qty": 2600.0, "unit": "ml", "recipes": ["Gratin de polenta aux légumes du soleil et scamorza", "Risotto aux champignons et poivrons", "Dahl de lentilles corail, riz basmati complet"], "merged_from": ["bouillon de légumes chaud", "eau ou bouillon de légumes"], "outcome": "inconnu", "purchase": {"kind": "mesure", "qty": 2600.0, "unit": "ml", "reason": "quantité directement commandable"}, "to_buy": null}, {"name": "boule de mozzarella di bufala (125 g)", "qty": 1.0, "unit": "pièce", "recipes": ["Taboulé de quinoa aux légumes grillés et mozzarella"], "merged_from": [], "outcome": "inconnu", "purchase": {"kind": "comptable", "qty": 1.0, "unit": "pièce", "reason": "unité déjà commandable"}, "to_buy": null}, {"name": "bouquet de persil plat", "qty": 2.0, "unit": "pièce", "recipes": ["Bar au four citron-persil, pommes de terre grenaille", "Taboulé de quinoa aux légumes grillés et mozzarella"], "merged_from": [], "outcome": "inconnu", "purchase": {"kind": "comptable", "qty": 2.0, "unit": "pièce", "reason": "unité déjà commandable"}, "to_buy": null}, {"name": "carré de chocolat noir", "qty": 1.0, "unit": "pièce", "recipes": ["Chili sin carne, riz basmati complet"], "merged_from": [], "outcome": "absent", "purchase": {"kind": "comptable", "qty": 1.0, "unit": "pièce", "reason": "unité déjà commandable"}, "to_buy": 1.0}, {"name": "champignons de Paris, émincés", "qty": 250.0, "unit": "g", "recipes": ["Risotto aux champignons et poivrons"], "merged_from": [], "outcome": "absent", "purchase": {"kind": "mesure", "qty": 250.0, "unit": "g", "reason": "quantité directement commandable"}, "to_buy": 250.0}, {"name": "citron jaune, en rondelles", "qty": 8.0, "unit": "pièce", "recipes": ["Bar au four citron-persil, pommes de terre grenaille", "Salade thon, lentilles vertes, poivrons & mâche-roquette", "Pilons de poulet paprika-citron, patates douces (+ pois chiches rôtis pour Clémence)", "Saumon au four, écrasé de patate douce, légumes verts", "Taboulé de quinoa aux légumes grillés et mozzarella", "Dahl de lentilles corail, riz basmati complet", "Poêlée de légumes verts, pois chiches rôtis et comté"], "merged_from": [], "outcome": "inconnu", "purchase": {"kind": "comptable", "qty": 8.0, "unit": "pièce", "reason": "unité déjà commandable"}, "to_buy": null}, {"name": "comté, en dés", "qty": 280.0, "unit": "g", "recipes": ["Salade de lentilles vertes, tomates cerises et comté", "Poêlée de légumes verts, pois chiches rôtis et comté"], "merged_from": [], "outcome": "inconnu", "purchase": {"kind": "mesure", "qty": 280.0, "unit": "g", "reason": "quantité directement commandable"}, "to_buy": null}, {"name": "concentré de tomate", "qty": 2.0, "unit": "c.s.", "recipes": ["Chili sin carne, riz basmati complet"], "merged_from": [], "outcome": "suffisant", "purchase": {"kind": "dose", "qty": 1.0, "unit": "conditionnement", "reason": "besoin de 2.0 c.s. — une dose, pas une quantité d'achat"}, "to_buy": null}, {"name": "coriandre", "qty": 1.0, "unit": "botte", "recipes": ["Dahl de lentilles corail, riz basmati complet"], "merged_from": [], "outcome": "inconnu", "purchase": {"kind": "comptable", "qty": 1.0, "unit": "botte", "reason": "unité déjà commandable"}, "to_buy": null}, {"name": "courgettes, en demi-rondelles", "qty": 2.0, "unit": "pièce", "recipes": ["Taboulé de quinoa aux légumes grillés et mozzarella"], "merged_from": [], "outcome": "suffisant", "purchase": {"kind": "comptable", "qty": 2.0, "unit": "pièce", "reason": "unité déjà commandable"}, "to_buy": null}, {"name": "cumin moulu", "qty": 6.0, "unit": "c.c.", "recipes": ["Pilons de poulet paprika-citron, patates douces (+ pois chiches rôtis pour Clémence)", "Chili sin carne, riz basmati complet", "Dahl de lentilles corail, riz basmati complet", "Poêlée de légumes verts, pois chiches rôtis et comté"], "merged_from": [], "outcome": "suffisant", "purchase": {"kind": "dose", "qty": 1.0, "unit": "conditionnement", "reason": "besoin de 6.0 c.c. — une dose, pas une quantité d'achat"}, "to_buy": null}, {"name": "curcuma", "qty": 1.0, "unit": "c.c.", "recipes": ["Dahl de lentilles corail, riz basmati complet"], "merged_from": [], "outcome": "absent", "purchase": {"kind": "dose", "qty": 1.0, "unit": "conditionnement", "reason": "besoin de 1.0 c.c. — une dose, pas une quantité d'achat"}, "to_buy": 1.0}, {"name": "graines de courge", "qty": 1.0, "unit": "c.s.", "recipes": ["Saumon au four, écrasé de patate douce, légumes verts"], "merged_from": [], "outcome": "suffisant", "purchase": {"kind": "dose", "qty": 1.0, "unit": "conditionnement", "reason": "besoin de 1.0 c.s. — une dose, pas une quantité d'achat"}, "to_buy": null}, {"name": "haricots rouges secs (trempés une nuit) ou 800 g cuits", "qty": 400.0, "unit": "g", "recipes": ["Chili sin carne, riz basmati complet"], "merged_from": [], "outcome": "insuffisant", "purchase": {"kind": "mesure", "qty": 400.0, "unit": "g", "reason": "quantité directement commandable"}, "to_buy": 400.0}, {"name": "huile d'olive", "qty": 30.0, "unit": "c.s.", "recipes": ["Bar au four citron-persil, pommes de terre grenaille", "Risotto aux champignons et poivrons", "Gratin de polenta aux légumes du soleil et scamorza", "Salade thon, lentilles vertes, poivrons & mâche-roquette", "Pilons de poulet paprika-citron, patates douces (+ pois chiches rôtis pour Clémence)", "Saumon au four, écrasé de patate douce, légumes verts", "Salade de lentilles vertes, tomates cerises et comté", "Chili sin carne, riz basmati complet", "Taboulé de quinoa aux légumes grillés et mozzarella", "Poêlée de légumes verts, pois chiches rôtis et comté"], "merged_from": [], "outcome": "suffisant", "purchase": {"kind": "dose", "qty": 1.0, "unit": "conditionnement", "reason": "besoin de 30.0 c.s. — une dose, pas une quantité d'achat"}, "to_buy": null}, {"name": "huile de coco", "qty": 2.0, "unit": "c.s.", "recipes": ["Dahl de lentilles corail, riz basmati complet"], "merged_from": [], "outcome": "suffisant", "purchase": {"kind": "dose", "qty": 1.0, "unit": "conditionnement", "reason": "besoin de 2.0 c.s. — une dose, pas une quantité d'achat"}, "to_buy": null}, {"name": "lait de coco", "qty": 400.0, "unit": "ml", "recipes": ["Dahl de lentilles corail, riz basmati complet"], "merged_from": [], "outcome": "inconnu", "purchase": {"kind": "mesure", "qty": 400.0, "unit": "ml", "reason": "quantité directement commandable"}, "to_buy": null}, {"name": "lentilles corail", "qty": 300.0, "unit": "g", "recipes": ["Dahl de lentilles corail, riz basmati complet"], "merged_from": [], "outcome": "suffisant", "purchase": {"kind": "mesure", "qty": 300.0, "unit": "g", "reason": "quantité directement commandable"}, "to_buy": null}, {"name": "lentilles vertes", "qty": 600.0, "unit": "g", "recipes": ["Salade de lentilles vertes, tomates cerises et comté", "Salade thon, lentilles vertes, poivrons & mâche-roquette"], "merged_from": ["lentilles vertes sèches (poids cuit ~300 g)"], "outcome": "inconnu", "purchase": {"kind": "mesure", "qty": 600.0, "unit": "g", "reason": "quantité directement commandable"}, "to_buy": null}, {"name": "moutarde", "qty": 2.0, "unit": "c.s.", "recipes": ["Salade de lentilles vertes, tomates cerises et comté"], "merged_from": [], "outcome": "absent", "purchase": {"kind": "dose", "qty": 1.0, "unit": "conditionnement", "reason": "besoin de 2.0 c.s. — une dose, pas une quantité d'achat"}, "to_buy": 2.0}, {"name": "mélange de légumes verts surgelés", "qty": 1300.0, "unit": "g", "recipes": ["Saumon au four, écrasé de patate douce, légumes verts", "Poêlée de légumes verts, pois chiches rôtis et comté"], "merged_from": [], "outcome": "inconnu", "purchase": {"kind": "mesure", "qty": 1300.0, "unit": "g", "reason": "quantité directement commandable"}, "to_buy": null}, {"name": "mélange mâche et roquette (175 g)", "qty": 2.0, "unit": "sachet", "recipes": ["Salade thon, lentilles vertes, poivrons & mâche-roquette"], "merged_from": [], "outcome": "inconnu", "purchase": {"kind": "comptable", "qty": 2.0, "unit": "sachet", "reason": "unité déjà commandable"}, "to_buy": null}, {"name": "oignon jaune, ciselé", "qty": 4.0, "unit": "pièce", "recipes": ["Risotto aux champignons et poivrons", "Chili sin carne, riz basmati complet", "Dahl de lentilles corail, riz basmati complet"], "merged_from": [], "outcome": "inconnu", "purchase": {"kind": "comptable", "qty": 4.0, "unit": "pièce", "reason": "unité déjà commandable"}, "to_buy": null}, {"name": "origan séché", "qty": 1.0, "unit": "c.c.", "recipes": ["Chili sin carne, riz basmati complet"], "merged_from": [], "outcome": "suffisant", "purchase": {"kind": "dose", "qty": 1.0, "unit": "conditionnement", "reason": "besoin de 1.0 c.c. — une dose, pas une quantité d'achat"}, "to_buy": null}, {"name": "paprika doux", "qty": 6.0, "unit": "c.c.", "recipes": ["Pilons de poulet paprika-citron, patates douces (+ pois chiches rôtis pour Clémence)", "Chili sin carne, riz basmati complet", "Poêlée de légumes verts, pois chiches rôtis et comté"], "merged_from": [], "outcome": "suffisant", "purchase": {"kind": "dose", "qty": 1.0, "unit": "conditionnement", "reason": "besoin de 6.0 c.c. — une dose, pas une quantité d'achat"}, "to_buy": null}, {"name": "parmesan râpé", "qty": 140.0, "unit": "g", "recipes": ["Risotto aux champignons et poivrons", "Gratin de polenta aux légumes du soleil et scamorza"], "merged_from": [], "outcome": "inconnu", "purchase": {"kind": "mesure", "qty": 140.0, "unit": "g", "reason": "quantité directement commandable"}, "to_buy": null}, {"name": "patates douces, en gros cubes", "qty": 1800.0, "unit": "g", "recipes": ["Pilons de poulet paprika-citron, patates douces (+ pois chiches rôtis pour Clémence)", "Saumon au four, écrasé de patate douce, légumes verts"], "merged_from": [], "outcome": "insuffisant", "purchase": {"kind": "mesure", "qty": 1800.0, "unit": "g", "reason": "quantité directement commandable"}, "to_buy": 1800.0}, {"name": "pavés de saumon (environ 130 g pièce)", "qty": 4.0, "unit": "pièce", "recipes": ["Saumon au four, écrasé de patate douce, légumes verts"], "merged_from": [], "outcome": "insuffisant", "purchase": {"kind": "comptable", "qty": 2.0, "unit": "pièce", "reason": "unité déjà commandable"}, "to_buy": 2.0}, {"name": "pilons de poulet", "qty": 8.0, "unit": "pièce", "recipes": ["Pilons de poulet paprika-citron, patates douces (+ pois chiches rôtis pour Clémence)"], "merged_from": [], "outcome": "inconnu", "purchase": {"kind": "comptable", "qty": 8.0, "unit": "pièce", "reason": "unité déjà commandable"}, "to_buy": null}, {"name": "poignée de mâche et roquette", "qty": 2.0, "unit": "pièce", "recipes": ["Salade de lentilles vertes, tomates cerises et comté"], "merged_from": [], "outcome": "inconnu", "purchase": {"kind": "comptable", "qty": 2.0, "unit": "pièce", "reason": "unité déjà commandable"}, "to_buy": null}, {"name": "pois chiches cuits, égouttés (part de Clémence)", "qty": 720.0, "unit": "g", "recipes": ["Pilons de poulet paprika-citron, patates douces (+ pois chiches rôtis pour Clémence)", "Poêlée de légumes verts, pois chiches rôtis et comté"], "merged_from": [], "outcome": "inconnu", "purchase": {"kind": "mesure", "qty": 720.0, "unit": "g", "reason": "quantité directement commandable"}, "to_buy": null}, {"name": "poivrons en lanières (rouge et jaune)", "qty": 1200.0, "unit": "g", "recipes": ["Risotto aux champignons et poivrons", "Taboulé de quinoa aux légumes grillés et mozzarella", "Salade thon, lentilles vertes, poivrons & mâche-roquette"], "merged_from": ["trio de poivrons en lanières"], "outcome": "inconnu", "purchase": {"kind": "mesure", "qty": 1200.0, "unit": "g", "reason": "quantité directement commandable"}, "to_buy": null}, {"name": "poivrons rouges, en dés", "qty": 2.0, "unit": "pièce", "recipes": ["Chili sin carne, riz basmati complet"], "merged_from": [], "outcome": "suffisant", "purchase": {"kind": "comptable", "qty": 2.0, "unit": "pièce", "reason": "unité déjà commandable"}, "to_buy": null}, {"name": "polenta précuite", "qty": 250.0, "unit": "g", "recipes": ["Gratin de polenta aux légumes du soleil et scamorza"], "merged_from": [], "outcome": "insuffisant", "purchase": {"kind": "mesure", "qty": 150.0, "unit": "g", "reason": "quantité directement commandable"}, "to_buy": 150.0}, {"name": "pommes de terre grenaille", "qty": 800.0, "unit": "g", "recipes": ["Bar au four citron-persil, pommes de terre grenaille"], "merged_from": [], "outcome": "suffisant", "purchase": {"kind": "mesure", "qty": 800.0, "unit": "g", "reason": "quantité directement commandable"}, "to_buy": null}, {"name": "poêlée méditerranéenne surgelée", "qty": 750.0, "unit": "g", "recipes": ["Gratin de polenta aux légumes du soleil et scamorza"], "merged_from": [], "outcome": "inconnu", "purchase": {"kind": "mesure", "qty": 750.0, "unit": "g", "reason": "quantité directement commandable"}, "to_buy": null}, {"name": "pâte de curry doux", "qty": 2.0, "unit": "c.c.", "recipes": ["Dahl de lentilles corail, riz basmati complet"], "merged_from": [], "outcome": "suffisant", "purchase": {"kind": "dose", "qty": 1.0, "unit": "conditionnement", "reason": "besoin de 2.0 c.c. — une dose, pas une quantité d'achat"}, "to_buy": null}, {"name": "quinoa", "qty": 250.0, "unit": "g", "recipes": ["Taboulé de quinoa aux légumes grillés et mozzarella"], "merged_from": [], "outcome": "inconnu", "purchase": {"kind": "mesure", "qty": 250.0, "unit": "g", "reason": "quantité directement commandable"}, "to_buy": null}, {"name": "riz basmati complet", "qty": 600.0, "unit": "g", "recipes": ["Chili sin carne, riz basmati complet", "Dahl de lentilles corail, riz basmati complet"], "merged_from": [], "outcome": "inconnu", "purchase": {"kind": "mesure", "qty": 600.0, "unit": "g", "reason": "quantité directement commandable"}, "to_buy": null}, {"name": "riz à risotto", "qty": 300.0, "unit": "g", "recipes": ["Risotto aux champignons et poivrons"], "merged_from": [], "outcome": "suffisant", "purchase": {"kind": "mesure", "qty": 300.0, "unit": "g", "reason": "quantité directement commandable"}, "to_buy": null}, {"name": "scamorza fumée, en tranches", "qty": 150.0, "unit": "g", "recipes": ["Gratin de polenta aux légumes du soleil et scamorza"], "merged_from": [], "outcome": "inconnu", "purchase": {"kind": "mesure", "qty": 150.0, "unit": "g", "reason": "quantité directement commandable"}, "to_buy": null}, {"name": "sel, poivre", "qty": null, "unit": null, "recipes": ["Bar au four citron-persil, pommes de terre grenaille", "Risotto aux champignons et poivrons", "Gratin de polenta aux légumes du soleil et scamorza", "Pilons de poulet paprika-citron, patates douces (+ pois chiches rôtis pour Clémence)", "Saumon au four, écrasé de patate douce, légumes verts", "Salade de lentilles vertes, tomates cerises et comté", "Chili sin carne, riz basmati complet", "Taboulé de quinoa aux légumes grillés et mozzarella", "Dahl de lentilles corail, riz basmati complet", "Poêlée de légumes verts, pois chiches rôtis et comté"], "merged_from": [], "outcome": "suffisant", "purchase": {"kind": "non_resolu", "qty": null, "unit": null, "reason": "aucune quantité dans la fiche — à décider à la main"}, "to_buy": null}, {"name": "thon listao au naturel (140 g)", "qty": 2.0, "unit": "boîte", "recipes": ["Salade thon, lentilles vertes, poivrons & mâche-roquette"], "merged_from": [], "outcome": "absent", "purchase": {"kind": "comptable", "qty": 2.0, "unit": "boîte", "reason": "unité déjà commandable"}, "to_buy": 2.0}, {"name": "tomates cerises, coupées en deux", "qty": 600.0, "unit": "g", "recipes": ["Salade de lentilles vertes, tomates cerises et comté", "Taboulé de quinoa aux légumes grillés et mozzarella"], "merged_from": [], "outcome": "inconnu", "purchase": {"kind": "mesure", "qty": 600.0, "unit": "g", "reason": "quantité directement commandable"}, "to_buy": null}, {"name": "tomates concassées", "qty": 800.0, "unit": "g", "recipes": ["Chili sin carne, riz basmati complet", "Dahl de lentilles corail, riz basmati complet"], "merged_from": [], "outcome": "absent", "purchase": {"kind": "mesure", "qty": 800.0, "unit": "g", "reason": "quantité directement commandable"}, "to_buy": 800.0}, {"name": "vinaigre de vin", "qty": 2.0, "unit": "c.s.", "recipes": ["Salade de lentilles vertes, tomates cerises et comté"], "merged_from": [], "outcome": "absent", "purchase": {"kind": "dose", "qty": 1.0, "unit": "conditionnement", "reason": "besoin de 2.0 c.s. — une dose, pas une quantité d'achat"}, "to_buy": 2.0}, {"name": "échalote ou 1/2 oignon rouge, ciselé", "qty": 2.0, "unit": "pièce", "recipes": ["Salade de lentilles vertes, tomates cerises et comté"], "merged_from": [], "outcome": "inconnu", "purchase": {"kind": "comptable", "qty": 2.0, "unit": "pièce", "reason": "unité déjà commandable"}, "to_buy": null}]}</script>
+<script>
+(function () {
+  var d = JSON.parse(document.getElementById('data').textContent);
+
+  var STATE = {
+    suffisant:   { cls: 'ok',      label: 'en stock' },
+    insuffisant: { cls: 'partial', label: 'à compléter' },
+    absent:      { cls: 'buy',     label: 'à acheter' },
+    inconnu:     { cls: 'unknown', label: 'stock inconnu' }
+  };
+
+  function el(tag, cls, txt) {
+    var n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (txt !== undefined && txt !== null) n.textContent = txt;
+    return n;
+  }
+
+  function qty(v, unit) {
+    if (v === null || v === undefined) return '';
+    var s = (Math.round(v * 100) / 100).toString();
+    return unit ? s + ' ' + unit : s;
+  }
+
+  document.getElementById('title').textContent = d.title || 'Courses par recette';
+  document.getElementById('sub').textContent =
+    d.recipes_matched + ' plats · ' + d.meals_total + ' repas · ' + (d.covers || '?') + ' couverts';
+
+  var c = d.counts || {};
+  var toBuy = (c.absent || 0) + (c.insuffisant || 0);
+  var figs = [
+    { cls: 'buy', n: toBuy, label: 'lignes à acheter' },
+    { cls: 'ok', n: c.suffisant || 0, label: 'déjà en stock' },
+    { cls: '', n: c.inconnu || 0, label: 'stock inconnu' },
+    { cls: '', n: d.lines.length, label: 'ingrédients au total' }
+  ];
+  var fw = document.getElementById('figures');
+  figs.forEach(function (f) {
+    var box = el('div', 'fig ' + f.cls);
+    box.appendChild(el('b', null, f.n));
+    box.appendChild(el('span', null, f.label));
+    fw.appendChild(box);
+  });
+
+  if (d.pantry && d.pantry.age_days !== undefined) {
+    var nt = document.getElementById('notice');
+    nt.hidden = false;
+    var b = el('div');
+    b.appendChild(el('strong', null, 'L’âge du stock ne se lit pas ici. '));
+    b.appendChild(document.createTextNode(
+      'L’inventaire est daté par la dernière écriture, toutes lignes confondues : une seule mise à jour le rajeunit en entier. ' +
+      'Les ' + (c.inconnu || 0) + ' « stock inconnu » ci-dessous sont des ingrédients que le garde-manger ne mentionne pas — ' +
+      'à confirmer de visu, pas à racheter par défaut.'));
+    nt.appendChild(b);
+  }
+
+  var byRecipe = {};
+  var order = [];
+  d.lines.forEach(function (line) {
+    (line.recipes || []).forEach(function (r) {
+      if (!byRecipe[r]) { byRecipe[r] = []; order.push(r); }
+      byRecipe[r].push(line);
+    });
+  });
+
+  var host = document.getElementById('recipes');
+  order.forEach(function (name, i) {
+    var lines = byRecipe[name];
+    var nbuy = lines.filter(function (l) { return l.outcome === 'absent' || l.outcome === 'insuffisant'; }).length;
+
+    var det = el('details', 'recipe');
+    det.open = i < 3;
+    var sum = el('summary');
+    sum.appendChild(el('span', 'rname', name));
+    var meta = el('span', 'rmeta');
+    meta.appendChild(document.createTextNode(lines.length + ' ingrédients'));
+    if (nbuy) {
+      meta.appendChild(document.createTextNode(' · '));
+      meta.appendChild(el('span', 'n-buy', nbuy + ' à acheter'));
+    }
+    sum.appendChild(meta);
+    det.appendChild(sum);
+
+    var scroll = el('div', 'tscroll');
+    var tbl = el('table');
+    lines.forEach(function (l) {
+      var tr = el('tr');
+      var td1 = el('td', 'c-name');
+      td1.appendChild(document.createTextNode(l.name));
+      var others = (l.recipes || []).length - 1;
+      if (others > 0) {
+        td1.appendChild(el('span', 'shared', 'aussi dans ' + others + (others > 1 ? ' autres plats' : ' autre plat')));
+      }
+      if (l.merged_from && l.merged_from.length) {
+        td1.appendChild(el('span', 'merged', 'regroupe : ' + l.merged_from.join(' · ')));
+      }
+      tr.appendChild(td1);
+      tr.appendChild(el('td', 'c-qty', qty(l.qty, l.unit)));
+      var st = STATE[l.outcome] || STATE.inconnu;
+      var td3 = el('td', 'c-state');
+      td3.appendChild(el('span', 'pill ' + st.cls, st.label));
+      tr.appendChild(td3);
+      tbl.appendChild(tr);
+    });
+    scroll.appendChild(tbl);
+    det.appendChild(scroll);
+    host.appendChild(det);
+  });
+
+  var basket = d.lines.filter(function (l) {
+    return l.outcome === 'absent' || l.outcome === 'insuffisant';
+  });
+  document.getElementById('basket-note').textContent =
+    basket.length + ' lignes. La quantité d’achat n’est pas la quantité de la recette : une dose devient un conditionnement, un comptable s’arrondit vers le haut.';
+
+  var bt = document.getElementById('basket');
+  basket.forEach(function (l) {
+    var p = l.purchase || {};
+    var tr = el('tr');
+    var td1 = el('td');
+    td1.appendChild(document.createTextNode(l.name));
+    var n = (l.recipes || []).length;
+    if (n > 1) td1.appendChild(el('span', 'shared', n + ' plats'));
+    tr.appendChild(td1);
+    tr.appendChild(el('td', 'c-qty', qty(p.qty, p.unit)));
+    var td3 = el('td');
+    td3.appendChild(el('span', 'kind', p.kind || '—'));
+    if (p.reason) td3.appendChild(el('span', 'why', p.reason));
+    tr.appendChild(td3);
+    var td4 = el('td', 'c-state');
+    var st = STATE[l.outcome] || STATE.inconnu;
+    td4.appendChild(el('span', 'pill ' + st.cls, st.label));
+    tr.appendChild(td4);
+    bt.appendChild(tr);
+  });
+
+  var lo = d.meals_leftovers || [];
+  if (lo.length) {
+    document.getElementById('leftovers-section').hidden = false;
+    var lh = document.getElementById('leftovers');
+    lo.forEach(function (m) {
+      var chip = el('div', 'left-chip');
+      chip.appendChild(el('b', null, m.day + ' ' + (m.slot === 'lunch' ? 'midi' : 'soir')));
+      chip.appendChild(el('span', null, ' — ' + m.dish));
+      lh.appendChild(chip);
+    });
+  }
+
+  document.getElementById('footer').textContent =
+    'Calculé le ' + (d.generated_at || '') + ' — la liste n’est pas stockée, elle se recalcule à chaque appel de ' +
+    'GET /api/menus/' + d.slug + '/shopping-list (menu × tablée × stock).';
+})();
+</script>
