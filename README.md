@@ -101,7 +101,7 @@ The vault is mounted read-only on the VPS via rclone. Ingestion: `POST /api/inge
 | GET | `/api/menus/{slug}/meals` | Meals for a menu |
 | PATCH | `/api/menus/{slug}/meals/{id}` | Update a meal (recipe, covers) |
 | GET | `/api/menus/{slug}/compatibility` | Dietary compatibility check |
-| GET | `/api/menus/{slug}/shopping-list` | Generate shopping list (`?covers=N&from_date=YYYY-MM-DD`) |
+| GET | `/api/menus/{slug}/shopping-list` | Generate shopping list (`?covers=N&from_date=YYYY-MM-DD`) — each line carries `outcome`, `merged_from` and `purchase` (measured / countable / dose / unresolved) |
 
 ### Shopping
 | Method | Endpoint | Description |

@@ -9,3 +9,5 @@
 - `decisions/` — ADR : choix durables, jamais corrigés sur place (un renversement en écrit un nouveau)
 - `archive/` — Livrables ponctuels datés (artifacts de menu, exports) — figés, pas rouverts
 - `atlas-cooking-manager.html` — Artifact consolidé (cas d'usage, séquences inter-dépôts, contrats)
+- `revue-courses.html` — Artifact de contrôle humain : stock confronté au menu de la semaine
+  (fraîcheur réelle, appariements à risque, fusions, achats). Republié à chaque revue.

@@ -112,7 +112,12 @@ un compte rendu d'après coup, relié à aucun menu (#67, #68).
 | `normalize_name` a changé | `POST /api/pantry/renormalize?dry_run=true` puis sans — les clés stockées sont figées et désalignent le stock en silence |
 | `normalize_name` retire découpe et pluriel | **Jamais un état** : « sèches », « surgelés », « fraîche », « entier » changent l'identité |
 | Un appariement qu'aucune règle ne peut trancher | `POST /api/pantry/aliases` — l'alias vise un **nom** (`target_normalized`), jamais un id |
-| Auchan Drive | **Seule voie** : MCP VPS `mcp-vps-auchan` (3854). `backend/auchan*.py` est décommissionné, HydraSpecter n'est qu'un outil de diagnostic |
+| Deux fiches nomment le même aliment autrement | `build_needs` les fusionne à famille d'unité égale ; les libellés absorbés restent dans `merged_from` |
+| Une ligne de courses porte `purchase` | `mesure` · `comptable` (arrondi au-dessus) · `dose` (→ 1 conditionnement) · `non_resolu`. Le format vendu appartient au magasin (#82) |
+| Auchan Drive | **Seule voie** : MCP VPS `mcp-vps-auchan` (3854). `backend/auchan*.py` est décommissionné, HydraSpecter n'est qu'un outil de diagnostic. Un panier vide + `orders` vide = session **anonyme** : lire `grocery_session_status` |
+
+⛔ **`age_days` ne dit rien de l'âge des articles** : l'inventaire est daté par `MAX(updated_at)`,
+donc une seule écriture le rajeunit tout entier. Juger la fraîcheur sur `entered_at`, par article (#84).
 
 ⚠️ **`Garde-manger.md` est aussi lu et écrit par le Coach Nutrition de claude.ai**, qui n'appelle jamais l'app : les deux stocks divergent sans alerte. Croiser via `pantry_item` (DB).
 
@@ -135,10 +140,8 @@ Régénérer : `python -m ontology_manager.cli generate --ontology cooking-vocab
 recopier l'artefact.
 
 ⚠️ Le générateur a un **jeu de champs fixe** (dépôt ontology-manager) : un champ ajouté au
-YAML n'atteint pas l'artefact, et le consommateur lit une valeur vide sans erreur. Ajouter
-un champ = toucher les deux dépôts **plus un test** qui prouve qu'il survit à la génération.
-`dominates` : une cuisson préparatoire n'est pas celle du plat — n'y inscrire **que ce qui
-a été observé**.
+YAML n'atteint pas l'artefact, et le consommateur lit une valeur vide sans erreur. Ajouter un
+champ = toucher les deux dépôts **plus un test**. `dominates` : n'y inscrire que l'observé.
 
 ## Macros
 
@@ -147,18 +150,16 @@ il n'invente rien.
 
 1. **Pas d'hypothèse** — non résolu ⇒ `unresolved` avec son motif. Une base sans « pour 100 g » est ignorée ; une fiche « Crues »/« Cuites » sans forme nommée ne tranche pas.
 2. **Réconcilier** — `kcal = P×4 + G×4 + L×9` ; au-delà de 5 % d'écart, montrer les deux chiffres.
-3. **Trois sources** — `marques/` > `shopping_product.nutrition` > `generiques/` (CIQUAL). Jamais de quatrième position implicite.
+3. **Trois sources** — `marques/` > `shopping_product.nutrition` > `generiques/` (CIQUAL). Jamais de quatrième position implicite. `coverage`/`conclusive` priment sur le total.
 
-`coverage`/`conclusive` priment sur le total (cas de refus : `julien-audit-cooking-vault`).
 Pièges : `load_food_base_cached()` obligatoire ; `qty_min` est un `Decimal`.
 
 ## Commande vocale
 
-MediaRecorder → `POST /api/audio` → Deepgram (STT) → Groq (intent JSON) → exécution. Les
-intents sont déclarés **dans le prompt** de `backend/stt.py`, pas dans une table : un intent
-ajouté sans être câblé échoue en silence. Clés en credstore systemd
-(`deploy/run-with-cred.sh`), jamais de `.env` en clair. MediaRecorder exige Safari 14.5+, le
-micro est donc masqué sur l'iPad mini 2.
+MediaRecorder → `POST /api/audio` → Deepgram → Groq (intent JSON) → exécution. Les intents
+sont déclarés **dans le prompt** de `backend/stt.py` : un intent ajouté sans être câblé échoue
+en silence. Clés en credstore systemd (`deploy/run-with-cred.sh`). MediaRecorder exige
+Safari 14.5+ : le micro est masqué sur l'iPad mini 2.
 
 ## Gate iOS 12
 
