@@ -65,9 +65,33 @@ Dérivé des 69 fiches `generiques/`, dont les champs existent déjà :
 | `kind` | `type_produit` | |
 | `ciqual_code` | `ciqual_code` | |
 | `macros_per_100g` | tableau « Macros pour 100 g » | JSONB |
-| `unit_weight_g` | section « Par X (~N g) » quand elle existe | **répond à #80** : convertit `pièce` en grammes |
 | `conservation` | déduit du rayon aujourd'hui, déclaré demain | périssable / stable |
 | `source`, `verified_at` | `source_macros`, `date_maj` | |
+
+### `food_unit` — les unités d'usage d'un aliment
+
+Un aliment se mesure de **plusieurs** façons, et le gramme n'est que l'une
+d'elles : sur 449 lignes d'ingrédients, il ne pèse que **38 %** (170) — devant
+`pièce` (114), `c.s.` (65), `c.c.` (37), `gousse` (13), `pincée`, `botte`,
+`scoop`, `tranche`.
+
+```
+food_unit(food_key, unit, grams, source)
+   oeuf   · pièce  · 60 · fiche
+   ail    · gousse ·  5 · fiche
+   persil · botte  · 30 · observation
+   whey   · scoop  · 30 · étiquette
+```
+
+Plusieurs lignes par aliment, alimentées par les sections « Par X (~N g) » des
+fiches. C'est ce que #80 attend pour convertir une pièce — pas une colonne
+unique, qui supposerait qu'un aliment n'a qu'une unité d'usage.
+
+> **L'unité d'usage est conservée partout** — stockée, affichée, déclarée. La
+> conversion est un **recours**, jamais un pivot : pour comparer un besoin à un
+> stock, ou pour calculer des macros. Quand elle n'existe pas, on ne convertit
+> pas : `inconnu` ou `non_resolu`, jamais un chiffre fabriqué. Une recette dit
+> « 2 gousses d'ail » et l'affiche ainsi, même si la macro a eu besoin de 10 g.
 
 ### `product` — ce qui s'achète
 
@@ -200,13 +224,42 @@ retire le code laisse deux chemins d'écriture vivants.
 ## Écarté
 
 - **Mettre aliments et produits dans l'ontologie.** Ce sont des ensembles
-  ouverts ; une ontologie porte des axes fermés. Y entrent en revanche les types
-  d'événement, les niveaux et la classe de conservation des rayons —
-  sous-projet 2.
+  ouverts ; une ontologie porte des axes fermés. Y entrent en revanche quatre
+  axes déjà dérivés (voir ci-dessous).
+- **Faire du gramme le pivot.** Il ne couvre que 38 % des lignes ; convertir
+  d'office effacerait l'unité dans laquelle la cuisine se pense.
 - **Laisser `nutrition.py` lire le vault** après la bascule. Deux sources de
   macros divergent sans alerte : c'est le défaut qu'on corrige, pas un compromis.
 - **Rapprocher automatiquement sur le nom seul.** Un faux rapprochement fait
   sauter un achat, et ça ne se découvre qu'en cuisine.
+
+## L'axe `units` doit entrer dans l'ontologie
+
+Mesuré le 2026-09-07 : **cinq tables d'unités, dans quatre fichiers**, avec des
+découpages qui ne se recouvrent pas — `UNIT_ALIASES` (orthographes),
+`_TO_BASE` (familles), `_SPOON_SCALE` (doses), `GRAMS_PER_UNIT` (facteurs vers le
+gramme), `MEASURED/COUNTABLE/DOSE_UNITS` (rôles d'achat). Preuve que l'axe a
+dérivé sans gouvernance : `scoop`, employé 4 fois, n'appartient à aucune des
+trois dernières listes — il sort `non_resolu` sans que personne ne l'ait décidé.
+
+Chaque unité porte : `aliases` · `family` (masse · volume · dénombrable · dose) ·
+`role` (mesurable · comptable · dose) · `universal_factor` quand il vaut partout
+(1 c.s. = 15 ml, indépendant de l'aliment). Les cinq tables deviennent des vues
+sur cet axe.
+
+Ce qui n'y entre pas : les équivalences **propres à un aliment** — elles vivent
+dans `food_unit`.
+
+Trois autres axes sont dans le même état et se reprennent avec lui, au
+sous-projet 2 : les **types d'événement**, les **niveaux** (aujourd'hui
+`XSTATUS_MAP`, enrichi au fil du vault avec `urgent`, `a-jeter`, `perime`,
+`vérifier-dlc`), et la **classe de conservation des rayons** (aujourd'hui déduite
+par sous-chaîne du libellé : renommer un rayon désarme la péremption en silence).
+
+⚠️ Le générateur d'`ontology-manager` a un **jeu de champs fixe** : un champ
+ajouté au YAML n'atteint pas l'artefact et le consommateur lit une valeur vide
+sans erreur. Chaque nouvel attribut = les deux dépôts **plus un test** qui prouve
+qu'il survit à la génération.
 
 ## Suites
 
