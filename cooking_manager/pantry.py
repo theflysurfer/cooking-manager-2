@@ -144,9 +144,34 @@ class Pantry:
             if _contains_words(i.name_normalized, normalized)
             or _contains_words(normalized, i.name_normalized)
         ]
-        if not contains:
+        if contains:
+            return _best(sorted(contains, key=lambda i: len(i.name_normalized)))
+
+        # ⚠️ Dernier repli seulement : TOUS les mots porteurs du terme doivent se
+        # retrouver dans l'item, dans n'importe quel ordre. « mélange mâche et
+        # roquette » ne rencontrait pas « Mélange DE mâche et roquette » — un
+        # seul mot-outil suffisait à faire racheter un sachet déjà au frigo.
+        # L'inclusion reste dans ce sens-là : le stock peut être plus précis que
+        # le besoin (« Knorr Bouillon de Légumes » pour « bouillon de légumes »),
+        # jamais l'inverse — « lait de coco » ne doit pas se satisfaire de « lait ».
+        words = _content_words(normalized)
+        if not words:
             return None
-        return _best(sorted(contains, key=lambda i: len(i.name_normalized)))
+        loose = [i for i in self.items if words <= _content_words(i.name_normalized)]
+        if not loose:
+            return None
+        return _best(sorted(loose, key=lambda i: len(i.name_normalized)))
+
+
+STOP_WORDS = frozenset({
+    "de", "du", "des", "d", "le", "la", "les", "l", "au", "aux", "a",
+    "et", "ou", "en", "pour", "avec", "sans", "type", "sorte",
+})
+
+
+def _content_words(text: str) -> frozenset[str]:
+    """Les mots porteurs de sens — ceux qui décident de l'identité du produit."""
+    return frozenset(w for w in text.split() if w not in STOP_WORDS)
 
 
 def _contains_words(haystack: str, needle: str) -> bool:

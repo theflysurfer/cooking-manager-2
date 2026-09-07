@@ -15,6 +15,8 @@ import pytest
 
 from cooking_manager.pantry import (
     ENOUGH,
+    Pantry,
+    PantryItem,
     MISSING,
     PARTIAL,
     UNKNOWN,
@@ -90,6 +92,33 @@ class TestMatching:
         """« ri » ne doit pas matcher « riz » : une inclusion nue transforme
         n'importe quel fragment en faux positif."""
         assert pantry.find("ri") is None
+
+    def _stock(self, *names):
+        return Pantry(items=[
+            PantryItem(rayon="X", name=n, name_normalized=normalize_name(n),
+                       qty_text="", status="ok")
+            for n in names
+        ], updated=None)
+
+    @pytest.mark.parametrize("besoin,attendu", [
+        ("mélange mâche et roquette", "Mélange de mâche et roquette"),
+        ("bouillon de légumes", "Knorr Bouillon de Légumes"),
+        ("origan", "Hello Fresh Origan"),
+    ])
+    def test_un_mot_outil_ou_une_marque_ne_cassent_pas_l_appariement(self, besoin, attendu):
+        """Un seul « de » manquant faisait racheter un sachet déjà au frigo
+        (mesuré sur le stock réel le 2026-09-07)."""
+        stock = self._stock("Mélange de mâche et roquette", "Knorr Bouillon de Légumes",
+                            "Hello Fresh Origan")
+        found = stock.find(normalize_name(besoin))
+        assert found is not None and found.name == attendu
+
+    @pytest.mark.parametrize("besoin", ["lait de coco", "crème fraîche", "huile de sésame"])
+    def test_le_besoin_plus_precis_ne_se_satisfait_pas_du_generique(self, besoin):
+        """Le stock peut être plus précis que le besoin, jamais l'inverse : un
+        faux « tu en as » fait sauter un achat, et ça se découvre en cuisine."""
+        stock = self._stock("Lait entier", "Crème liquide", "Huile d'olive")
+        assert stock.find(normalize_name(besoin)) is None
 
 
 class TestVerdicts:
