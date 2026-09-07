@@ -97,6 +97,7 @@ class PantryItem:
     xstatus: str = "ok"
     entered_at: date | None = None
     raw: str = ""
+    item_id: int | None = None
 
     @property
     def is_perishable(self) -> bool:
@@ -108,6 +109,11 @@ class PantryItem:
 class Pantry:
     items: list[PantryItem] = field(default_factory=list)
     updated: date | None = None
+    # Appariements tranchés à la main, quand aucune règle ne peut décider :
+    # « origan séché » EST le « Hello Fresh Origan » du placard, mais rien dans
+    # le nom du stock ne dit qu'il est séché — deviner produirait un faux
+    # « tu en as ». Clé normalisée du besoin → id de l'article.
+    aliases: dict[str, int] = field(default_factory=dict)
 
     # ⚠️ `today` est un paramètre, pas `date.today()` en dur : la règle
     # d'ancienneté est la déduction la plus lourde de conséquences du
@@ -136,6 +142,15 @@ class Pantry:
         if not normalized:
             return None
         normalized = normalize_name(normalized)
+
+        # L'alias tranche AVANT toute heuristique : c'est une décision humaine,
+        # elle ne se laisse pas déborder par un appariement approchant.
+        aliased = self.aliases.get(normalized)
+        if aliased is not None:
+            for item in self.items:
+                if item.item_id == aliased:
+                    return item
+
         exact = [i for i in self.items if i.name_normalized == normalized]
         if exact:
             return _best(exact)

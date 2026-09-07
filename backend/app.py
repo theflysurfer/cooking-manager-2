@@ -514,12 +514,15 @@ async def _pantry_from_db():
     pool = await get_pool(DATABASE_DSN)
     async with pool.acquire() as conn:
         rows = await conn.fetch(
-            """SELECT name, name_normalized, section, qty_text, qty_value, unit,
+            """SELECT id, name, name_normalized, section, qty_text, qty_value, unit,
                       status, xstatus, entered_at
                  FROM pantry_item ORDER BY section, name"""
         )
         meta = await conn.fetchrow(
             "SELECT MAX(updated_at) AS last_updated FROM pantry_item"
+        )
+        alias_rows = await conn.fetch(
+            "SELECT alias_normalized, pantry_item_id FROM pantry_alias"
         )
 
     last = meta["last_updated"]
@@ -528,6 +531,7 @@ async def _pantry_from_db():
     items = []
     for r in rows:
         items.append(PantryItem(
+            item_id=r["id"],
             rayon=r["section"],
             name=r["name"],
             name_normalized=r["name_normalized"],
@@ -539,7 +543,8 @@ async def _pantry_from_db():
             entered_at=r["entered_at"],
         ))
 
-    return Pantry(items=items, updated=updated)
+    aliases = {r["alias_normalized"]: r["pantry_item_id"] for r in alias_rows}
+    return Pantry(items=items, updated=updated, aliases=aliases)
 
 
 @app.get("/api/pantry")
@@ -988,6 +993,64 @@ async def search_pantry(q: str = Query(..., min_length=1)):
             f"%{q}%",
         )
     return {"results": [dict(r) for r in rows], "total": len(rows)}
+
+
+class AliasBody(BaseModel):
+    ingredient: str
+    pantry_item: str
+
+
+@app.get("/api/pantry/aliases")
+async def list_pantry_aliases():
+    pool = await get_pool(DATABASE_DSN)
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """SELECT a.id, a.alias_normalized, p.name AS pantry_item
+                 FROM pantry_alias a JOIN pantry_item p ON p.id = a.pantry_item_id
+             ORDER BY a.alias_normalized"""
+        )
+    return {"aliases": [dict(r) for r in rows]}
+
+
+@app.post("/api/pantry/aliases", status_code=201)
+async def add_pantry_alias(body: AliasBody):
+    """Relie un ingrédient à un article du stock quand aucune règle ne peut trancher.
+
+    « origan séché » EST le « Hello Fresh Origan » du placard, mais rien dans le
+    nom ne le dit. L'alias est une décision humaine : il prime sur toute
+    heuristique d'appariement.
+    """
+    from cooking_manager.ingredients import normalize_name
+    key = normalize_name(body.ingredient)
+    if not key:
+        raise HTTPException(422, "ingrédient vide après normalisation")
+    pool = await get_pool(DATABASE_DSN)
+    async with pool.acquire() as conn:
+        target = await conn.fetchrow(
+            """SELECT id, name FROM pantry_item
+                WHERE name = $1 OR name_normalized = $2
+             ORDER BY length(name) LIMIT 1""",
+            body.pantry_item, normalize_name(body.pantry_item),
+        )
+        if not target:
+            raise HTTPException(404, f"Article introuvable au garde-manger : {body.pantry_item}")
+        row = await conn.fetchrow(
+            """INSERT INTO pantry_alias (alias_normalized, pantry_item_id)
+               VALUES ($1, $2)
+               ON CONFLICT (alias_normalized) DO UPDATE SET pantry_item_id = EXCLUDED.pantry_item_id
+               RETURNING id""",
+            key, target["id"],
+        )
+    return {"ok": True, "alias_id": row["id"], "alias": key, "pantry_item": target["name"]}
+
+
+@app.delete("/api/pantry/aliases/{alias_id}", status_code=204)
+async def delete_pantry_alias(alias_id: int):
+    pool = await get_pool(DATABASE_DSN)
+    async with pool.acquire() as conn:
+        result = await conn.execute("DELETE FROM pantry_alias WHERE id = $1", alias_id)
+    if result == "DELETE 0":
+        raise HTTPException(404, "Alias introuvable")
 
 
 @app.post("/api/pantry/renormalize")

@@ -113,6 +113,20 @@ class TestMatching:
         found = stock.find(normalize_name(besoin))
         assert found is not None and found.name == attendu
 
+    def test_un_alias_tranche_ce_qu_aucune_regle_ne_peut_decider(self):
+        """`pantry_alias` existait depuis le 2026-09-01 mais n'était lu par
+        AUCUN code : 10 lignes écrites, jamais consultées. « origan séché » ne
+        pouvait pas rencontrer « Hello Fresh Origan » — rien dans le nom du
+        stock ne dit qu'il est séché, et deviner produirait un faux « tu en as ».
+        """
+        item = PantryItem(item_id=7, rayon="Épices", name="Hello Fresh Origan",
+                          name_normalized=normalize_name("Hello Fresh Origan"))
+        besoin = normalize_name("origan séché")
+        assert Pantry(items=[item]).find(besoin) is None
+        aliased = Pantry(items=[item], aliases={besoin: 7})
+        found = aliased.find(besoin)
+        assert found is not None and found.name == "Hello Fresh Origan"
+
     @pytest.mark.parametrize("besoin", ["lait de coco", "crème fraîche", "huile de sésame"])
     def test_le_besoin_plus_precis_ne_se_satisfait_pas_du_generique(self, besoin):
         """Le stock peut être plus précis que le besoin, jamais l'inverse : un
