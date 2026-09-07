@@ -1615,6 +1615,10 @@ async def add_recipe_verdict(slug: str, body: RecipeVerdictBody):
             "reason": "verdict 'adjust' sans issue_kinds — la correction serait perdue",
             "verbatim": body.verbatim,
         })
+    if verdict == "situational" and not body.verbatim:
+        raise HTTPException(422, {
+            "reason": "verdict 'situational' sans verbatim — l'occasion serait perdue",
+        })
     pool = await get_pool(DATABASE_DSN)
     async with pool.acquire() as conn:
         recipe_id = await _get_recipe_id(conn, slug)

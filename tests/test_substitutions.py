@@ -195,12 +195,12 @@ def test_toute_cle_citee_est_detectable():
 
 
 def test_le_vocabulaire_est_epingle():
-    assert VOCABULARY_VERSION == "0.4.2"
+    assert VOCABULARY_VERSION == "0.5.0"
 
 
 FEEDBACK_FACETS = {
     "appreciations": {"loved", "liked", "mixed", "disliked", "refused"},
-    "replay_verdicts": {"keep_as_is", "adjust", "retire"},
+    "replay_verdicts": {"keep_as_is", "adjust", "situational", "retire"},
     "issue_kinds": {"seasoning", "texture", "doneness", "portion", "effort"},
 }
 

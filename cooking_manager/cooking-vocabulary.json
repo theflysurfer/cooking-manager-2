@@ -1,5 +1,5 @@
 {
-  "version": "0.4.2",
+  "version": "0.5.0",
   "slug": "cooking-vocabulary",
   "origin": "Extrait du moteur de substitutions porté de cooking-manager v1 (server/src/services/intelligentSubstitutions.ts) et mesuré en production dans cooking-manager-2 le 2026-09-02. Voir cooking-manager-2 ADR 0001.",
   "cooking_methods": [
@@ -687,6 +687,23 @@
         "à refaire avec"
       ],
       "applicable_when": "Toujours accompagné d'au moins un issue_kinds, sinon la correction est perdue.",
+      "dominates": [],
+      "observed_in": []
+    },
+    {
+      "key": "situational",
+      "label": "À refaire pour une occasion précise",
+      "status": "probation",
+      "definition": "Le plat reste au répertoire mais ne se propose pas librement — il est lié à un contexte de service, pas à un défaut.",
+      "synonyms": [
+        "à réserver pour",
+        "seulement pour",
+        "seulement quand",
+        "à garder pour",
+        "uniquement pour",
+        "quand il faut finir"
+      ],
+      "applicable_when": "L'occasion vit dans le verbatim ; sans occasion nommée, le verdict n'est pas celui-là. Distinguer d'`adjust` : ici le plat n'a rien à corriger.",
       "dominates": [],
       "observed_in": []
     },

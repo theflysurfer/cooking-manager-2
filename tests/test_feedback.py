@@ -34,6 +34,12 @@ def test_une_negation_partielle_ne_se_lit_pas_comme_un_eloge():
     assert interpret("moins bon que la derniere fois").appreciation == "mixed"
 
 
+def test_une_occasion_ne_se_lit_pas_comme_une_rotation_libre():
+    assert interpret("à réserver pour les pique-niques").verdict == "situational"
+    assert interpret("seulement quand il faut finir les restes").verdict == "situational"
+    assert interpret("à refaire tel quel").verdict == "keep_as_is"
+
+
 def test_un_texte_muet_ne_remplit_aucun_axe():
     reading = interpret("il pleuvait ce soir-là")
     assert reading.appreciation is None

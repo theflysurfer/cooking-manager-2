@@ -1,4 +1,4 @@
-version: "0.4.2"
+version: "0.5.0"
 slug: cooking-vocabulary
 kind: cooking
 origin: >-
@@ -316,6 +316,12 @@ replay_verdicts:
     definition: "Le plat vaut la peine, mais une correction est nécessaire — laquelle vit dans issue_kinds."
     applicable_when: "Toujours accompagné d'au moins un issue_kinds, sinon la correction est perdue."
     synonyms: ["à ajuster", "à modifier", "à revoir", "presque", "à refaire en modifiant", "à refaire mais", "à refaire avec"]
+  - key: situational
+    label: "À refaire pour une occasion précise"
+    status: probation
+    definition: "Le plat reste au répertoire mais ne se propose pas librement — il est lié à un contexte de service, pas à un défaut."
+    applicable_when: "L'occasion vit dans le verbatim ; sans occasion nommée, le verdict n'est pas celui-là. Distinguer d'`adjust` : ici le plat n'a rien à corriger."
+    synonyms: ["à réserver pour", "seulement pour", "seulement quand", "à garder pour", "uniquement pour", "quand il faut finir"]
   - key: retire
     label: "À ne plus refaire"
     status: probation
