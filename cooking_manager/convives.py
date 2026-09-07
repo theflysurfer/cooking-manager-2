@@ -58,6 +58,13 @@ _VEGGIE_MARKER = re.compile(
     r"(?<!\w)(?:vegetarien(?:ne)?s?|vegetalien(?:ne)?s?|vegan|veggie)(?!\w)"
 )
 
+CONTEXT_REQUIRED: dict[str, str] = {
+    "roti": (
+        r"(?<!\w)rotis?\s+(?:(?:de|du|des)(?!\w)|d')"
+        r"|(?<!\w)(?:un|le|les|ce|ces|mon|notre)\s+rotis?(?!\w)"
+    ),
+}
+
 DIETS: dict[str, tuple[str, ...]] = {
     # pescétarien : pas de viande ni volaille, poisson et fruits de mer OK
     "pescetarian": MEAT + POULTRY,
@@ -216,6 +223,9 @@ def _contains_term(folded_text: str, term: str) -> bool:
 @lru_cache(maxsize=None)
 def _term_pattern(term: str) -> re.Pattern[str]:
     """Le terme en mots entiers, chaque mot tolérant sa marque de pluriel."""
+    forced = CONTEXT_REQUIRED.get(term)
+    if forced is not None:
+        return re.compile(forced)
     words = [re.escape(word) for word in term.split() if word]
     if not words:
         return re.compile(r"(?!)")
@@ -306,11 +316,11 @@ def check_meal(description: str, convives: list[Convive]) -> list[Conflict]:
                 conflicts.append(Conflict(convive.name, f"régime {convive.diet}", term))
                 break  # une alerte par personne et par motif suffit
         for term in convive.forbidden:
-            if _contains_term(folded, term):
+            if _contains_term(folded, _fold(term)):
                 conflicts.append(Conflict(convive.name, "interdit", term))
                 break
         for term in convive.dislikes:
-            if _contains_term(folded, term):
+            if _contains_term(folded, _fold(term)):
                 conflicts.append(Conflict(convive.name, "n'aime pas", term))
                 break
 

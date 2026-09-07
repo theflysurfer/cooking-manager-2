@@ -306,6 +306,33 @@ class TestDietExceptions:
         conflicts = check_ingredients(plat, [convive])
         assert [c.matched for c in conflicts] == ["200 g de lardons"]
 
+    def test_pois_chiches_rotis_ne_sont_pas_un_roti(self):
+        """Un plat 100 % végétal a été déclaré incompatible pescétarien le 2026-09-07."""
+        convive = Convive(name="Clémence", diet="pescetarian")
+        for plat in (
+            "Poêlée de légumes verts, pois chiches rôtis et comté",
+            "Légumes rôtis au four",
+            "Tomates rôties au thym",
+            "Poivrons rôtis, huile d'olive",
+        ):
+            assert check_meal(plat, [convive]) == [], plat
+
+    def test_un_vrai_roti_bloque_toujours(self):
+        convive = Convive(name="Clémence", diet="pescetarian")
+        for plat in (
+            "Rôti de porc aux pommes de terre",
+            "Un rôti du dimanche",
+            "Rôti d'agneau et flageolets",
+            "Roti de veau, carottes",
+        ):
+            assert check_meal(plat, [convive]), plat
+
+    def test_un_interdit_accentue_bloque(self):
+        """Les termes n'étaient pas repliés côté `forbidden`/`dislikes` : muets."""
+        lea = Convive(name="Léa", dislikes=["épinards cuits"], forbidden=["œuf poché"])
+        assert [c.reason for c in check_meal("Gratin d'épinards cuits", [lea])] == ["n'aime pas"]
+        assert [c.reason for c in check_meal("Salade et œuf poché", [lea])] == ["interdit"]
+
     def test_une_exception_ne_touche_pas_les_interdits_personnels(self):
         """`forbidden` est une contrainte propre, pas une clause du régime."""
         convive = Convive(
