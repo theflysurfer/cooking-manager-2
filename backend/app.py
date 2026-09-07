@@ -276,6 +276,24 @@ FOOD_BASE_ROOT = Path(os.environ.get(
 ))
 
 
+@app.post("/api/food/import")
+async def import_food(dry_run: bool = True):
+    """Vault `aliments-vérifiés/` → tables food, food_unit, product."""
+    from .food_import import build_records, write_records
+
+    plan = build_records(FOOD_BASE_ROOT)
+    counts = {"foods": len(plan.foods), "units": len(plan.units),
+              "products": len(plan.products), "skipped": len(plan.skipped)}
+    if dry_run:
+        return {"dry_run": True, "counts": counts, "skipped": plan.skipped[:20]}
+
+    pool = await get_pool(DATABASE_DSN)
+    async with pool.acquire() as conn:
+        written = await write_records(conn, plan)
+    return {"dry_run": False, "counts": counts, "written": written,
+            "skipped": plan.skipped[:20]}
+
+
 @app.get("/api/recipes/{slug}/macros")
 async def recipe_macros_endpoint(slug: str):
     """Macros calculées depuis les ingrédients, avec leur provenance.
