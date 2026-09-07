@@ -171,10 +171,42 @@ CREATE TABLE IF NOT EXISTS person (
     default_attendance  TEXT NOT NULL DEFAULT 'never'
                         CHECK (default_attendance IN ('always', 'never', 'scheduled')),
     is_active           BOOLEAN NOT NULL DEFAULT TRUE,
+    birth_date          DATE,
+    height_cm           NUMERIC,
+    weight_kg           NUMERIC,
+    activity_level      TEXT CHECK (activity_level IN ('low', 'moderate', 'high', 'very_high')),
+    nutrition_notes     TEXT,
     created_at          TIMESTAMPTZ DEFAULT NOW(),
     updated_at          TIMESTAMPTZ DEFAULT NOW(),
     UNIQUE (name, circle)
 );
+
+-- dietary_preference : le troisième cran, entre l'interdit et l'aversion.
+-- `forbidden` ne se discute pas, `dislikes` porte un aliment nommé ; ni l'un ni
+-- l'autre ne sait dire « sans gluten AU MAXIMUM », « moins de 25 g de sucres
+-- ajoutés par jour » ou « ne jamais restreindre ses portions ». Une préférence
+-- ne produit pas un conflit : elle pèse sur la composition.
+-- person_id NULL = la règle vaut pour tout le foyer.
+CREATE TABLE IF NOT EXISTS dietary_preference (
+    id          SERIAL PRIMARY KEY,
+    person_id   INTEGER REFERENCES person(id) ON DELETE CASCADE,
+    kind        TEXT NOT NULL
+                CHECK (kind IN ('minimize', 'maximize', 'cap', 'rotate', 'no_restriction')),
+    target      TEXT NOT NULL,
+    value       NUMERIC,
+    unit        TEXT,
+    scope       TEXT CHECK (scope IN ('meal', 'day', 'week')),
+    reason      TEXT,
+    since       DATE NOT NULL DEFAULT CURRENT_DATE,
+    until       DATE,
+    created_at  TIMESTAMPTZ DEFAULT NOW(),
+    updated_at  TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- COALESCE : person_id NULL (règle de foyer) ne serait jamais dédoublonné par
+-- un UNIQUE ordinaire — NULL n'est égal à rien, pas même à lui-même.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_dietary_preference_unique
+    ON dietary_preference (COALESCE(person_id, 0), kind, target);
 
 -- relationship : liens entre personnes (parent/enfant, conjoint, fratrie).
 -- Stocké dans un seul sens : parent_of = person_id est le parent.
@@ -382,6 +414,21 @@ MIGRATIONS_SQL = """
 -- ET mange du boudin. Le contrôle bloquait un plat qu'elle accepte, et le seul
 -- contournement était de mentir sur son régime.
 ALTER TABLE person ADD COLUMN IF NOT EXISTS diet_exceptions TEXT[] DEFAULT '{}';
+
+-- Profil nutritionnel : sans lui, aucune portion n'est dérivable de la base et
+-- « combien pour chacun » n'a pas de réponse mesurable. Refs #78.
+ALTER TABLE person ADD COLUMN IF NOT EXISTS birth_date      DATE;
+ALTER TABLE person ADD COLUMN IF NOT EXISTS height_cm       NUMERIC;
+ALTER TABLE person ADD COLUMN IF NOT EXISTS weight_kg       NUMERIC;
+ALTER TABLE person ADD COLUMN IF NOT EXISTS activity_level  TEXT;
+ALTER TABLE person ADD COLUMN IF NOT EXISTS nutrition_notes TEXT;
+DO $act$
+BEGIN
+    ALTER TABLE person ADD CONSTRAINT person_activity_level_check
+        CHECK (activity_level IN ('low', 'moderate', 'high', 'very_high'));
+EXCEPTION
+    WHEN duplicate_object THEN NULL;
+END $act$;
 
 -- menu_meal.served : un menu est un PLAN, pas un historique. NULL dit « on ne
 -- sait pas », et c'est l'état honnête de tout le passé. Sans ce tri-état, un

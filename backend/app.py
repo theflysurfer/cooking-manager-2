@@ -1876,6 +1876,11 @@ class PersonUpdate(BaseModel):
     notes: str | None = None
     default_attendance: str | None = None
     is_active: bool | None = None
+    birth_date: datetime.date | None = None
+    height_cm: float | None = None
+    weight_kg: float | None = None
+    activity_level: str | None = None
+    nutrition_notes: str | None = None
 
 class RelationshipCreate(BaseModel):
     person_id: int
@@ -1975,6 +1980,82 @@ async def update_person(person_id: int, body: PersonUpdate):
     if not row:
         raise HTTPException(404, "Person not found")
     return dict(row)
+
+
+PREFERENCE_KINDS = ("minimize", "maximize", "cap", "rotate", "no_restriction")
+
+
+class PreferenceCreate(BaseModel):
+    person: str | None = None
+    kind: str
+    target: str
+    value: float | None = None
+    unit: str | None = None
+    scope: str | None = None
+    reason: str | None = None
+
+
+@app.get("/api/preferences")
+async def list_preferences(person: str | None = None):
+    """Préférences alimentaires : ni interdits, ni aversions — ce qui pèse sans bloquer."""
+    pool = await get_pool(DATABASE_DSN)
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """SELECT d.id, p.name AS person, d.kind, d.target, d.value, d.unit,
+                      d.scope, d.reason, d.since, d.until
+                 FROM dietary_preference d
+                 LEFT JOIN person p ON p.id = d.person_id
+                WHERE (d.until IS NULL OR d.until >= CURRENT_DATE)
+                  AND ($1::text IS NULL OR p.name IS NULL OR LOWER(p.name) = LOWER($1))
+             ORDER BY p.name NULLS FIRST, d.kind, d.target""",
+            person,
+        )
+    out = [_round_numeric(dict(r)) for r in rows]
+    for row in out:
+        _serialize_dates(row, ("since", "until"))
+    return {"preferences": out}
+
+
+@app.post("/api/preferences", status_code=201)
+async def add_preference(body: PreferenceCreate):
+    if body.kind not in PREFERENCE_KINDS:
+        raise HTTPException(422, f"kind inconnu : {body.kind} — attendu {PREFERENCE_KINDS}")
+    if body.kind == "cap" and body.value is None:
+        raise HTTPException(422, "un plafond sans valeur ne plafonne rien")
+    pool = await get_pool(DATABASE_DSN)
+    async with pool.acquire() as conn:
+        person_id = None
+        if body.person:
+            row = await conn.fetchrow(
+                "SELECT id FROM person WHERE LOWER(name) = LOWER($1)", body.person,
+            )
+            if not row:
+                raise HTTPException(404, f"Personne inconnue : {body.person}")
+            person_id = row["id"]
+        created = await conn.fetchrow(
+            """INSERT INTO dietary_preference
+                   (person_id, kind, target, value, unit, scope, reason)
+               VALUES ($1, $2, $3, $4, $5, $6, $7)
+               ON CONFLICT (COALESCE(person_id, 0), kind, target) DO UPDATE
+               SET value = EXCLUDED.value, unit = EXCLUDED.unit,
+                   scope = EXCLUDED.scope, reason = EXCLUDED.reason,
+                   until = NULL, updated_at = NOW()
+               RETURNING id""",
+            person_id, body.kind, body.target, body.value,
+            body.unit, body.scope, body.reason,
+        )
+    return {"ok": True, "preference_id": created["id"]}
+
+
+@app.delete("/api/preferences/{preference_id}", status_code=204)
+async def delete_preference(preference_id: int):
+    pool = await get_pool(DATABASE_DSN)
+    async with pool.acquire() as conn:
+        result = await conn.execute(
+            "DELETE FROM dietary_preference WHERE id = $1", preference_id,
+        )
+    if result == "DELETE 0":
+        raise HTTPException(404, "Préférence introuvable")
 
 
 @app.delete("/api/persons/{person_id}", status_code=204)
