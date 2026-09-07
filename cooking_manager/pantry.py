@@ -385,11 +385,15 @@ def build_needs(meals_recipes: list[tuple[str, list, float]]) -> list[Need]:
 
             # Une fourchette « 2–3 c.s. » s'achète au maximum : manquer coûte
             # plus cher qu'avoir un peu trop.
+            # ⚠️ Additionner en unités BRUTES fabrique un chiffre faux à l'aplomb
+            # juste : « 800 g » + « 1 kg » rendait 801, affiché en kg. La clé
+            # regroupe par famille, l'addition doit donc convertir vers sa base.
             qty = ing.get("qty_max") or ing.get("qty_min")
             if qty is not None:
-                if need.unit is None:
-                    need.unit = unit
-                need.qty = (need.qty or 0) + float(qty) * ratio
+                base_unit, factor = _TO_BASE.get(unit, (unit, 1.0)) if unit else (unit, 1.0)
+                if need.unit is None or need.qty is None:
+                    need.unit = base_unit
+                need.qty = (need.qty or 0) + float(qty) * factor * ratio
 
             if not ing.get("is_optional"):
                 need.is_optional = False

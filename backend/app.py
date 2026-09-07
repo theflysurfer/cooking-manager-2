@@ -990,6 +990,36 @@ async def search_pantry(q: str = Query(..., min_length=1)):
     return {"results": [dict(r) for r in rows], "total": len(rows)}
 
 
+@app.post("/api/pantry/renormalize")
+async def renormalize_pantry(dry_run: bool = False):
+    """Recalcule les clés d'appariement du garde-manger avec la normalisation courante.
+
+    Une clé stockée est figée au jour où elle a été écrite : faire évoluer
+    `normalize_name` désaligne silencieusement le stock des besoins, et un
+    ingrédient bien en stock ressort « absent ». Rejouable après tout changement.
+    """
+    from cooking_manager.ingredients import normalize_name
+    pool = await get_pool(DATABASE_DSN)
+    changed: list[dict] = []
+    async with pool.acquire() as conn:
+        for table, name_col, key_col in (
+            ("pantry_item", "name", "name_normalized"),
+            ("pantry_alias", "alias_normalized", "alias_normalized"),
+        ):
+            rows = await conn.fetch(f"SELECT id, {name_col} AS src, {key_col} AS key FROM {table}")
+            for row in rows:
+                fresh = normalize_name(row["src"] or "")
+                if not fresh or fresh == row["key"]:
+                    continue
+                changed.append({"table": table, "id": row["id"],
+                                "before": row["key"], "after": fresh})
+                if not dry_run:
+                    await conn.execute(
+                        f"UPDATE {table} SET {key_col} = $1 WHERE id = $2", fresh, row["id"],
+                    )
+    return {"dry_run": dry_run, "changed": len(changed), "samples": changed[:15]}
+
+
 @app.get("/api/menus/{slug}/meals")
 async def list_menu_meals(slug: str):
     """Liste des repas structurés du menu, avec leur id pour édition."""

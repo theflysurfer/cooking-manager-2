@@ -174,6 +174,22 @@ class TestAggregation:
         ])
         assert len(needs) == 2
 
+    def test_same_family_different_units_convert_before_summing(self):
+        """« 800 g » + « 1 kg » du même aliment font 1,8 kg, pas 801.
+
+        Le défaut est resté invisible tant que « patates douces » et « patates
+        douces, en gros cubes » étaient deux besoins distincts : la fusion des
+        doublons (2026-09-07) l'a fait apparaître d'un coup, en kg.
+        """
+        needs = build_needs([
+            ("Saumon", [Ingredient(raw="800 g patates douces", name="patates douces",
+                                   qty_min=800.0, unit="g", position=1)], 1.0),
+            ("Pilons", [Ingredient(raw="1 kg patates douces", name="patates douces",
+                                   qty_min=1.0, unit="kg", position=1)], 1.0),
+        ])
+        assert len(needs) == 1
+        assert (needs[0].qty, needs[0].unit) == (1800.0, "g")
+
     def test_range_takes_the_upper_bound(self):
         """« 2–3 c.s. » : on achète pour 3. Manquer coûte plus cher qu'avoir
         un peu trop."""
