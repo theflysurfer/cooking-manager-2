@@ -1,3 +1,5 @@
+"""Lignes de la base → l'index d'appariement que nutrition.py consomme déjà."""
+
 from __future__ import annotations
 
 from .nutrition import FoodEntry, Macros, match_key
@@ -6,7 +8,7 @@ MACRO_FIELDS = ("kcal", "protein", "carbs", "fat")
 
 
 def base_from_rows(foods: list[dict], products: list[dict]) -> dict[str, FoodEntry]:
-    """Lignes `food` et `product` -> index par cle d'appariement, preseance appliquee."""
+    """Lignes `food` et `product` → index par clé d'appariement, préséance appliquée."""
     index: dict[str, FoodEntry] = {}
 
     for row in foods:

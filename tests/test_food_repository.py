@@ -1,5 +1,4 @@
 from cooking_manager.food_repository import base_from_rows
-from cooking_manager.nutrition import FoodEntry  # noqa: F401
 
 
 def food(key, name, kcal: float | None = 100.0, kind="generique", **kw):
