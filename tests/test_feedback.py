@@ -40,6 +40,13 @@ def test_une_occasion_ne_se_lit_pas_comme_une_rotation_libre():
     assert interpret("à refaire tel quel").verdict == "keep_as_is"
 
 
+def test_un_avis_sur_l_idee_n_est_pas_un_avis_sur_le_plat():
+    reading = interpret("bonne idée, mais pour un brunch uniquement")
+    assert reading.appreciation is None
+    assert APPRECIATION_FACET in reading.unmatched
+    assert interpret("c'était bon").appreciation == "liked"
+
+
 def test_un_texte_muet_ne_remplit_aucun_axe():
     reading = interpret("il pleuvait ce soir-là")
     assert reading.appreciation is None

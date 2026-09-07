@@ -40,8 +40,25 @@ def facet_keys(facet: str) -> frozenset[str]:
     return frozenset(concept["key"] for concept in load_vocabulary()[facet])
 
 
+NEUTRALIZED_EXPRESSIONS: tuple[str, ...] = (
+    "bonne idee",
+    "bon plan",
+    "bonne pioche",
+    "bon courage",
+)
+
+_NEUTRALIZED = tuple(
+    re.compile(rf"(?<!\w){re.escape(expression)}\w{{0,2}}(?!\w)")
+    for expression in NEUTRALIZED_EXPRESSIONS
+)
+
+
 def normalize_verbatim(text: str) -> str:
-    return fold(text.translate(_APOSTROPHES))
+    """L'adjectif qui qualifie l'idée, pas le plat, ne doit pas compter comme un avis."""
+    folded = fold(text.translate(_APOSTROPHES))
+    for pattern in _NEUTRALIZED:
+        folded = pattern.sub(" ", folded)
+    return folded
 
 
 def _matches(facet: str, text: str) -> dict[str, int]:
