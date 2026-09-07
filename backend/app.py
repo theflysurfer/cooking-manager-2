@@ -522,7 +522,7 @@ async def _pantry_from_db():
             "SELECT MAX(updated_at) AS last_updated FROM pantry_item"
         )
         alias_rows = await conn.fetch(
-            "SELECT alias_normalized, pantry_item_id FROM pantry_alias"
+            "SELECT alias_normalized, target_normalized FROM pantry_alias"
         )
 
     last = meta["last_updated"]
@@ -543,7 +543,12 @@ async def _pantry_from_db():
             entered_at=r["entered_at"],
         ))
 
-    aliases = {r["alias_normalized"]: r["pantry_item_id"] for r in alias_rows}
+    by_key = {i.name_normalized: i.item_id for i in items if i.item_id is not None}
+    aliases = {
+        r["alias_normalized"]: by_key[r["target_normalized"]]
+        for r in alias_rows
+        if r["target_normalized"] in by_key
+    }
     return Pantry(items=items, updated=updated, aliases=aliases)
 
 
@@ -1005,8 +1010,10 @@ async def list_pantry_aliases():
     pool = await get_pool(DATABASE_DSN)
     async with pool.acquire() as conn:
         rows = await conn.fetch(
-            """SELECT a.id, a.alias_normalized, p.name AS pantry_item
-                 FROM pantry_alias a JOIN pantry_item p ON p.id = a.pantry_item_id
+            """SELECT a.id, a.alias_normalized, a.target_normalized,
+                      p.name AS pantry_item
+                 FROM pantry_alias a
+                 LEFT JOIN pantry_item p ON p.name_normalized = a.target_normalized
              ORDER BY a.alias_normalized"""
         )
     return {"aliases": [dict(r) for r in rows]}
@@ -1027,7 +1034,7 @@ async def add_pantry_alias(body: AliasBody):
     pool = await get_pool(DATABASE_DSN)
     async with pool.acquire() as conn:
         target = await conn.fetchrow(
-            """SELECT id, name FROM pantry_item
+            """SELECT id, name, name_normalized FROM pantry_item
                 WHERE name = $1 OR name_normalized = $2
              ORDER BY length(name) LIMIT 1""",
             body.pantry_item, normalize_name(body.pantry_item),
@@ -1035,11 +1042,13 @@ async def add_pantry_alias(body: AliasBody):
         if not target:
             raise HTTPException(404, f"Article introuvable au garde-manger : {body.pantry_item}")
         row = await conn.fetchrow(
-            """INSERT INTO pantry_alias (alias_normalized, pantry_item_id)
-               VALUES ($1, $2)
-               ON CONFLICT (alias_normalized) DO UPDATE SET pantry_item_id = EXCLUDED.pantry_item_id
+            """INSERT INTO pantry_alias (alias_normalized, pantry_item_id, target_normalized)
+               VALUES ($1, $2, $3)
+               ON CONFLICT (alias_normalized) DO UPDATE
+               SET pantry_item_id = EXCLUDED.pantry_item_id,
+                   target_normalized = EXCLUDED.target_normalized
                RETURNING id""",
-            key, target["id"],
+            key, target["id"], target["name_normalized"],
         )
     return {"ok": True, "alias_id": row["id"], "alias": key, "pantry_item": target["name"]}
 
@@ -1068,6 +1077,7 @@ async def renormalize_pantry(dry_run: bool = False):
         for table, name_col, key_col in (
             ("pantry_item", "name", "name_normalized"),
             ("pantry_alias", "alias_normalized", "alias_normalized"),
+            ("pantry_alias", "target_normalized", "target_normalized"),
         ):
             rows = await conn.fetch(f"SELECT id, {name_col} AS src, {key_col} AS key FROM {table}")
             for row in rows:

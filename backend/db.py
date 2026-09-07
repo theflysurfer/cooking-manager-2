@@ -415,6 +415,24 @@ MIGRATIONS_SQL = """
 -- contournement était de mentir sur son régime.
 ALTER TABLE person ADD COLUMN IF NOT EXISTS diet_exceptions TEXT[] DEFAULT '{}';
 
+-- pantry_alias visait un pantry_item_id, avec ON DELETE CASCADE — et l'ingestion
+-- supprime les articles de source 'vault' absents du fichier. Sept alias sur dix
+-- ont ainsi disparu sans une erreur entre le 2026-09-01 et le 2026-09-08 : du
+-- travail humain effacé par une opération de routine. La cible devient un NOM
+-- normalisé, qui survit à la recréation de l'article.
+ALTER TABLE pantry_alias ADD COLUMN IF NOT EXISTS target_normalized TEXT;
+UPDATE pantry_alias a SET target_normalized = p.name_normalized
+  FROM pantry_item p WHERE p.id = a.pantry_item_id AND a.target_normalized IS NULL;
+ALTER TABLE pantry_alias ALTER COLUMN pantry_item_id DROP NOT NULL;
+DO $alias_fk$
+BEGIN
+    ALTER TABLE pantry_alias DROP CONSTRAINT pantry_alias_pantry_item_id_fkey;
+    ALTER TABLE pantry_alias ADD CONSTRAINT pantry_alias_pantry_item_id_fkey
+        FOREIGN KEY (pantry_item_id) REFERENCES pantry_item(id) ON DELETE SET NULL;
+EXCEPTION
+    WHEN undefined_object THEN NULL;
+END $alias_fk$;
+
 -- Profil nutritionnel : sans lui, aucune portion n'est dérivable de la base et
 -- « combien pour chacun » n'a pas de réponse mesurable. Refs #78.
 ALTER TABLE person ADD COLUMN IF NOT EXISTS birth_date      DATE;
