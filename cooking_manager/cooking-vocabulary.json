@@ -1,5 +1,5 @@
 {
-  "version": "0.4.1",
+  "version": "0.4.2",
   "slug": "cooking-vocabulary",
   "origin": "Extrait du moteur de substitutions porté de cooking-manager v1 (server/src/services/intelligentSubstitutions.ts) et mesuré en production dans cooking-manager-2 le 2026-09-02. Voir cooking-manager-2 ADR 0001.",
   "cooking_methods": [
@@ -617,7 +617,10 @@
         "mitigé",
         "bof",
         "sans plus",
-        "moyennement"
+        "moyennement",
+        "moins aimé",
+        "moins bien",
+        "moins bon"
       ],
       "applicable_when": "",
       "dominates": [],

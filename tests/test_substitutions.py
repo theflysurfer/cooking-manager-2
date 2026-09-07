@@ -195,7 +195,7 @@ def test_toute_cle_citee_est_detectable():
 
 
 def test_le_vocabulaire_est_epingle():
-    assert VOCABULARY_VERSION == "0.4.1"
+    assert VOCABULARY_VERSION == "0.4.2"
 
 
 FEEDBACK_FACETS = {

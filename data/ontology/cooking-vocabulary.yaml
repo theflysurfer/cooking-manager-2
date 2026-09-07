@@ -1,4 +1,4 @@
-version: "0.4.1"
+version: "0.4.2"
 slug: cooking-vocabulary
 kind: cooking
 origin: >-
@@ -291,7 +291,7 @@ appreciations:
     label: "Mitigé"
     status: probation
     definition: "Mangé sans plaisir, ou apprécié seulement en partie."
-    synonyms: ["moyen", "mitigé", "bof", "sans plus", "moyennement"]
+    synonyms: ["moyen", "mitigé", "bof", "sans plus", "moyennement", "moins aimé", "moins bien", "moins bon"]
   - key: disliked
     label: "Pas aimé"
     status: probation

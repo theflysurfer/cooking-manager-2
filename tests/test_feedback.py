@@ -29,6 +29,11 @@ def test_la_negation_ne_se_lit_pas_comme_son_contraire():
     assert interpret("aimé").appreciation == "liked"
 
 
+def test_une_negation_partielle_ne_se_lit_pas_comme_un_eloge():
+    assert interpret("j'ai moins aimé").appreciation == "mixed"
+    assert interpret("moins bon que la derniere fois").appreciation == "mixed"
+
+
 def test_un_texte_muet_ne_remplit_aucun_axe():
     reading = interpret("il pleuvait ce soir-là")
     assert reading.appreciation is None
