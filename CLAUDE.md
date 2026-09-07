@@ -57,7 +57,7 @@ tables recette appartiennent à **recipe-manager** (8796), CM2 est colocataire.
 ⛔ **Jamais de `DELETE FROM menu` ni `menu_meal`** : l'ingestion upsert, un DELETE global
 efface les menus créés par l'API et la colonne `served`. ⛔ **Jamais départager deux fiches
 au `mtime`** — sur le mount rclone il date la copie ; `read_recipes()` tranche sur la date
-déclarée. Écrire un menu de bout en bout : `julien-cooking-manager-compose-menu` § 4 à 6.
+déclarée. Écrire un menu de bout en bout : `julien-cooking-manager-weekly-prep` § 4 à 6.
 
 ## Qui est à table
 
@@ -83,7 +83,7 @@ ssh srv759970 'curl -s "localhost:8795/api/attendance?day=AAAA-MM-JJ"'
 | `dietary_preference` | ce qui **pèse sans bloquer** (`minimize`/`maximize`/`cap`/`rotate`/`no_restriction`) | ❌ **rien ne le lit** |
 
 ⛔ **Un menu « sans conflit » ne dit rien du gluten, des sucres ajoutés ni de la rotation des
-protéines** : ces règles s'appliquent à la main en composant (`julien-cooking-manager-compose-menu`
+protéines** : ces règles s'appliquent à la main en composant (`julien-cooking-manager-weekly-prep`
 § 3, #77 #78). Deux autres angles morts : les repas `leftovers` (sans fiche, donc sans ingrédients
 à confronter, #76) et les parts séparées (« pois chiches pour Clémence » reste un conflit poulet).
 
@@ -185,8 +185,7 @@ collant. **Seul l'iPad réel valide.**
 un seul accent, ni rayon ni ombre. Détail : `2026.08 Product Toolkit/research/`.
 ## Skills liées
 
-- `julien-cooking-manager-compose-menu` — **owner** — composer ET écrire le menu (de « qui est à table » au fichier ingéré et contrôlé).
-- `cooking-manager-weekly-pipeline` — **owner** — la suite : quantités, stock, courses, panier, macros.
+- `julien-cooking-manager-weekly-prep` — **owner** — toute la semaine : tablée, menu écrit et contrôlé, photos, stock, courses, macros, retours de table.
 - `julien-audit-cooking-vault` — **owner** — auditer les données ingérées, **avant** toute génération de courses.
 - `cooking-manager-auchan-drive` — gros consommateur — pilote le panier depuis ces courses.
 

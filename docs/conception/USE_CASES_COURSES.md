@@ -3,7 +3,7 @@ title: Cas d'usage — Courses multi-canal
 axis: usage
 proof_level: provisional
 upstream: [MOMENTS.md, USE_CASES_TABLEE.md, ../marque/STAKEHOLDERS.md]
-downstream: [julien-test-case-design, cooking-manager-weekly-pipeline]
+downstream: [julien-test-case-design, julien-cooking-manager-weekly-prep]
 status: draft
 date: 2026-08-16
 ---

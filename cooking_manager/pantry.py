@@ -52,12 +52,8 @@ PARTIAL = "insuffisant"
 MISSING = "absent"
 UNKNOWN = "inconnu"
 
-# Rayons dont le contenu est périssable : au-delà du délai de péremption de
-# l'inventaire, on ne peut plus s'y fier.
 PERISHABLE_HINTS = ("frais", "légume", "legume", "fruit", "protéine", "proteine")
 
-# Au-delà, le frais de l'inventaire est réputé consommé (règle métier du
-# Cooking Coach, cf. skill cooking-manager-weekly-pipeline).
 STALE_AFTER = timedelta(days=14)
 
 _UNIT_LOOKUP = {
