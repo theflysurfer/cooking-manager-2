@@ -1,17 +1,4 @@
-"""Présence des enfants — source de vérité : l'event gcal "Semaine enfants".
-
-Remplace le repli `alternating_weeks` de `presence.py` (constante figée au
-2026-03-03, jamais recalée) : la garde alternée réelle vit dans le calendrier
-CAFS de Julien, event récurrent tout-le-jour "Semaine enfants". Un
-`school_period` absent (ex. rentrée non déclarée) faisait retomber sur ce
-repli constant et annonçait Clémence seule à table — faux sans la moindre
-erreur (incident 2026-09-07).
-
-Lecture directe de l'API Calendar, jamais synchronisée en DB : le
-`refresh_token` réutilisé (`~/.vdirsyncer/google_token`, scope `calendar`
-complet) appartient au sync CalDAV↔Google déjà en place sur le VPS — même
-compte Google que celui qui possède CAFS, aucun nouveau consentement.
-"""
+"""Présence des enfants — lecture gcal à la demande, écrite en cache DB. Voir ADR 0004."""
 
 from __future__ import annotations
 
@@ -28,15 +15,18 @@ CAFS_CALENDAR_ID = "d41639fb3d8e5e9162d4c1e9708acf530267cf0f9843f7c0f0d3c6029d2a
 CHILD_WEEK_EVENT_SUMMARY = "Semaine enfants"
 
 _TOKEN_FILE = Path(os.environ.get("VDIRSYNCER_GOOGLE_TOKEN", str(Path.home() / ".vdirsyncer" / "google_token")))
-# client_id/secret vivent dans la conf vdirsyncer, pas dans le fichier token
-# (qui ne porte que access_token/refresh_token/scope).
 _VDIRSYNCER_CONF = Path(os.environ.get(
     "VDIRSYNCER_CONF", str(Path.home() / "caldav-gcal-sync" / "config" / "vdirsyncer.conf"),
 ))
 _TOKEN_URL = "https://oauth2.googleapis.com/token"
 
+_AMBIGUITY_WINDOW_DAYS = 60
+
 _access_token_cache: dict[str, float | str] = {}
-_week_cache: dict[date, bool] = {}
+
+
+class ChildWeekAmbiguous(Exception):
+    """Aucun event "Semaine enfants" trouvé dans la fenêtre — signal absent, pas une réponse."""
 
 
 def _get_access_token() -> str:
@@ -67,7 +57,6 @@ def _get_access_token() -> str:
 
 
 def _fetch_child_week_mondays(time_min: date, time_max: date) -> set[date]:
-    """Lundis des semaines couvertes par l'event "Semaine enfants" sur la plage."""
     token = _get_access_token()
     resp = httpx.get(
         f"https://www.googleapis.com/calendar/v3/calendars/{CAFS_CALENDAR_ID}/events",
@@ -94,17 +83,30 @@ def _fetch_child_week_mondays(time_min: date, time_max: date) -> set[date]:
     return mondays
 
 
-def is_child_week(day: date) -> bool:
-    """Les enfants sont-ils présents la semaine de `day`, selon gcal CAFS ?
+def resolve_week(monday: date) -> bool:
+    """Présence des enfants la semaine de `monday`, ou lève ChildWeekAmbiguous."""
+    window_start = monday - timedelta(days=_AMBIGUITY_WINDOW_DAYS)
+    window_end = monday + timedelta(days=7 + _AMBIGUITY_WINDOW_DAYS)
+    mondays = _fetch_child_week_mondays(window_start, window_end)
+    if not mondays:
+        raise ChildWeekAmbiguous(
+            f"Aucun event \"{CHILD_WEEK_EVENT_SUMMARY}\" trouvé entre "
+            f"{window_start.isoformat()} et {window_end.isoformat()} sur le "
+            "calendrier CAFS — vérifier que l'event existe toujours sous ce nom."
+        )
+    return monday in mondays
 
-    Résultat mis en cache par semaine (lundi) — un appel réseau au plus par
-    semaine interrogée dans le process, jamais par requête.
-    """
+
+async def sync_week(pool, day: date) -> bool:
+    """Résout la semaine de `day` et l'écrit dans child_week_presence."""
     monday = day - timedelta(days=day.weekday())
-    if monday in _week_cache:
-        return _week_cache[monday]
-
-    mondays = _fetch_child_week_mondays(monday, monday + timedelta(days=7))
-    result = monday in mondays
-    _week_cache[monday] = result
-    return result
+    present = resolve_week(monday)
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """INSERT INTO child_week_presence (week_monday, present, synced_at)
+               VALUES ($1, $2, now())
+               ON CONFLICT (week_monday) DO UPDATE SET
+                   present = EXCLUDED.present, synced_at = now()""",
+            monday, present,
+        )
+    return present

@@ -87,12 +87,24 @@ class Stay:
         return self.start <= day <= self.end
 
 
+class ChildWeekUnknown(Exception):
+    """Semaine jamais synchronisée via POST /api/child-week/sync — pas assimilée à "absents"."""
+
+    def __init__(self, monday: date):
+        self.monday = monday
+        super().__init__(
+            f"Semaine du {monday.isoformat()} non synchronisée avec gcal "
+            "(POST /api/child-week/sync?day=...) — présence des enfants inconnue."
+        )
+
+
 @dataclass
 class Referential:
     school_holidays: list[SchoolPeriod] = field(default_factory=list)
     absences: list[Absence] = field(default_factory=list)
     overrides: dict[str, list[str]] = field(default_factory=dict)
     stays: list[Stay] = field(default_factory=list)
+    gcal_weeks: dict[date, bool] = field(default_factory=dict)
 
     def is_school_holiday(self, day: date) -> bool:
         return any(p.covers(day) for p in self.school_holidays)
@@ -143,12 +155,14 @@ def children_present_this_week(day: date, reference: date = CUSTODY_REFERENCE_WE
     return ((monday - ref_monday).days // 7) % 2 == 0
 
 
-def _child_present(day: date, custody: CustodyInfo) -> bool:
+def _child_present(day: date, custody: CustodyInfo, ref: Referential) -> bool:
     if custody.pattern == "always":
         return True
     if custody.pattern == "gcal":
-        from cooking_manager.child_week import is_child_week
-        return is_child_week(day)
+        monday = day - timedelta(days=day.weekday())
+        if monday not in ref.gcal_weeks:
+            raise ChildWeekUnknown(monday)
+        return ref.gcal_weeks[monday]
     if custody.pattern == "alternating_weeks":
         is_ref_week = children_present_this_week(day, custody.reference_date)
         return is_ref_week == custody.reference_present
@@ -191,7 +205,7 @@ def attendees(
     # 3. Trame déterministe (garde alternée × cantine × vacances).
     people = list(hh.adults)
     for child in hh.children:
-        if not _child_present(day, child):
+        if not _child_present(day, child, ref):
             continue
         if _child_at_canteen(child.name, day, slot, hh.canteen, ref):
             continue
@@ -225,7 +239,7 @@ def week_grid(
             "date": day.isoformat(),
             "school_holiday": ref.holiday_label(day),
             "children_week": any(
-                _child_present(day, c) for c in hh.children
+                _child_present(day, c, ref) for c in hh.children
             ),
         }
         for slot in SLOTS:

@@ -2045,7 +2045,7 @@ async def resolve_attendance(day: str, slot: str = ""):
     """
     from datetime import date as _date
 
-    from cooking_manager.presence import SLOTS, attendees
+    from cooking_manager.presence import SLOTS, ChildWeekUnknown, attendees
 
     try:
         d = _date.fromisoformat(day)
@@ -2059,13 +2059,40 @@ async def resolve_attendance(day: str, slot: str = ""):
 
     stay = ref.stay_covering(d)
     slots = [slot] if slot else list(SLOTS)
-    result = {
-        "date": day,
-        "school_holiday": ref.holiday_label(d),
-        "stay": {"label": stay.label, "cooking": stay.cooking} if stay else None,
-        "slots": {s: attendees(d, s, ref, household) for s in slots},
-    }
+    try:
+        result = {
+            "date": day,
+            "school_holiday": ref.holiday_label(d),
+            "stay": {"label": stay.label, "cooking": stay.cooking} if stay else None,
+            "slots": {s: attendees(d, s, ref, household) for s in slots},
+        }
+    except ChildWeekUnknown as e:
+        raise HTTPException(409, str(e)) from e
     return result
+
+
+@app.post("/api/child-week/sync")
+async def sync_child_week(day: str | None = None):
+    """Synchronise la présence des enfants pour la semaine de `day` (ou
+    aujourd'hui) depuis l'event gcal "Semaine enfants" — à la demande
+    uniquement, jamais en continu. Voir backend/child_week_sync.py."""
+    from datetime import date as _date
+
+    from backend.child_week_sync import ChildWeekAmbiguous, sync_week
+
+    try:
+        d = _date.fromisoformat(day) if day else _date.today()
+    except ValueError as e:
+        raise HTTPException(422, f"Date invalide : {day}") from e
+
+    pool = await get_pool(DATABASE_DSN)
+    try:
+        present = await sync_week(pool, d)
+    except ChildWeekAmbiguous as e:
+        raise HTTPException(422, str(e)) from e
+
+    monday = d - datetime.timedelta(days=d.weekday())
+    return {"week_monday": monday.isoformat(), "present": present}
 
 
 # ── HouseholdConfig from DB (bridge to presence.py) ──
@@ -2118,6 +2145,9 @@ async def load_referential_from_db(conn) -> "Referential":
     from cooking_manager.presence import Absence, Referential, SchoolPeriod, Stay
 
     ref = Referential()
+
+    for r in await conn.fetch("SELECT week_monday, present FROM child_week_presence"):
+        ref.gcal_weeks[r["week_monday"]] = r["present"]
 
     for r in await conn.fetch("SELECT label, start_date, end_date FROM school_period"):
         ref.school_holidays.append(SchoolPeriod(

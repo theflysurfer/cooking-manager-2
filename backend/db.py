@@ -246,6 +246,13 @@ CREATE TABLE IF NOT EXISTS custody_schedule (
     UNIQUE (person_id)
 );
 
+-- child_week_presence : cache par semaine de l'event gcal, voir ADR 0004.
+CREATE TABLE IF NOT EXISTS child_week_presence (
+    week_monday DATE PRIMARY KEY,
+    present     BOOLEAN NOT NULL,
+    synced_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 -- canteen_schedule : cantine par enfant et par jour. Remplace le test
 -- « day.weekday() in (1, 3, 4) » en dur dans presence.py.
 -- active_outside_holidays = TRUE signifie que la cantine n'existe QUE
