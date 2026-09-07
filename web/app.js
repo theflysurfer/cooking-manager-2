@@ -737,13 +737,24 @@ function conceptOptions(concepts, placeholder) {
   return html;
 }
 
+function conceptLabel(facet, key) {
+  if (!key) return '';
+  var concepts = (state.feedbackVocab && state.feedbackVocab[facet]) || [];
+  for (var i = 0; i < concepts.length; i++) {
+    if (concepts[i].key === key) return concepts[i].label;
+  }
+  return label(key);
+}
+
 function feedbackHistory(data) {
   var html = '';
   (data.verdicts || []).forEach(function (v) {
-    var issues = (v.issue_kinds || []).map(label).join(' · ');
+    var issues = (v.issue_kinds || []).map(function (k) {
+      return conceptLabel('issue_kinds', k);
+    }).join(' · ');
     html += '<div class="fb-row fb-row--verdict">' +
       '<span class="fb-row__date">' + esc(v.served_on) + '</span>' +
-      '<span class="fb-row__value">' + esc(label(v.verdict)) + '</span>' +
+      '<span class="fb-row__value">' + esc(conceptLabel('replay_verdicts', v.verdict)) + '</span>' +
       (issues ? '<span class="fb-row__issues">' + esc(issues) + '</span>' : '') +
       (v.verbatim ? '<div class="fb-row__verbatim">« ' + esc(v.verbatim) + ' »</div>' : '') +
       '</div>';
@@ -752,7 +763,7 @@ function feedbackHistory(data) {
     html += '<div class="fb-row">' +
       '<span class="fb-row__date">' + esc(f.served_on) + '</span>' +
       '<span class="fb-row__who">' + esc(f.person) + '</span>' +
-      '<span class="fb-row__value">' + esc(label(f.appreciation)) + '</span>' +
+      '<span class="fb-row__value">' + esc(conceptLabel('appreciations', f.appreciation)) + '</span>' +
       (f.verbatim ? '<div class="fb-row__verbatim">« ' + esc(f.verbatim) + ' »</div>' : '') +
       '</div>';
   });
