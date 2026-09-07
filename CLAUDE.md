@@ -75,6 +75,17 @@ Quatre fichiers font autorité, dans cet ordre de spécificité :
 ⚠️ **`menu.slug` est la clé naturelle.** Ne jamais réintroduire le
 `DELETE FROM menu` qui protégeait l'ingestion des doublons : il effaçait tout
 menu absent du vault, donc un menu créé via l'API, sans erreur ni trace.
+**Même interdit sur `menu_meal`** (levé le 2026-09-07) : l'ingestion upsert sur
+`(menu_id, position, slot)` et ne supprime que les repas réellement disparus du
+vault. Un `DELETE` global y effacerait `served`, la seule trace de ce qui a été
+mangé, sans une erreur.
+
+⚠️ **Un menu est un PLAN, pas un historique — `menu_meal.served` est un
+tri-état** : `NULL` « on ne sait pas » (l'état de tout repas non renseigné),
+`true` mangé, `false` prévu mais pas fait. Mesuré le 2026-09-07 : une semaine
+entière de 18 repas n'avait jamais été cuisinée, et rien ne le disait. Sans ce
+champ, toute rotation et tout décompte d'exécution comptent des repas fantômes.
+Le poser : `POST /api/menus/{slug}/served` (filtrable `day`/`slot`/`position`).
 
 ⚠️ **Le `slug` est la clé, pas le nom de fichier — deux fiches peuvent le déclarer
 en double**, et l'upsert n'en garde qu'une. `read_recipes()` les départage sur la date
