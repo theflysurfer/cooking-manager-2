@@ -64,6 +64,17 @@ class TestFoods:
         plan = build_records(make_vault(tmp_path))
         assert all("index" not in f["key"] for f in plan.foods)
 
+    def test_a_null_brand_does_not_make_a_product(self, tmp_path):
+        """49 fiches de generiques/ portent « marque: null » — la CHAÎNE « null »."""
+        root = make_vault(tmp_path)
+        sheet = root / "generiques" / "pain-complet.md"
+        sheet.write_text(sheet.read_text(encoding="utf-8")
+                         .replace("slug: pain-complet", "slug: pain-complet\nmarque: null"),
+                         encoding="utf-8")
+        plan = build_records(root)
+        assert "pain complet" in {f["key"] for f in plan.foods}
+        assert all(p["brand"] != "null" for p in plan.products)
+
 
 class TestProducts:
     def test_branded_sheets_become_products(self, tmp_path):

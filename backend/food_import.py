@@ -14,6 +14,8 @@ from cooking_manager.packaging import split_packaging
 
 NEUTRAL_FORMS = ("100g", "100 g", "100ml", "100 ml")
 
+ABSENT_VALUES = ("null", "none", "nan", "-", "n/a", "à compléter", "a completer")
+
 
 @dataclass
 class ImportPlan:
@@ -35,7 +37,9 @@ def build_records(root: Path) -> ImportPlan:
         text = path.read_text(encoding="utf-8")
         fm, forms = parse_food_sheet(text)
         title = str(fm.get("title") or path.stem)
-        is_branded = "marques" in path.parts or bool(fm.get("marque"))
+        brand = _brand(fm.get("marque"))
+        is_branded = ("marques" in path.parts
+                      or ("generiques" not in path.parts and brand is not None))
         clean_name, pack = split_packaging(title)
 
         if not forms:
@@ -55,7 +59,7 @@ def build_records(root: Path) -> ImportPlan:
         if is_branded:
             plan.products.append({
                 "name": clean_name,
-                "brand": fm.get("marque"),
+                "brand": brand,
                 "pack_count": pack.count,
                 "pack_size_value": pack.size_value,
                 "pack_size_unit": pack.size_unit,
@@ -86,6 +90,12 @@ def build_records(root: Path) -> ImportPlan:
 
     _link_products(plan)
     return plan
+
+
+def _brand(value) -> str | None:
+    """Le frontmatter est lu ligne à ligne : « null » y arrive comme une chaîne."""
+    text = str(value or "").strip().strip('"')
+    return None if text.lower() in ABSENT_VALUES or not text else text
 
 
 def _pick_form(forms: dict[str, Macros]) -> dict | None:
