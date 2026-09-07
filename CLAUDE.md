@@ -91,12 +91,11 @@ Lire, jamais recopier : `/api/preferences` · `/api/menus/<slug>/compatibility`.
 
 ### Écrire un terme alimentaire
 
-| Règle | Pourquoi ça ne se voit pas sinon |
-|---|---|
-| **Au singulier**, toujours (`DIETS`, `dislikes`, `forbidden`, `diet_exceptions`) | La flexion va du singulier vers le pluriel, jamais l'inverse : « lardons » ne rencontre pas « lardon » |
-| Un terme **ambigu** se déclare avec son motif dans `CONTEXT_REQUIRED` | `roti` en mot nu déclare « pois chiches rôtis » incompatible pescétarien (ADR 0007). Même piège sur `blanc`, `filet`, `cuisse` |
-| Une règle de `substitutions.py` avec `cuisines` se borne par `rule_applies()` | Sinon une règle ouest-africaine gagne sur un coq au vin |
-| Une règle **nommée** ne s'ajoute que sur observation | Sa raison s'affiche à l'utilisateur ; inventée, elle ment. Sinon : laisser le repli, qui se déclare comme tel |
+**Au singulier**, toujours (`DIETS`, `dislikes`, `forbidden`, `diet_exceptions`) : la flexion
+va du singulier vers le pluriel, jamais l'inverse. Un terme ambigu (`roti`, `blanc`, `filet`,
+`cuisse`) se déclare avec son motif dans `CONTEXT_REQUIRED`, sinon « pois chiches rôtis »
+sort incompatible pescétarien (ADR 0007). Une règle nommée ne s'ajoute que sur observation —
+sa raison s'affiche à l'utilisateur. Détail : `julien-cooking-manager-weekly-prep` § 3.
 
 `repairs` vide ne veut pas dire « rien à réparer » — **lire `unrepaired`** : `RULES_BY_DIET` ne couvre qu'une minorité des termes de `DIETS`.
 
@@ -118,6 +117,15 @@ un compte rendu d'après coup, relié à aucun menu (#67, #68).
 
 ⛔ **`age_days` ne dit rien de l'âge des articles** : l'inventaire est daté par `MAX(updated_at)`,
 donc une seule écriture le rajeunit tout entier. Juger la fraîcheur sur `entered_at`, par article (#84).
+
+⛔ **`outcome: inconnu` veut dire « présent, quantité incomparable »**, jamais « on ne sait pas
+si tu l'as » — le stock est en texte libre (« 1 sachet 300 g »), le besoin en chiffres. Lire le
+`reason` de la ligne et **trancher à la main** : le 2026-09-07, 25 lignes « inconnu » cachaient
+4 manques réels, dont le poisson qui portait deux repas. Un humain compare « 1 » à « 8 pièces »
+en une seconde là où le calcul ne peut pas.
+
+Déclarer l'état d'un article : `PATCH /api/pantry` (par **nom**, écrit en base, rend 409 sur
+un homonyme). Détail et pièges : `julien-cooking-manager-pantry-update`.
 
 ⚠️ **`Garde-manger.md` est aussi lu et écrit par le Coach Nutrition de claude.ai**, qui n'appelle jamais l'app : les deux stocks divergent sans alerte. Croiser via `pantry_item` (DB).
 
@@ -157,22 +165,18 @@ lu ligne à ligne, la **chaîne** `"null"` est vraie (#85 — même piège sur `
 | Avant toute bascule de consommateur | `GET /api/food/report` : `missing` **et** `macro_mismatch` vides (ADR 0011) |
 | Un produit non rattaché | `status = 'a_rapprocher'` — un choix à faire, jamais un oubli |
 
-⛔ **Les fiches ne portent pas d'unité d'usage** : le patron `## Par <unité> (~N g)`
-apparaît 1 fois sur 248. Une « Portion courante » (430 g « bol complet ») est un
-contexte de repas, pas une unité — ne pas la convertir en `food_unit`.
+⛔ **Les fiches ne portent pas d'unité d'usage** (1 fiche sur 248, mesuré le 2026-09-07) :
+une « Portion courante » est un contexte de repas, pas une unité — ne pas la convertir
+en `food_unit`.
 
-⚠️ **Une fiche corrigée en local ne suffit pas** : le VPS monte le **cloud**. Toute
-correction se propage par `rclone copy` **et** `rclone delete` avant de ré-importer.
-Deux pièges mesurés : `aliments-vérifiés/` porte **deux dossiers `feculents-legumineuses`**
-(un à la racine, vide, un sous `generiques/`), et un `directory not found` de rclone
-signale une **syntaxe fausse**, jamais une absence — vérifier en listant le dossier parent.
+⚠️ **Une fiche corrigée en local ne suffit pas** — le VPS monte le cloud : propager par
+`rclone copy` **et** `rclone delete`. `aliments-vérifiés/` porte deux dossiers
+`feculents-legumineuses` homonymes, et un `directory not found` de rclone signale une
+syntaxe fausse, jamais une absence.
 
-⚠️ **Un `ciqual_code` ne se croit pas sur parole** : la fiche `pain-complet` déclarait
-`7010`, qui est le pain **bis** (T80/T110, 265 kcal, 0,33 g de lipides). Le pain complet
-est `7110`. La table officielle se lit dans le XML ANSES (data.gouv.fr, dataset
-`table-de-composition-nutritionnelle-des-aliments-ciqual-2020`) : les sites tiers
-relaient les versions 2013, 2017 et 2020 sans le dire. ⚠️ Ce XML est en **cp1252** et
-contient un `<1° alc.` qui casse tout parseur XML — le lire par regex.
+⚠️ **Un `ciqual_code` ne se croit pas sur parole** (`pain-complet` déclarait `7010`, le pain
+**bis**). Vérifier dans le XML ANSES de data.gouv.fr — il est en **cp1252** et casse tout
+parseur XML, le lire par regex. Les sites tiers mélangent les millésimes. ADR 0011.
 
 ## Macros
 
@@ -194,15 +198,9 @@ Safari 14.5+ : le micro est masqué sur l'iPad mini 2.
 
 ## Gate iOS 12
 
-| Interdit | Parade |
-|---|---|
-| `gap` en **flex** (14.5) | Grid + `gap`, ou `> * + *` |
-| `aspect-ratio` (15) | `padding-bottom: 52.6%` + enfant absolu |
-| `<dialog>` / `showModal()` (15.4) | vue plein écran routée |
-| `@media (prefers-color-scheme)` (13) | attribut `data-theme` sur `<html>` |
-| `:focus-visible` · `text-wrap` · `loading="lazy"` | retirer |
-| `?.` `??` `\|\|=` · champs de classe (16) | `&&` / `\|\|`, écriture explicite |
-| `clamp()` seul | repli déclaré **avant** — sinon la règle est jetée en silence |
+Cible **Safari 12.5.8** : `gap` en flex, `aspect-ratio`, `<dialog>`,
+`prefers-color-scheme`, `:focus-visible`, `?.`/`??`/`||=` et les champs de classe sont
+hors d'atteinte. Le catalogue interdit → parade vit dans `julien-audit-ios12-compat`.
 
 Vérifier : `python ~/.claude/skills/julien-audit-ios12-compat/scripts/audit_ios12.py web`
 (score ≥ 90 et zéro bloquant). `package.json` est en devDependencies : **pas de build**.
@@ -218,6 +216,7 @@ un seul accent, ni rayon ni ombre. Détail : `2026.08 Product Toolkit/research/`
 ## Skills liées
 
 - `julien-cooking-manager-weekly-prep` — **owner** — toute la semaine : tablée, menu écrit et contrôlé, photos, stock, courses, macros, retours de table.
+- `julien-cooking-manager-pantry-update` — **owner** — déclarer un aliment épuisé, bas ou présent, corriger une quantité, reporter un drive ; écrit en base.
 - `julien-audit-cooking-vault` — **owner** — auditer les données ingérées, **avant** toute génération de courses.
 - `cooking-manager-auchan-drive` — gros consommateur — pilote le panier depuis ces courses.
 
