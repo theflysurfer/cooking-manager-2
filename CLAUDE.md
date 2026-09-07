@@ -161,6 +161,19 @@ lu ligne à ligne, la **chaîne** `"null"` est vraie (#85 — même piège sur `
 apparaît 1 fois sur 248. Une « Portion courante » (430 g « bol complet ») est un
 contexte de repas, pas une unité — ne pas la convertir en `food_unit`.
 
+⚠️ **Une fiche corrigée en local ne suffit pas** : le VPS monte le **cloud**. Toute
+correction se propage par `rclone copy` **et** `rclone delete` avant de ré-importer.
+Deux pièges mesurés : `aliments-vérifiés/` porte **deux dossiers `feculents-legumineuses`**
+(un à la racine, vide, un sous `generiques/`), et un `directory not found` de rclone
+signale une **syntaxe fausse**, jamais une absence — vérifier en listant le dossier parent.
+
+⚠️ **Un `ciqual_code` ne se croit pas sur parole** : la fiche `pain-complet` déclarait
+`7010`, qui est le pain **bis** (T80/T110, 265 kcal, 0,33 g de lipides). Le pain complet
+est `7110`. La table officielle se lit dans le XML ANSES (data.gouv.fr, dataset
+`table-de-composition-nutritionnelle-des-aliments-ciqual-2020`) : les sites tiers
+relaient les versions 2013, 2017 et 2020 sans le dire. ⚠️ Ce XML est en **cp1252** et
+contient un `<1° alc.` qui casse tout parseur XML — le lire par regex.
+
 ## Macros
 
 `nutrition.py` applique les règles du Coach Nutrition (`Noyau/Coaches/Coach Nutrition/_coach.md`),
