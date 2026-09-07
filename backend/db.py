@@ -238,7 +238,7 @@ CREATE TABLE IF NOT EXISTS custody_schedule (
     id                  SERIAL PRIMARY KEY,
     person_id           INTEGER NOT NULL REFERENCES person(id) ON DELETE CASCADE,
     pattern             TEXT NOT NULL DEFAULT 'alternating_weeks'
-                        CHECK (pattern IN ('alternating_weeks', 'specific_days', 'always')),
+                        CHECK (pattern IN ('alternating_weeks', 'specific_days', 'always', 'gcal')),
     reference_date      DATE NOT NULL,
     reference_present   BOOLEAN NOT NULL DEFAULT TRUE,
     weekday_override    JSONB,
@@ -439,6 +439,15 @@ SELECT h.id, p.id, 'resident'
 FROM household h, person p
 WHERE h.is_primary AND p.circle = 'household'
 ON CONFLICT DO NOTHING;
+
+-- custody_schedule.pattern 'gcal' : la garde alternée réelle vit dans l'event
+-- gcal "Semaine enfants" (calendrier CAFS), pas dans une date de référence
+-- figée. Voir cooking_manager/child_week.py.
+ALTER TABLE custody_schedule DROP CONSTRAINT IF EXISTS custody_schedule_pattern_check;
+ALTER TABLE custody_schedule ADD CONSTRAINT custody_schedule_pattern_check
+    CHECK (pattern IN ('alternating_weeks', 'specific_days', 'always', 'gcal'));
+UPDATE custody_schedule SET pattern = 'gcal'
+WHERE person_id IN (SELECT id FROM person WHERE role = 'child' AND circle = 'household');
 """
 
 _pool: asyncpg.Pool | None = None

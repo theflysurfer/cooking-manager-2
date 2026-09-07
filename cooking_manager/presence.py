@@ -146,6 +146,9 @@ def children_present_this_week(day: date, reference: date = CUSTODY_REFERENCE_WE
 def _child_present(day: date, custody: CustodyInfo) -> bool:
     if custody.pattern == "always":
         return True
+    if custody.pattern == "gcal":
+        from cooking_manager.child_week import is_child_week
+        return is_child_week(day)
     if custody.pattern == "alternating_weeks":
         is_ref_week = children_present_this_week(day, custody.reference_date)
         return is_ref_week == custody.reference_present
