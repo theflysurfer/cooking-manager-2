@@ -281,6 +281,7 @@ class Need:
     recipes: list[str] = field(default_factory=list)
     is_optional: bool = True     # devient False dès qu'une recette l'exige
     raw_lines: list[str] = field(default_factory=list)
+    merged_from: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -422,7 +423,69 @@ def build_needs(meals_recipes: list[tuple[str, list, float]]) -> list[Need]:
             if not ing.get("parsed") and ing.get("raw"):
                 need.raw_lines.append(ing["raw"])
 
-    return sorted(needs.values(), key=lambda n: (n.is_optional, n.name))
+    merged = _merge_equivalent_needs(needs)
+    return sorted(merged, key=lambda n: (n.is_optional, n.name))
+
+
+def _merge_equivalent_needs(needs: dict[tuple[str, str], Need]) -> list[Need]:
+    """Deux libellés d'un même aliment font un seul besoin.
+
+    Chaque fiche nomme son ingrédient dans le contexte de sa recette
+    (« bouillon de légumes CHAUD », « lentilles vertes SÈCHES »). Deux besoins
+    laissés côte à côte ne doublonnent pas seulement la ligne : ils tombent de
+    part et d'autre du différentiel, et un aliment en stock ressort « absent ».
+
+    Le rapprochement est celui de `Pantry.find` — inclusion de mots porteurs —
+    et il ne s'applique QU'À FAMILLE D'UNITÉ ÉGALE : « 2 sachets » et
+    « 2 poignées » de mâche ne s'additionnent pas. Le nom retenu est le plus
+    générique (le plus court) ; les libellés absorbés restent dans
+    `merged_from`, pour qu'une fusion se voie au lieu de faire disparaître une
+    ligne en silence.
+    """
+    by_family: dict[str, list[Need]] = {}
+    for (_, family), need in needs.items():
+        by_family.setdefault(family, []).append(need)
+
+    kept: list[Need] = []
+    for family_needs in by_family.values():
+        survivors: list[Need] = []
+        for need in sorted(family_needs, key=lambda n: len(n.name_normalized)):
+            host = next(
+                (s for s in survivors if _same_food(s.name_normalized, need.name_normalized)),
+                None,
+            )
+            if host is None:
+                survivors.append(need)
+                continue
+            _absorb(host, need)
+        kept.extend(survivors)
+    return kept
+
+
+def _same_food(generic: str, detailed: str) -> bool:
+    """`detailed` est-il le même aliment que `generic`, en plus qualifié ?"""
+    if not generic or not detailed:
+        return False
+    return (
+        _contains_words(detailed, generic)
+        or _content_words(generic) <= _content_words(detailed)
+    )
+
+
+def _absorb(host: Need, other: Need) -> None:
+    """Verser un besoin dans un autre, sans rien perdre de traçable."""
+    if other.qty is not None:
+        host.qty = (host.qty or 0) + other.qty
+        if host.unit is None:
+            host.unit = other.unit
+    if not other.is_optional:
+        host.is_optional = False
+    for recipe in other.recipes:
+        if recipe not in host.recipes:
+            host.recipes.append(recipe)
+    host.raw_lines.extend(other.raw_lines)
+    host.merged_from.append(other.name)
+    host.merged_from.extend(other.merged_from)
 
 
 def _as_mapping(ing) -> dict:

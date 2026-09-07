@@ -243,6 +243,92 @@ class TestAggregation:
         assert needs[0].qty == 3.0
 
 
+class TestNeedConsolidation:
+    """Deux libellés d'un même aliment font UN besoin (#81).
+
+    Chaque fiche décrit son ingrédient dans le contexte de sa recette
+    (« chaud », « en lanières », « poids cuit »). Laisser les deux lignes fait
+    pire que doublonner : « lentilles vertes » ressort en stock pendant que
+    « lentilles vertes sèches » ressort absente, et on rachète.
+    """
+
+    def test_a_qualifier_merges_into_the_generic_name(self):
+        needs = build_needs([
+            ("Risotto", [Ingredient(raw="1 l bouillon de légumes", name="bouillon de légumes",
+                                    qty_min=1.0, unit="l", position=1)], 1.0),
+            ("Dahl", [Ingredient(raw="1 l bouillon de légumes chaud", name="bouillon de légumes chaud",
+                                 qty_min=1.0, unit="l", position=1)], 1.0),
+        ])
+        assert len(needs) == 1
+        assert needs[0].name_normalized == "bouillon de legume"
+        assert needs[0].qty == 2000.0
+        assert "bouillon de légumes chaud" in needs[0].merged_from
+
+    def test_the_founding_case_lentils(self):
+        """Le cas qui faisait racheter : le stock porte « lentilles vertes »,
+        la seconde fiche écrit « lentilles vertes sèches »."""
+        needs = build_needs([
+            ("Salade", [Ingredient(raw="300 g lentilles vertes", name="lentilles vertes",
+                                   qty_min=300.0, unit="g", position=1)], 1.0),
+            ("Poêlée", [Ingredient(raw="300 g lentilles vertes sèches", name="lentilles vertes sèches",
+                                   qty_min=300.0, unit="g", position=1)], 1.0),
+        ])
+        assert len(needs) == 1
+        assert needs[0].name_normalized == "lentille verte"
+
+    def test_incommensurable_units_are_never_merged(self):
+        """« 2 sachets » et « 2 pièces » de mâche restent deux besoins : les
+        fondre additionnerait des choses qui ne s'additionnent pas."""
+        needs = build_needs([
+            ("A", [Ingredient(raw="2 sachets mélange mâche et roquette",
+                              name="mélange mâche et roquette", qty_min=2.0, unit="sachet", position=1)], 1.0),
+            ("B", [Ingredient(raw="2 poignées de mâche et roquette",
+                              name="poignée de mâche et roquette", qty_min=2.0, unit="pièce", position=1)], 1.0),
+        ])
+        assert len(needs) == 2
+
+    def test_two_varieties_stay_apart(self):
+        """« lentilles corail » et « lentilles vertes » ne sont pas le même
+        aliment — aucun des deux noms n'est contenu dans l'autre."""
+        needs = build_needs([
+            ("A", [Ingredient(raw="300 g lentilles corail", name="lentilles corail",
+                              qty_min=300.0, unit="g", position=1)], 1.0),
+            ("B", [Ingredient(raw="300 g lentilles vertes", name="lentilles vertes",
+                              qty_min=300.0, unit="g", position=1)], 1.0),
+        ])
+        assert len(needs) == 2
+
+    def test_a_partial_overlap_is_left_alone(self):
+        """« trio de poivrons en lanières » et « poivrons en lanières (rouge et
+        jaune) » : l'un contient l'autre, ils fusionnent. Mais « poivrons
+        rouges » en pièces reste à part — deux mots communs ne suffisent pas."""
+        needs = build_needs([
+            ("A", [Ingredient(raw="600 g poivrons en lanières", name="poivrons en lanières",
+                              qty_min=600.0, unit="g", position=1)], 1.0),
+            ("B", [Ingredient(raw="600 g trio de poivrons en lanières", name="trio de poivrons en lanières",
+                              qty_min=600.0, unit="g", position=1)], 1.0),
+            ("C", [Ingredient(raw="2 poivrons rouges", name="poivrons rouges",
+                              qty_min=2.0, unit="pièce", position=1)], 1.0),
+        ])
+        assert len(needs) == 2
+        merged = [n for n in needs if n.unit == "g"][0]
+        assert merged.name_normalized == "poivron en laniere"
+        assert merged.qty == 1200.0
+
+    def test_recipes_and_requirement_survive_the_merge(self):
+        """Une recette qui EXIGE l'ingrédient l'emporte sur une qui le rend
+        optionnel, et les deux recettes restent citées."""
+        needs = build_needs([
+            ("A", [Ingredient(raw="10 g persil", name="persil", qty_min=10.0,
+                              unit="g", is_optional=True, position=1)], 1.0),
+            ("B", [Ingredient(raw="10 g persil plat", name="persil plat", qty_min=10.0,
+                              unit="g", position=1)], 1.0),
+        ])
+        assert len(needs) == 1
+        assert needs[0].is_optional is False
+        assert set(needs[0].recipes) == {"A", "B"}
+
+
 class TestFoundingBug:
     """Non-régression du 2026-08-04 : sauce soja et miel étaient au
     garde-manger en `status=ok` et ont quand même été achetés."""

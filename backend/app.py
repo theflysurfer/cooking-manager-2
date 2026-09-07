@@ -616,6 +616,7 @@ async def menu_shopping_list(
     l'app demande au lieu de deviner.
     """
     from cooking_manager.pantry import build_needs, check_need
+    from cooking_manager.purchase import purchase_for
 
     pool = await get_pool(DATABASE_DSN)
     async with pool.acquire() as conn:
@@ -679,6 +680,7 @@ async def menu_shopping_list(
     lines = []
     for need in needs:
         verdict = check_need(need, pantry)
+        buy = purchase_for(need, verdict.to_buy)
         lines.append({
             "name": need.name,
             "name_normalized": need.name_normalized,
@@ -687,9 +689,12 @@ async def menu_shopping_list(
             "recipes": need.recipes,
             "shared": len(need.recipes) > 1,
             "is_optional": need.is_optional,
+            "merged_from": need.merged_from,
             "outcome": verdict.outcome,
             "reason": verdict.reason,
             "to_buy": verdict.to_buy,
+            "purchase": ({"kind": buy.kind, "qty": buy.qty, "unit": buy.unit,
+                          "reason": buy.reason} if buy else None),
             "assumed_empty": verdict.assumed_empty,
             "pantry": ({"name": verdict.pantry_item.name,
                         "qty_text": verdict.pantry_item.qty_text,
@@ -698,8 +703,12 @@ async def menu_shopping_list(
         })
 
     counts: dict[str, int] = {}
+    purchase_counts: dict[str, int] = {}
     for line in lines:
         counts[line["outcome"]] = counts.get(line["outcome"], 0) + 1
+        buy = line["purchase"]
+        if buy:
+            purchase_counts[buy["kind"]] = purchase_counts.get(buy["kind"], 0) + 1
 
     return {
         "slug": menu["slug"], "title": menu["title"], "covers": default_covers,
@@ -710,6 +719,7 @@ async def menu_shopping_list(
         "pantry": {"updated": pantry.updated.isoformat() if pantry.updated else None,
                    "age_days": pantry.age_days(), "is_stale": pantry.is_stale()},
         "counts": counts,
+        "purchase_counts": purchase_counts,
         "lines": lines,
     }
 
