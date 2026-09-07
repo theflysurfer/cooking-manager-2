@@ -1000,7 +1000,7 @@ async def list_menu_meals(slug: str):
             raise HTTPException(404, f"Menu introuvable : {slug}")
         rows = await conn.fetch(
             """SELECT mm.id, mm.day, mm.day_label, mm.position, mm.slot,
-                      mm.dish, mm.recipe_id, mm.match_kind, mm.covers,
+                      mm.dish, mm.recipe_id, mm.match_kind, mm.covers, mm.served,
                       r.slug AS recipe_slug, r.title AS recipe_title,
                       r.photo_url AS recipe_photo
                  FROM menu_meal mm
@@ -1016,6 +1016,36 @@ async def list_menu_meals(slug: str):
             d["day"] = d["day"].isoformat()
         meals.append(d)
     return {"slug": slug, "meals": meals}
+
+
+class ServedBody(BaseModel):
+    served: bool | None
+    day: datetime.date | None = None
+    slot: str | None = None
+    position: int | None = None
+
+
+@app.post("/api/menus/{slug}/served")
+async def set_meals_served(slug: str, body: ServedBody):
+    """Marque des repas mangés, pas faits, ou de nouveau inconnus (served = null)."""
+    from cooking_manager.presence import SLOTS
+    if body.slot is not None and body.slot not in SLOTS:
+        raise HTTPException(422, f"Créneau inconnu : {body.slot}")
+    pool = await get_pool(DATABASE_DSN)
+    async with pool.acquire() as conn:
+        menu = await conn.fetchrow("SELECT id FROM menu WHERE slug = $1", slug)
+        if not menu:
+            raise HTTPException(404, f"Menu introuvable : {slug}")
+        rows = await conn.fetch(
+            """UPDATE menu_meal SET served = $2
+                WHERE menu_id = $1
+                  AND ($3::date IS NULL OR day = $3)
+                  AND ($4::text IS NULL OR slot = $4)
+                  AND ($5::int IS NULL OR position = $5)
+            RETURNING id""",
+            menu["id"], body.served, body.day, body.slot, body.position,
+        )
+    return {"ok": True, "slug": slug, "served": body.served, "updated": len(rows)}
 
 
 class MealUpdate(BaseModel):

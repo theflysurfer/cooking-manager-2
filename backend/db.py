@@ -46,6 +46,7 @@ CREATE TABLE IF NOT EXISTS menu_meal (
     recipe_id   INTEGER REFERENCES recipe(id) ON DELETE SET NULL,
     match_kind  TEXT,
     covers      INTEGER,
+    served      BOOLEAN,
     UNIQUE (menu_id, position, slot)
 );
 
@@ -381,6 +382,11 @@ MIGRATIONS_SQL = """
 -- ET mange du boudin. Le contrôle bloquait un plat qu'elle accepte, et le seul
 -- contournement était de mentir sur son régime.
 ALTER TABLE person ADD COLUMN IF NOT EXISTS diet_exceptions TEXT[] DEFAULT '{}';
+
+-- menu_meal.served : un menu est un PLAN, pas un historique. NULL dit « on ne
+-- sait pas », et c'est l'état honnête de tout le passé. Sans ce tri-état, un
+-- repas jamais cuisiné se compte comme mangé dans toute rotation.
+ALTER TABLE menu_meal ADD COLUMN IF NOT EXISTS served BOOLEAN;
 
 -- recipe column migrations are owned by recipe-manager.
 ALTER TABLE menu ADD COLUMN IF NOT EXISTS meals JSONB;

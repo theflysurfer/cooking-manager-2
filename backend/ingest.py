@@ -380,9 +380,7 @@ async def _link_meals(conn) -> tuple[int, int]:
         if not meals:
             continue
 
-        # Réécriture complète des repas de CE menu : le vault fait autorité sur
-        # sa propre semaine. Le CASCADE ne touche aucun autre menu.
-        await conn.execute("DELETE FROM menu_meal WHERE menu_id = $1", menu["id"])
+        written: list[str] = []
 
         for position, meal in enumerate(meals, start=1):
             for slot in SLOTS:
@@ -410,6 +408,7 @@ async def _link_meals(conn) -> tuple[int, int]:
                         menu["id"], _as_date(meal.get("date")), meal.get("day"),
                         position, slot, dish, meal.get("covers"),
                     )
+                    written.append(f"{position}:{slot}")
                     continue
 
                 explicit = (meal.get(slot + "_slug") or "").strip()
@@ -439,6 +438,14 @@ async def _link_meals(conn) -> tuple[int, int]:
                     position, slot, dish,
                     recipe_id, kind, meal.get("covers"),
                 )
+                written.append(f"{position}:{slot}")
+
+        await conn.execute(
+            """DELETE FROM menu_meal
+               WHERE menu_id = $1
+                 AND (position::text || ':' || slot) <> ALL($2::text[])""",
+            menu["id"], written,
+        )
     return linked, orphan
 
 
