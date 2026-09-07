@@ -402,6 +402,62 @@ CREATE TABLE IF NOT EXISTS stay_member (
     person_id   INTEGER NOT NULL REFERENCES person(id) ON DELETE CASCADE,
     PRIMARY KEY (stay_id, person_id)
 );
+
+-- food : ce qu'une recette consomme et dont on calcule les macros — du comté.
+-- product : ce qu'on achète — Comté Juraflore AOP 250 g. Les deux vivaient
+-- confondus dans `aliments-vérifiés/`, où la distinction existait par dossier
+-- (generiques/ vs marques/) sans que rien ne la lise. SPEC_referentiel-aliment-produit.
+CREATE TABLE IF NOT EXISTS food (
+    key             TEXT PRIMARY KEY,
+    name            TEXT NOT NULL,
+    category        TEXT,
+    kind            TEXT,
+    ciqual_code     TEXT,
+    macros_per_100g JSONB,
+    conservation    TEXT,
+    source          TEXT,
+    verified_at     DATE,
+    created_at      TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Le gramme ne couvre que 38 % des lignes d'ingrédients : un aliment doit
+-- pouvoir se compter en pièce, gousse, tranche ou scoop, chacune avec son poids.
+CREATE TABLE IF NOT EXISTS food_unit (
+    food_key   TEXT NOT NULL REFERENCES food(key) ON DELETE CASCADE,
+    unit       TEXT NOT NULL,
+    grams      REAL NOT NULL,
+    source     TEXT,
+    PRIMARY KEY (food_key, unit)
+);
+
+-- ⚠️ ON DELETE SET NULL, jamais CASCADE : supprimer un aliment ne doit pas
+-- effacer l'historique des produits achetés — leçon des 7 alias emportés le
+-- 2026-09-07. `status` vaut 'linked' ou 'a_rapprocher' : jamais d'état
+-- intermédiaire silencieux.
+CREATE TABLE IF NOT EXISTS product (
+    id              SERIAL PRIMARY KEY,
+    food_key        TEXT REFERENCES food(key) ON DELETE SET NULL,
+    name            TEXT NOT NULL,
+    brand           TEXT,
+    ean             TEXT,
+    store           TEXT,
+    store_ref       TEXT,
+    pack_count      REAL,
+    pack_size_value REAL,
+    pack_size_unit  TEXT,
+    nutriscore      TEXT,
+    macros_per_100g JSONB,
+    last_price      REAL,
+    price_per_kg    REAL,
+    price_seen_at   DATE,
+    status          TEXT DEFAULT 'linked',
+    source          TEXT,
+    created_at      TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE (store, store_ref)
+);
+
+CREATE INDEX IF NOT EXISTS product_food_idx ON product(food_key);
+CREATE INDEX IF NOT EXISTS product_ean_idx ON product(ean);
 """
 
 MIGRATIONS_SQL = """
@@ -550,6 +606,11 @@ ALTER TABLE custody_schedule ADD CONSTRAINT custody_schedule_pattern_check
     CHECK (pattern IN ('alternating_weeks', 'specific_days', 'always', 'gcal'));
 UPDATE custody_schedule SET pattern = 'gcal'
 WHERE person_id IN (SELECT id FROM person WHERE role = 'child' AND circle = 'household');
+
+-- Référentiel aliment & produit : le VPS a déjà les tables, toute évolution
+-- ultérieure d'une colonne passe par ici et non par SCHEMA_SQL.
+ALTER TABLE product ADD COLUMN IF NOT EXISTS price_seen_at DATE;
+ALTER TABLE product ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'linked';
 """
 
 _pool: asyncpg.Pool | None = None
