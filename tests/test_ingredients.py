@@ -137,6 +137,25 @@ class TestNormalizeName:
         du produit : les retirer produirait un faux « tu en as »."""
         assert normalize_name(name) == expected
 
+    @pytest.mark.parametrize("name,expected", [
+        ("œufs frais", "oeuf frais"),
+        ("fromage frais", "fromage frais"),
+        ("crème épaisse", "creme epaisse"),
+        ("chips de légumes", "chips de legume"),
+    ])
+    def test_un_adjectif_invariable_garde_son_s(self, name, expected):
+        """« frais » n'est pas le pluriel de « frai ». Repéré sur le stock réel
+        le 2026-09-07 : « aux œufs frais » devenait « aux oeuf frai »."""
+        assert normalize_name(name) == expected
+
+    @pytest.mark.parametrize("name,expected", [
+        ("gésiers de canard confits", "gesier de canard confit"),
+        ("lardons fumés", "lardon fume"),
+        ("pilons de poulet", "pilon de poulet"),
+    ])
+    def test_un_vrai_pluriel_se_singularise(self, name, expected):
+        assert normalize_name(name) == expected
+
     @pytest.mark.parametrize("word", [
         "pois chiches", "ananas", "jus de citron", "maïs doux", "cassis",
         "noix de coco", "anis étoilé", "dos de cabillaud",

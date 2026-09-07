@@ -212,6 +212,8 @@ INVARIABLE_IN_S: frozenset[str] = frozenset({
     "pois", "ananas", "jus", "dos", "anis", "cassis", "repas", "mais",
     "couscous", "houmous", "ris", "os", "temps", "corps", "brebis", "souris",
     "tapas", "vermicelles", "bruxelles", "paris",
+    "frais", "epais", "gras", "bas", "divers", "chips",
+    "sans", "puis", "trois", "apres", "tres", "moins", "plus",
 })
 
 
