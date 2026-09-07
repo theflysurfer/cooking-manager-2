@@ -145,7 +145,7 @@ class HouseholdConfig:
         CustodyInfo(name=n) for n in CHILDREN
     ])
     canteen: list[CanteenEntry] = field(default_factory=lambda: [
-        CanteenEntry(name=n, weekday=wd) for n in CHILDREN for wd in (1, 3, 4)
+        CanteenEntry(name=n, weekday=wd) for n in CHILDREN for wd in (0, 1, 3, 4)
     ])
 
 

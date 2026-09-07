@@ -8,8 +8,13 @@ d'une règle écrite.
 
 from datetime import date
 
+import pytest
+
 from cooking_manager.presence import (
     Absence,
+    ChildWeekUnknown,
+    CustodyInfo,
+    HouseholdConfig,
     Referential,
     SchoolPeriod,
     Stay,
@@ -63,6 +68,41 @@ class TestCanteen:
 
     def test_wednesday_lunch_is_never_canteen(self):
         assert "Léa" in attendees(date(2026, 3, 4), "lunch")
+
+
+class TestGcalCustodyPattern:
+    """Non-régression 2026-09-07 : la garde alternée calculée depuis une date de
+    référence figée a répondu « enfants absents » pour une semaine où ils étaient
+    là. Le pattern 'gcal' lit une semaine synchronisée, et REFUSE de répondre
+    quand elle ne l'est pas."""
+
+    MONDAY = date(2026, 9, 7)
+    GCAL_HOUSEHOLD = HouseholdConfig(
+        children=[CustodyInfo(name=n, pattern="gcal") for n in ("Léa", "Titouan")],
+    )
+
+    def test_synced_week_with_children(self):
+        ref = Referential(gcal_weeks={self.MONDAY: True})
+        assert attendees(self.MONDAY, "dinner", ref, self.GCAL_HOUSEHOLD) == [
+            "Julien", "Clémence", "Léa", "Titouan"
+        ]
+
+    def test_synced_week_without_children(self):
+        ref = Referential(gcal_weeks={self.MONDAY: False})
+        assert attendees(self.MONDAY, "dinner", ref, self.GCAL_HOUSEHOLD) == [
+            "Julien", "Clémence"
+        ]
+
+    def test_unsynced_week_refuses_rather_than_guesses(self):
+        """LE cas de l'incident : une semaine inconnue ne doit JAMAIS se lire
+        comme « enfants absents »."""
+        with pytest.raises(ChildWeekUnknown):
+            attendees(self.MONDAY, "dinner", Referential(), self.GCAL_HOUSEHOLD)
+
+    def test_any_day_resolves_to_its_monday(self):
+        ref = Referential(gcal_weeks={self.MONDAY: True})
+        friday = date(2026, 9, 11)
+        assert "Léa" in attendees(friday, "dinner", ref, self.GCAL_HOUSEHOLD)
 
 
 class TestAbsences:
