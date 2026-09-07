@@ -143,6 +143,24 @@ recopier l'artefact.
 YAML n'atteint pas l'artefact, et le consommateur lit une valeur vide sans erreur. Ajouter un
 champ = toucher les deux dépôts **plus un test**. `dominates` : n'y inscrire que l'observé.
 
+## Référentiel aliment & produit
+
+`generiques/` → `food` · `marques/` → `product`. **Le dossier tranche**, jamais le
+champ `marque` : 49 fiches génériques portent `marque: null`, et le frontmatter étant
+lu ligne à ligne, la **chaîne** `"null"` est vraie (#85 — même piège sur `bio: true`,
+`ciqual_code: 7010`, toute liste YAML).
+
+| Règle | Geste |
+|---|---|
+| Deux fiches sur une même clé normalisée | Ni l'une ni l'autre n'est importée — elles sortent dans `collisions`, à trancher à la main |
+| Une fiche à plusieurs formes (« Crues »/« Cuites ») | Sans forme neutre `100g`, elle part en `skipped` avec son motif |
+| Avant toute bascule de consommateur | `GET /api/food/report` : `missing` **et** `macro_mismatch` vides (ADR 0011) |
+| Un produit non rattaché | `status = 'a_rapprocher'` — un choix à faire, jamais un oubli |
+
+⛔ **Les fiches ne portent pas d'unité d'usage** : le patron `## Par <unité> (~N g)`
+apparaît 1 fois sur 248. Une « Portion courante » (430 g « bol complet ») est un
+contexte de repas, pas une unité — ne pas la convertir en `food_unit`.
+
 ## Macros
 
 `nutrition.py` applique les règles du Coach Nutrition (`Noyau/Coaches/Coach Nutrition/_coach.md`),

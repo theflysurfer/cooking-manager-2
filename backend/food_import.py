@@ -190,7 +190,8 @@ def build_report(root: Path, rows: list[dict]) -> dict:
                 constraints.append({"sheet": path.stem, "line": line.strip()})
 
     return {
-        "total_sheets": len(plan.foods) + len(plan.products) + len(plan.skipped),
+        "total_sheets": (len(plan.foods) + len(plan.products) + len(plan.skipped)
+                         + sum(len(c["sheets"]) for c in plan.collisions)),
         "imported": len(by_key),
         "missing": missing,
         "macro_mismatch": mismatch,
