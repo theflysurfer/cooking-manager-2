@@ -147,6 +147,22 @@ class RecipeContent:
 _LIGATURES = str.maketrans({"œ": "oe", "Œ": "OE", "æ": "ae", "Æ": "AE"})
 
 
+PREPARATIONS: tuple[str, ...] = (
+    "cisele", "emince", "hache", "rape", "ecrase", "concasse", "coupe",
+    "detaille", "tranche", "pele", "epluche", "egoutte", "rince", "essore",
+    "denoyaute", "equeute", "effeuille", "presse", "battu", "fondu", "ramolli",
+    "desosse", "vide", "ecaille", "decortique", "trempe", "reveille",
+)
+
+_PREPARATION_TAIL = re.compile(
+    r",\s*(?:"
+    r"(?:et\s+|puis\s+)?(?:" + "|".join(PREPARATIONS) + r")(?:e?s?)"
+    r"|en\s+(?:gros\s+|petits?\s+|fines?\s+|demi[-\s])?"
+    r"(?:des|cubes?|tranches?|rondelles?|lanieres?|lamelles?|morceaux|quartiers?|batonnets?|julienne|deux|quatre)"
+    r")\b.*$"
+)
+
+
 def _display_name(name: str | None) -> str:
     """Nom AFFICHABLE : sans la glose qui suit le tiret cadratin.
 
@@ -187,8 +203,25 @@ def normalize_name(name: str) -> str:
     # ne se découvre qu'en cuisine. Sur-normaliser est le mauvais côté de
     # l'erreur : mieux vaut un « inconnu » que l'app pose en question.
     text = re.sub(r"\b(bio|nature|en poudre|premium|label rouge|aop|igp)\b", " ", text)
+    text = _PREPARATION_TAIL.sub(" ", text)
     text = re.sub(r"[^a-z0-9]+", " ", text)
-    return " ".join(text.split())
+    return " ".join(_singular(word) for word in text.split())
+
+
+INVARIABLE_IN_S: frozenset[str] = frozenset({
+    "pois", "ananas", "jus", "dos", "anis", "cassis", "repas", "mais",
+    "couscous", "houmous", "ris", "os", "temps", "corps", "brebis", "souris",
+    "tapas", "vermicelles", "bruxelles", "paris",
+})
+
+
+def _singular(word: str) -> str:
+    """« oignons » → « oignon ». Les invariables en -s sont une liste fermée."""
+    if word in INVARIABLE_IN_S or word.isdigit() or len(word) < 4:
+        return word
+    if word.endswith("ss") or not word.endswith("s"):
+        return word
+    return word[:-1]
 
 
 def _clean_markup(text: str) -> str:

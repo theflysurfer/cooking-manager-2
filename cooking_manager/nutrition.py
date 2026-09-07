@@ -37,7 +37,7 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from .ingredients import normalize_name
+from .ingredients import _singular, normalize_name
 
 # ── Conversion vers le gramme ────────────────────────────────────────
 # ⚠️ Seules les unités réellement convertibles figurent ici. Les autres
@@ -103,7 +103,7 @@ class FoodEntry:
         name = normalize_name(ingredient_name)
         for label, macros in self.forms.items():
             words = [w for w in label.replace("/", " ").split() if w]
-            if any(w in FORM_WORDS and re.search(rf"\b{re.escape(w)}\b", name)
+            if any(w in FORM_WORDS and re.search(rf"\b{re.escape(_singular(w))}\b", name)
                    for w in words):
                 return macros, ""
         return None, f"forme ambiguë ({' / '.join(self.forms)}) — préciser dans la recette"

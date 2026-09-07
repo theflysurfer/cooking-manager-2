@@ -9,6 +9,7 @@ cuisine — trop tard.
 import pytest
 
 from cooking_manager.ingredients import (
+    INVARIABLE_IN_S,
     normalize_name,
     parse_ingredient,
     parse_recipe_body,
@@ -109,6 +110,44 @@ class TestNormalizeName:
 
     def test_strips_trailing_note(self):
         assert normalize_name("whey isolate — optionnel") == "whey isolate"
+
+    @pytest.mark.parametrize("first,second", [
+        ("comté, en dés", "comté, râpé grossièrement"),
+        ("oignon jaune, ciselé", "oignons jaunes, ciselés"),
+        ("patates douces", "patates douces, en gros cubes"),
+        ("citron jaune", "citron jaune, en rondelles"),
+        ("ail", "ail, écrasées"),
+        ("tomates cerises, coupées en deux", "tomate cerise"),
+        ("champignons de Paris, émincés", "champignon de paris"),
+        ("pavés de saumon (environ 130 g pièce)", "pavé de saumon"),
+    ])
+    def test_la_decoupe_et_le_pluriel_ne_font_pas_deux_aliments(self, first, second):
+        """Deux lignes du même aliment = deux achats. Mesuré le 2026-09-07 :
+        « comté, en dés » et « comté, râpé » sortaient comme deux besoins."""
+        assert normalize_name(first) == normalize_name(second)
+
+    @pytest.mark.parametrize("name,expected", [
+        ("lentilles vertes sèches", "lentille verte seche"),
+        ("mélange de légumes verts surgelés", "melange de legume vert surgele"),
+        ("crème fraîche épaisse", "creme fraiche epaisse"),
+        ("lait entier", "lait entier"),
+    ])
+    def test_un_etat_n_est_pas_une_decoupe(self, name, expected):
+        """« sèches », « surgelés », « fraîche », « entier » changent l'identité
+        du produit : les retirer produirait un faux « tu en as »."""
+        assert normalize_name(name) == expected
+
+    @pytest.mark.parametrize("word", [
+        "pois chiches", "ananas", "jus de citron", "maïs doux", "cassis",
+        "noix de coco", "anis étoilé", "dos de cabillaud",
+    ])
+    def test_les_invariables_en_s_et_le_x_final_survivent(self, word):
+        """Le pluriel se retire, pas la dernière lettre d'un mot qui finit en s
+        ou en x au singulier — « noix » ne devient pas « noi »."""
+        normalized = normalize_name(word)
+        for source, result in zip(word.lower().split(), normalized.split(), strict=False):
+            if source.endswith(("s", "x")) and source in INVARIABLE_IN_S | {"doux", "noix"}:
+                assert result == source, f"{source} → {result}"
 
 
 class TestRecipeBody:

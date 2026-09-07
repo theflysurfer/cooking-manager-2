@@ -135,6 +135,7 @@ class Pantry:
         """
         if not normalized:
             return None
+        normalized = normalize_name(normalized)
         exact = [i for i in self.items if i.name_normalized == normalized]
         if exact:
             return _best(exact)
