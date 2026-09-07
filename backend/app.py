@@ -14,6 +14,16 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from cooking_manager.presence import HouseholdConfig, CustodyInfo, CanteenEntry, Referential
+from cooking_manager.feedback import (
+    APPRECIATION_FACET,
+    ISSUE_FACET,
+    VERDICT_FACET,
+    Reading,
+    UnknownConcept,
+    interpret,
+    validate_concept,
+)
+from cooking_manager.substitutions import VOCABULARY_VERSION
 
 from .config import DATABASE_DSN, VAULT_ROOT
 from .db import get_pool, init_schema, close_pool
@@ -1497,6 +1507,152 @@ async def add_meal_feedback(body: FeedbackBody):
             recipe_id, today, appreciated_by, today if appreciated_by else None, notes,
         )
     return {"ok": True, "dish": body.dish}
+
+
+# ── Retours de table sur les trois axes (ADR 0005) ────────────────
+
+class InterpretBody(BaseModel):
+    verbatim: str
+
+
+@app.post("/api/feedback/interpret")
+async def interpret_feedback(body: InterpretBody):
+    reading = interpret(body.verbatim)
+    return {
+        "appreciation": reading.appreciation,
+        "verdict": reading.verdict,
+        "issue_kinds": list(reading.issue_kinds),
+        "ambiguous": {facet: list(keys) for facet, keys in reading.ambiguous.items()},
+        "unmatched": list(reading.unmatched),
+        "vocabulary_version": VOCABULARY_VERSION,
+    }
+
+
+class RecipeFeedbackBody(BaseModel):
+    person: str
+    served_on: datetime.date
+    appreciation: str | None = None
+    verbatim: str | None = None
+    menu_meal_id: int | None = None
+    source: str = "review"
+
+
+def _resolve_axis(facet: str, explicit: str | None, verbatim: str | None, reading_value: str | None,
+                  ambiguous: dict[str, tuple[str, ...]]) -> str:
+    """L'axe explicite prime ; sinon le verbatim doit avoir tranché de lui-même."""
+    if explicit is not None:
+        try:
+            return validate_concept(facet, explicit)
+        except UnknownConcept as exc:
+            raise HTTPException(422, str(exc)) from exc
+    if reading_value is not None:
+        return reading_value
+    if facet in ambiguous:
+        raise HTTPException(422, {
+            "reason": f"{facet} ambigu dans le verbatim",
+            "candidates": list(ambiguous[facet]),
+        })
+    raise HTTPException(422, {
+        "reason": f"{facet} absent — ni clé explicite, ni synonyme reconnu",
+        "verbatim": verbatim,
+    })
+
+
+@app.post("/api/recipes/{slug}/feedback")
+async def add_recipe_feedback(slug: str, body: RecipeFeedbackBody):
+    reading = interpret(body.verbatim) if body.verbatim else Reading()
+    appreciation = _resolve_axis(
+        APPRECIATION_FACET, body.appreciation, body.verbatim,
+        reading.appreciation, reading.ambiguous,
+    )
+    pool = await get_pool(DATABASE_DSN)
+    async with pool.acquire() as conn:
+        recipe_id = await _get_recipe_id(conn, slug)
+        person = await conn.fetchrow(
+            "SELECT id FROM person WHERE LOWER(name) = LOWER($1)", body.person,
+        )
+        if not person:
+            raise HTTPException(404, f"Personne inconnue : {body.person}")
+        row = await conn.fetchrow(
+            """INSERT INTO recipe_feedback
+                   (recipe_id, menu_meal_id, person_id, served_on,
+                    appreciation, verbatim, source)
+               VALUES ($1, $2, $3, $4, $5, $6, $7)
+               ON CONFLICT (person_id, served_on, recipe_id) DO UPDATE
+               SET appreciation = EXCLUDED.appreciation,
+                   verbatim     = EXCLUDED.verbatim,
+                   menu_meal_id = COALESCE(EXCLUDED.menu_meal_id, recipe_feedback.menu_meal_id),
+                   source       = EXCLUDED.source
+               RETURNING id""",
+            recipe_id, body.menu_meal_id, person["id"], body.served_on,
+            appreciation, body.verbatim, body.source,
+        )
+    return {"ok": True, "feedback_id": row["id"], "appreciation": appreciation}
+
+
+class RecipeVerdictBody(BaseModel):
+    served_on: datetime.date
+    verdict: str | None = None
+    issue_kinds: list[str] | None = None
+    verbatim: str | None = None
+
+
+@app.post("/api/recipes/{slug}/verdict")
+async def add_recipe_verdict(slug: str, body: RecipeVerdictBody):
+    reading = interpret(body.verbatim) if body.verbatim else Reading()
+    verdict = _resolve_axis(
+        VERDICT_FACET, body.verdict, body.verbatim,
+        reading.verdict, reading.ambiguous,
+    )
+    issues = body.issue_kinds if body.issue_kinds is not None else list(reading.issue_kinds)
+    for key in issues:
+        try:
+            validate_concept(ISSUE_FACET, key)
+        except UnknownConcept as exc:
+            raise HTTPException(422, str(exc)) from exc
+    if verdict == "adjust" and not issues:
+        raise HTTPException(422, {
+            "reason": "verdict 'adjust' sans issue_kinds — la correction serait perdue",
+            "verbatim": body.verbatim,
+        })
+    pool = await get_pool(DATABASE_DSN)
+    async with pool.acquire() as conn:
+        recipe_id = await _get_recipe_id(conn, slug)
+        row = await conn.fetchrow(
+            """INSERT INTO recipe_verdict (recipe_id, served_on, verdict, issue_kinds, verbatim)
+               VALUES ($1, $2, $3, $4, $5)
+               ON CONFLICT (recipe_id, served_on) DO UPDATE
+               SET verdict     = EXCLUDED.verdict,
+                   issue_kinds = EXCLUDED.issue_kinds,
+                   verbatim    = EXCLUDED.verbatim
+               RETURNING id""",
+            recipe_id, body.served_on, verdict, issues, body.verbatim,
+        )
+    return {"ok": True, "verdict_id": row["id"], "verdict": verdict, "issue_kinds": issues}
+
+
+@app.get("/api/recipes/{slug}/feedback")
+async def list_recipe_feedback(slug: str):
+    pool = await get_pool(DATABASE_DSN)
+    async with pool.acquire() as conn:
+        recipe_id = await _get_recipe_id(conn, slug)
+        feedback = await conn.fetch(
+            """SELECT f.served_on, p.name AS person, f.appreciation, f.verbatim, f.source
+               FROM recipe_feedback f JOIN person p ON p.id = f.person_id
+               WHERE f.recipe_id = $1
+               ORDER BY f.served_on DESC, p.name""",
+            recipe_id,
+        )
+        verdicts = await conn.fetch(
+            """SELECT served_on, verdict, issue_kinds, verbatim
+               FROM recipe_verdict WHERE recipe_id = $1 ORDER BY served_on DESC""",
+            recipe_id,
+        )
+    rows = [dict(r) for r in feedback]
+    verdict_rows = [dict(r) for r in verdicts]
+    for row in rows + verdict_rows:
+        _serialize_dates(row, ("served_on",))
+    return {"slug": slug, "feedback": rows, "verdicts": verdict_rows}
 
 
 class LeftoverBody(BaseModel):

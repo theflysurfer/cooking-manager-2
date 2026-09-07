@@ -1,4 +1,4 @@
-version: "0.4.0"
+version: "0.4.1"
 slug: cooking-vocabulary
 kind: cooking
 origin: >-
@@ -315,7 +315,7 @@ replay_verdicts:
     status: probation
     definition: "Le plat vaut la peine, mais une correction est nécessaire — laquelle vit dans issue_kinds."
     applicable_when: "Toujours accompagné d'au moins un issue_kinds, sinon la correction est perdue."
-    synonyms: ["à ajuster", "à modifier", "à revoir", "presque"]
+    synonyms: ["à ajuster", "à modifier", "à revoir", "presque", "à refaire en modifiant", "à refaire mais", "à refaire avec"]
   - key: retire
     label: "À ne plus refaire"
     status: probation

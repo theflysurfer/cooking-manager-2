@@ -1,5 +1,5 @@
 {
-  "version": "0.4.0",
+  "version": "0.4.1",
   "slug": "cooking-vocabulary",
   "origin": "Extrait du moteur de substitutions porté de cooking-manager v1 (server/src/services/intelligentSubstitutions.ts) et mesuré en production dans cooking-manager-2 le 2026-09-02. Voir cooking-manager-2 ADR 0001.",
   "cooking_methods": [
@@ -678,7 +678,10 @@
         "à ajuster",
         "à modifier",
         "à revoir",
-        "presque"
+        "presque",
+        "à refaire en modifiant",
+        "à refaire mais",
+        "à refaire avec"
       ],
       "applicable_when": "Toujours accompagné d'au moins un issue_kinds, sinon la correction est perdue.",
       "dominates": [],
