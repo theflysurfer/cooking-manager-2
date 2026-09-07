@@ -23,6 +23,7 @@ class ImportPlan:
     units: list[dict] = field(default_factory=list)
     products: list[dict] = field(default_factory=list)
     skipped: list[dict] = field(default_factory=list)
+    collisions: list[dict] = field(default_factory=list)
 
 
 def build_records(root: Path) -> ImportPlan:
@@ -77,6 +78,7 @@ def build_records(root: Path) -> ImportPlan:
         plan.foods.append({
             "key": key,
             "name": clean_name,
+            "path": str(path),
             "category": fm.get("categorie"),
             "kind": fm.get("type_produit"),
             "ciqual_code": fm.get("ciqual_code"),
@@ -88,8 +90,30 @@ def build_records(root: Path) -> ImportPlan:
             plan.units.append({"food_key": key, "unit": unit["unit"],
                                "grams": unit["grams"], "source": "fiche"})
 
+    _hold_collisions(plan)
     _link_products(plan)
     return plan
+
+
+def _hold_collisions(plan: ImportPlan) -> None:
+    """Deux fiches pour une même clé : aucune n'est importée, les deux sont nommées."""
+    seen: dict[str, list[dict]] = {}
+    for food in plan.foods:
+        seen.setdefault(food["key"], []).append(food)
+
+    clashing = {key for key, foods in seen.items() if len(foods) > 1}
+    if not clashing:
+        return
+
+    for key in clashing:
+        plan.collisions.append({
+            "key": key,
+            "sheets": [{"name": f["name"], "path": f["path"],
+                        "kcal": (f["macros_per_100g"] or {}).get("kcal")}
+                       for f in seen[key]],
+        })
+    plan.foods[:] = [f for f in plan.foods if f["key"] not in clashing]
+    plan.units[:] = [u for u in plan.units if u["food_key"] not in clashing]
 
 
 def _brand(value) -> str | None:
@@ -134,6 +158,10 @@ def _link_products(plan: ImportPlan) -> None:
 
 PERSON_NAMES = ("julien", "clemence", "clémence", "lea", "léa", "titouan", "tabby")
 
+AVERSION_MARKERS = ("pas de", "pas d'", "n'aime", "naime", "deteste", "déteste",
+                    "refuse", "allergi", "intoleran", "intolérant", "interdit",
+                    "eviter", "éviter", "ne mange pas", "jamais", "sans ")
+
 
 def build_report(root: Path, rows: list[dict]) -> dict:
     """Compare le vault à ce qui est en base — sans rien corriger."""
@@ -157,7 +185,8 @@ def build_report(root: Path, rows: list[dict]) -> dict:
             continue
         for line in path.read_text(encoding="utf-8").splitlines():
             low = line.lower()
-            if any(name in low for name in PERSON_NAMES) and ":" in line:
+            if (any(name in low for name in PERSON_NAMES)
+                    and any(marker in low for marker in AVERSION_MARKERS)):
                 constraints.append({"sheet": path.stem, "line": line.strip()})
 
     return {
@@ -168,6 +197,7 @@ def build_report(root: Path, rows: list[dict]) -> dict:
         "unlinked_products": [p["name"] for p in plan.products
                               if p["status"] == "a_rapprocher"],
         "person_constraints": constraints,
+        "collisions": plan.collisions,
         "skipped": plan.skipped,
     }
 

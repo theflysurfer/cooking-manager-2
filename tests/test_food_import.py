@@ -120,6 +120,30 @@ class TestReport:
         assert report["person_constraints"]
 
 
+class TestCollisions:
+    def test_two_sheets_on_one_key_are_held_not_arbitrated(self, tmp_path):
+        """Deux fiches sur une clé : l'upsert gardait la dernière lue, en silence."""
+        root = make_vault(tmp_path)
+        twin = root / "generiques" / "pain-complet-bis.md"
+        twin.write_text(GENERIC.replace("title: Pain complet", "title: pain-complet")
+                        .replace("| Energie | 247 kcal |", "| Energie | 235 kcal |"),
+                        encoding="utf-8")
+        plan = build_records(root)
+        assert "pain complet" not in {f["key"] for f in plan.foods}
+        assert plan.collisions[0]["key"] == "pain complet"
+        assert len(plan.collisions[0]["sheets"]) == 2
+
+    def test_a_dosage_line_is_not_a_person_constraint(self, tmp_path):
+        """« Utilisation Julien : 40 g = 6.8 g glucides » est un dosage, pas une aversion."""
+        from backend.food_import import build_report
+        root = make_vault(tmp_path)
+        sheet = root / "generiques" / "pain-complet.md"
+        sheet.write_text(sheet.read_text(encoding="utf-8")
+                         + "\n- **Utilisation Julien** : 40g = 6.8g glucides\n",
+                         encoding="utf-8")
+        assert build_report(root, rows=[])["person_constraints"] == []
+
+
 class TestUnits:
     def test_usage_units_are_collected(self, tmp_path):
         plan = build_records(make_vault(tmp_path))
