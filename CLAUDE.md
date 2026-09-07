@@ -136,40 +136,30 @@ Pipeline : MediaRecorder (front) → `POST /api/audio` → Deepgram prerecorded 
 du **Coach Nutrition** (`Noyau/Coaches/Coach Nutrition/_coach.md`).
 
 - **Règle 1 — pas d'hypothèse.** Un ingrédient non résolu ressort en
-  `unresolved` **avec son motif**, jamais estimé au jugé ni omis.
+  `unresolved` **avec son motif**, jamais estimé au jugé ni omis. Une base sans
+  « pour 100 g » est ignorée, une fiche « Crues »/« Cuites » sans forme nommée
+  ne tranche pas, `coverage`/`conclusive` priment sur le total.
 - **Règle 2bis (erreur #25).** `kcal_reconstitué = P×4 + G×4 + L×9` ; au-delà de
-  5 % d'écart, **montrer les deux chiffres**. Les fiches CIQUAL ont 5–15 %
-  d'écart structurel (eau, cendres, fibres hors somme) — l'écart n'est pas un
-  bug, le cacher en est un.
-- **Trois sources hiérarchisées** : fiche `marques/` (étiquette vérifiée) >
-  `shopping_product.nutrition` (étiquette scrapée du drive) > `generiques/`
-  (ANSES CIQUAL). Jamais d'estimation implicite en quatrième position.
+  5 % d'écart, **montrer les deux chiffres** — les fiches CIQUAL ont 5–15 %
+  d'écart structurel, le cacher est le bug.
+- **Trois sources hiérarchisées** : fiche `marques/` > `shopping_product.nutrition`
+  > `generiques/` (CIQUAL). Jamais d'estimation implicite en quatrième position.
 
-⚠️ **Le Coach Nutrition claude.ai est délibérément séparé de CM2** (§ Gotchas,
-« deux garde-manger ») — mais sur demande **explicite** de Julien, Claude Code
-peut l'**impersonner** dans cette session, en s'appuyant sur `_coach.md` (grille
-kcal/macros par type de journée, règles 1/2bis/3) plutôt qu'en inventant des
-cibles. Ne pas le faire par défaut ; croiser le stock via `pantry_item` (DB),
-jamais `Garde-manger.md` vault seul, dont des postes se sont révélés faux au
-2026-09-01.
+⚠️ Le Coach Nutrition claude.ai est **séparé de CM2** (§ Gotchas, « deux
+garde-manger ») ; l'impersonner exige une demande explicite et `_coach.md` en
+main. Croiser le stock via `pantry_item` (DB), jamais le vault seul.
 
-⚠️ **Trois pièges de lecture, tous non détectables sans discipline explicite** :
-la base sans mention « pour 100 g » est **ignorée**, pas supposée (3 dispositions
-de tableau coexistent, transposée comprise — auditer via
-`julien-audit-cooking-vault`) ; une fiche « Crues »/« Cuites » sans que la
-recette ne nomme sa forme **ne tranche pas**, le parseur refuse plutôt que
-deviner (facteur 3 en jeu) ; `coverage`/`conclusive` priment sur le total —
-une somme sur la moitié des ingrédients n'est pas « les macros de la recette »,
-et les unités-pièce ne convertissent pas sans poids unitaire.
-
-⚠️ **Deux pièges d'implémentation** : la base aliments vit sur le mount rclone
-(lecture lente) → `load_food_base_cached()` obligatoire, jamais relue par
-requête ; `qty_min` arrive en `Decimal` (NUMERIC asyncpg), ne se multiplie pas
+⚠️ Deux pièges d'implémentation : `load_food_base_cached()` obligatoire (la base
+vit sur le mount rclone) ; `qty_min` arrive en `Decimal` et ne se multiplie pas
 par un flottant — un test en `float` ne voit pas ce cas.
+
+Le détail des dispositions de tableau et des cas de refus : `julien-audit-cooking-vault`.
 
 ## Gotchas
 
 - **Auchan Drive : une seule voie de connexion — le MCP VPS** (`mcp-vps-auchan`, port 3854, refs #60). Les modules `backend/auchan*.py` sont décommissionnés, contexte magasin compris (`grocery_find_stores`/`grocery_set_store`). La session Auchan du VPS est gérée par le seul **Cookie Health VPS**. HydraSpecter = outil de diagnostic, **pas** une voie de connexion
+- **`dietary_preference` est le troisième cran — et RIEN ne le vérifie.** Entre `forbidden` (ne se discute pas) et `dislikes` (un aliment nommé), cette table porte ce qui pèse sans bloquer : `minimize` · `maximize` · `cap` (avec `value`/`unit`/`scope`) · `rotate` · `no_restriction`, `person_id NULL` valant pour tout le foyer. Le profil (`person.height_cm`, `weight_kg`, `activity_level`, `birth_date`, `nutrition_notes`) vit à côté. ⚠️ **`/api/menus/{slug}/compatibility` n'en lit AUCUN** : un menu « sans conflit » ne dit rien du gluten, des sucres ajoutés ni de la rotation des protéines — les appliquer est un geste de composition, à la main (`julien-cooking-manager-compose-menu` § 3, refs #77 #78). Lire, jamais recopier : `curl -s localhost:8795/api/preferences`
+- **Un terme de régime ambigu se déclare avec son MOTIF** (`CONTEXT_REQUIRED`, ADR 0007). `roti` est à la fois une pièce de viande et le participe passé le plus courant de la cuisine : ajouté en mot nu à `MEAT`, il a fait déclarer « pois chiches rôtis » incompatible pescétarien. Un conflit faux coûte plus qu'un conflit manqué — il apprend à ignorer les alertes. Même piège en embuscade sur `blanc`, `filet`, `cuisse`. ⚠️ Corollaire : un terme ambigu ajouté SANS motif reste muet dans les deux sens
 - **Tablée : 100 % DB, plus aucune lecture de `Presences.md` ni `Convives.md`** (refs #33). Tout vient de `load_referential_from_db()` (school_period, absence, stay) et `load_convives_from_db()` (`person`). Résolveur : `GET /api/attendance?day=&slot=`, `presence.py::attendees()`. `stay`+`stay_member` corrige F.30 : en location on cuisine sur place, donc les membres du séjour sont à table quelles que soient la trame et les absences. `ADULTS`/`CHILDREN`/`CUSTODY_REFERENCE_WEEK` ne sont plus qu'un **repli** sans `HouseholdConfig`. `convive` (legacy) et `person` coexistent ; `person` fait autorité. ⚠️ **La garde alternée vient de gcal, pas d'un calcul de semaine paire** (`custody_schedule.pattern='gcal'`, ADR 0004) : lancer `POST /api/child-week/sync?day=` AVANT toute question de tablée, sinon `/api/attendance` répond **409** — qui veut dire « semaine non synchronisée », jamais « enfants absents ». Un **422** dit que l'event « Semaine enfants » (calendrier CAFS) est introuvable sur ±60 j : demander, ne pas supposer. Repas hors domicile : **lire les events bruts et juger le sens**, jamais chercher « resto » par mot-clé. ⚠️ **`POST /api/seed` n'est idempotent que depuis le 2026-09-03** : son `DO UPDATE` réimposait `dislikes`/`forbidden` depuis ses constantes, donc il effaçait sans un mot les préférences saisies après coup. Ces listes ne sont désormais posées qu'à la CRÉATION — ne jamais les remettre dans le `DO UPDATE`. ⚠️ **`attendees()` annonce quatre niveaux (override > séjour > trame > absences) mais le sommet est INATTEIGNABLE** : rien n'écrit `meal_attendance`, donc l'override manuel n'arrive jamais, et le résolveur répond avec la trame sans le signaler. Même chose pour `stay.cooking` et `extra_headcount` : écrits ou exposés, lus par aucun calcul. Refs #73 — ne pas raisonner sur ces trois-là comme sur des données vivantes
 - **Une photo qui n'est pas un fichier local est une photo en sursis.** `_scrape_photo()` reconstruit `photo_url` à chaque ingestion depuis un site tiers ; l'upsert doit rester `photo_url=COALESCE($24, recipe.photo_url)`, sans quoi **un scraping qui échoue efface la photo** sans erreur. La parade de fond est le fichier local `web/media/recipes/<slug>.jpg`, prioritaire et insensible au réseau. Générer les manquantes via **recipe-manager** (`POST /recipes/<slug>/generate-image`, port 8796), qui porte le prompt v1.1 — jamais un prompt improvisé, sinon le parc perd son unité visuelle. Récupérer avec `?inline=true` → `image_base64`, écrire dans `web/media/recipes/`, **committer**. Extension **`.jpg` obligatoire** : `ingest.py` ne scanne que celle-là, un `.png` déposé n'est jamais rattaché (refs #70)
 - `httpx`/`selectolax`/`mcp` sont des dépendances déclarées dans `pyproject.toml` — un venv reconstruit à neuf (`pip install .`) est le test de vérité si ce fichier dérive
@@ -183,7 +173,7 @@ par un flottant — un test en `float` ne voit pas ce cas.
   tour ne se clôt. Lire `docs/conception/USE_CASES_COURSES.md` avant de toucher aux courses,
   il porte le modèle cible. Refs #67, #68
 - `_pantry_from_db()` remplace `_load_pantry()` — le différentiel courses lit la DB, source de vérité pour l'app (le vault n'est qu'une source d'ingestion parmi d'autres ; `source != 'vault'` survit à la ré-ingestion — **donc aucune correction du vault ne les atteint jamais** : une ligne `receipt` est un événement d'achat daté, pas un état de stock, et reste `ok` indéfiniment, refs #69). ⚠️ **`Noyau/Cuisine/Garde-manger.md` est aussi lu/écrit par un système entièrement séparé** — le Coach Nutrition sur claude.ai, qui planifie les menus macro par macro et n'appelle jamais l'app ni sa DB. Les deux garde-manger ne sont **jamais synchronisés** et peuvent diverger sans alerte (constaté 2026-09-01 : 6 articles listés « ok » dans le vault n'existaient plus réellement)
-- **Cuissons, cuisines, textures et techniques d'accommodation viennent de l'ONTOLOGIE, jamais d'une table écrite dans le code.** Source : `data/ontology/cooking-vocabulary.yaml` (ce repo) → `ontology-manager` (`kind: cooking`) → artefact épinglé `cooking_manager/cooking-vocabulary.json`. Modifier le YAML, régénérer (`python -m ontology_manager.cli generate --ontology cooking-vocabulary`), recopier l'artefact. Deux tests refusent qu'une règle cite une clé absente du vocabulaire ou déclarée sans synonyme — donc indétectable. ⚠️ **Le générateur a un jeu de champs FIXE** (`ontology_manager/cooking.py`) : un champ ajouté au YAML n'atteint pas l'artefact tant qu'il n'y est pas propagé, et le consommateur lit alors une valeur vide **sans erreur** — un tri par `observed_in` aurait compté zéro partout en paraissant marcher. Ajouter un champ = toucher les deux dépôts, plus un test qui prouve qu'il survit à la génération
+- **Cuissons, cuisines, textures et techniques d'accommodation viennent de l'ONTOLOGIE, jamais d'une table écrite dans le code.** Source : `data/ontology/cooking-vocabulary.yaml` (ce repo) → `ontology-manager` (`kind: cooking`) → artefact épinglé `cooking_manager/cooking-vocabulary.json`. Modifier le YAML, régénérer (`python -m ontology_manager.cli generate --ontology cooking-vocabulary`), recopier l'artefact. Deux tests refusent qu'une règle cite une clé absente du vocabulaire ou déclarée sans synonyme — donc indétectable. ⚠️ **Le générateur a un jeu de champs FIXE** (dépôt ontology-manager, `ontology_manager/cooking.py`) : un champ ajouté au YAML n'atteint pas l'artefact tant qu'il n'y est pas propagé, et le consommateur lit alors une valeur vide **sans erreur** — un tri par `observed_in` aurait compté zéro partout en paraissant marcher. Ajouter un champ = toucher les deux dépôts, plus un test qui prouve qu'il survit à la génération
 - **Une cuisson préparatoire n'est pas la cuisson du plat.** « Faites dorer » ouvre presque tout mijoté : sans la table `dominates` du vocabulaire (`stew`/`slow-cooked` absorbent `pan-fried`/`pan-seared`/`stir-fry`, consommée par `drop_dominated()`), `pan-fried` pesait autant que `stew` et faisait gagner une dorade grillée dans une cocotte. N'y inscrire **que ce qui a été observé** — une dominance plausible mais non mesurée est le défaut reproché à `separate_dish`
 - `cooking_mcp.py` importe `from fastmcp import FastMCP` (pas `from mcp.server.fastmcp`) — seul le package `fastmcp` (v3.4+) expose `host`/`port`/`allowed_hosts` dans `run()`. Le package `mcp` v2 a un `FastMCP.run()` minimaliste
 - Tout MCP VPS derrière nginx avec `Host $host` doit passer `allowed_hosts=[<domaine>]` à `mcp.run()`, sinon Starlette retourne 421

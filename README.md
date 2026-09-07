@@ -13,6 +13,12 @@ Live: `https://cooking.srv759970.hstgr.cloud`
 - **Shopping list** — auto-generated from menu recipes × covers, with "remaining items" toggle (filters past days)
 - **Dietary compatibility** — checks who's at the table (custody schedule × school holidays × absences) against each person's constraints
 - **Voice commands** — speech-to-text (Deepgram) + LLM intent classification (Groq) for hands-free recipe search, servings adjustment, recipe swap, product blacklisting, recipe notes, step editing, meal feedback, and pantry leftovers (Safari 14.5+ only)
+- **Table feedback** — record what each person thought of a dish, whether to cook it again, and
+  what to fix; a menu is a *plan*, so each meal also carries a **tri-state** `served` (unknown /
+  eaten / never cooked). Entered from the iPad, no `curl` required
+- **Dietary preferences** — a third tier between hard bans and dislikes: minimize, maximize, cap
+  (with value, unit and scope), rotate, no-restriction. They **weigh on menu composition and
+  produce no conflict**; the compatibility endpoint does not read them
 - **Pantry management** — track what's in stock, mark leftovers
 - **Cookbook import** — photograph a printed recipe page; a vision model transcribes it, the
   house parser structures the ingredients, and the draft is **reviewed before** it is written to
