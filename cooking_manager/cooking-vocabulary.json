@@ -1,5 +1,5 @@
 {
-  "version": "0.5.0",
+  "version": "0.6.0",
   "slug": "cooking-vocabulary",
   "origin": "Extrait du moteur de substitutions porté de cooking-manager v1 (server/src/services/intelligentSubstitutions.ts) et mesuré en production dans cooking-manager-2 le 2026-09-02. Voir cooking-manager-2 ADR 0001.",
   "cooking_methods": [
@@ -802,5 +802,68 @@
       "dominates": [],
       "observed_in": []
     }
-  ]
+  ],
+  "product_natures": [
+    {
+      "key": "single",
+      "label": "Conditionnement d'un aliment",
+      "status": "active",
+      "definition": "Le produit est UN aliment mis en boite, en sachet ou en barquette. Ses macros sont celles de l'aliment, a la marque pres.",
+      "synonyms": [
+        "produit simple",
+        "aliment conditionne"
+      ],
+      "applicable_when": "Le nom designe un aliment que le referentiel porte ou devrait porter : feta, courgettes en rondelles, pignons de pin, flocons d'avoine.",
+      "dominates": [],
+      "observed_in": [
+        "Itineraire des Saveurs Feta Grecque AOP",
+        "Picard Courgettes en rondelles surgelees",
+        "Auchan Flocons d'Avoine"
+      ]
+    },
+    {
+      "key": "composite",
+      "label": "Preparation a plusieurs ingredients",
+      "status": "active",
+      "definition": "Le produit combine plusieurs aliments. Aucun d'eux ne porte ses macros : elles lui sont propres.",
+      "synonyms": [
+        "plat cuisine",
+        "preparation",
+        "assaisonnement compose"
+      ],
+      "applicable_when": "Le nom designe un plat, une patisserie, un assaisonnement compose, un complement ou une boisson preparee.",
+      "dominates": [],
+      "observed_in": [
+        "Picard Lasagnes Legumes Grilles Mozzarella",
+        "pesto-genovese",
+        "Snickers hi-protein",
+        "Patak's Sauce Tikka Masala"
+      ]
+    }
+  ],
+  "_scope": {
+    "appreciations": {
+      "applies_to": "Un plat cuisiné à la maison et servi à une tablée identifiée.",
+      "does_not_apply_to": [
+        "repas hors domicile (ex. « Restaurant Marseille » au menu 2026-09-01) — personne n'a cuisiné, il n'y a rien à rejouer",
+        "restes (`<slot>_leftovers: true`) — le jugement porte sur le plat d'origine, le noter deux fois le compterait deux fois",
+        "remplissages macro sans préparation (« Fromage blanc + whey », « Compote + graines de courge ») — la question « c'était bon ? » n'y a pas de sens décisionnel"
+      ],
+      "absence_means": "PAS INSTRUIT ou HORS PÉRIMÈTRE — jamais « personne n'a aimé ». Ne pas combler par défaut.",
+      "known_tensions": [
+        "`mixed` recouvre deux natures : « bon mais pas terrible » et « une partie du plat oui, une autre non ». Scinder si la distinction devient décisive.",
+        "`effort` est un défaut ressenti par le cuisinier, pas par la tablée — seul axe où l'avis de celui qui cuisine prime."
+      ]
+    },
+    "product_natures": {
+      "applies_to": "Tout produit du référentiel `marques/` — la question « ses macros sont-elles celles d'un aliment ? » a toujours une réponse.",
+      "does_not_apply_to": [],
+      "absence_means": "PAS INSTRUIT — le produit n'a pas encore été classé. Jamais « il n'a pas d'aliment parent » : c'est ce que dit `composite`, et lui seul.",
+      "known_tensions": [
+        "Un mélange nature (« Fruits Rouges surgelés », « Trio de Poivrons », « Mélange de Légumes Verts ») porte plusieurs aliments sans transformation. Classé `single` parce que le référentiel porte déjà des aliments-mélanges (`fruit rouge melange`, `legume du soleil`) — mais c'est un choix, pas une évidence. Scinder si la distinction devient décisive.",
+        "`food` contient déjà des préparations promues au rang d'aliment (`soupe pois casse industrielle`, `vinaigrette classique`, `sauce teriyaki`, `flan patissier`). La frontière single/composite traverse donc aussi le référentiel aliment, où rien ne la déclare.",
+        "Un assaisonnement composé (pesto, pâte de curry, vinaigrette) est `composite` par construction, alors qu'on ne le mange pas comme un plat. La valeur dit « pas d'aliment parent », pas « c'est un plat »."
+      ]
+    }
+  }
 }

@@ -150,3 +150,54 @@ class TestUnits:
         assert {"unit": "pièce", "grams": 60.0} in [
             {"unit": u["unit"], "grams": u["grams"]} for u in plan.units
         ]
+
+
+def with_nature(tmp_path: Path, nature: str) -> Path:
+    """Le même vault, dont la fiche de marque déclare une nature."""
+    root = make_vault(tmp_path)
+    sheet = root / "marques" / "oeufs.md"
+    sheet.write_text(
+        sheet.read_text(encoding="utf-8").replace(
+            "nutriscore: A", "nutriscore: A" + chr(10) + f"nature: {nature}"
+        ),
+        encoding="utf-8",
+    )
+    return root
+
+
+class TestProductNature:
+    """La nature borne ce qu'un `food_key` vide veut dire — refs #90."""
+
+    def test_a_declared_nature_is_read(self, tmp_path):
+        plan = build_records(with_nature(tmp_path, "single"))
+        assert plan.products[0]["nature"] == "single"
+
+    def test_an_invented_nature_is_refused(self, tmp_path):
+        import pytest
+        with pytest.raises(ValueError, match="inconnue du vocabulaire"):
+            build_records(with_nature(tmp_path, "plat"))
+
+    def test_an_absent_nature_stays_absent(self, tmp_path):
+        plan = build_records(make_vault(tmp_path))
+        assert plan.products[0]["nature"] is None
+
+    def test_only_single_products_count_as_a_gap(self, tmp_path):
+        from backend.food_import import build_report
+        report = build_report(with_nature(tmp_path, "composite"), rows=[])
+        assert report["unlinked_products"] == []
+        assert report["unclassified_products"] == []
+
+    def test_a_single_without_parent_food_is_a_gap(self, tmp_path):
+        from backend.food_import import build_report
+        report = build_report(with_nature(tmp_path, "single"), rows=[])
+        assert report["unlinked_products"] == ["Auchan Bio Plein Air Oeufs"]
+
+    def test_an_unclassified_product_is_shown_but_not_counted(self, tmp_path):
+        from backend.food_import import build_report
+        report = build_report(make_vault(tmp_path), rows=[])
+        assert report["unlinked_products"] == []
+        assert len(report["unclassified_products"]) == 1
+
+    def test_the_vocabulary_carries_the_two_natures(self):
+        from backend.food_import import product_natures
+        assert product_natures() == ("single", "composite")

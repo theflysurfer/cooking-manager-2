@@ -452,15 +452,24 @@ CREATE TABLE IF NOT EXISTS product (
     price_seen_at   DATE,
     status          TEXT DEFAULT 'linked',
     source          TEXT,
+    nature          TEXT,
     created_at      TIMESTAMPTZ DEFAULT NOW(),
     UNIQUE (store, store_ref)
 );
 
 CREATE INDEX IF NOT EXISTS product_food_idx ON product(food_key);
 CREATE INDEX IF NOT EXISTS product_ean_idx ON product(ean);
+CREATE INDEX IF NOT EXISTS product_nature_idx ON product(nature);
 """
 
 MIGRATIONS_SQL = """
+-- nature : un produit porte-t-il les macros d'UN aliment (`single`) ou les
+-- siennes propres (`composite`) ? Sans elle, `food_key` vide veut dire deux
+-- choses incompatibles — « aliment manquant au référentiel » et « n'en a pas ».
+-- Le compteur unlinked_products annonçait 160 lacunes pour 83 réelles. Refs #90.
+ALTER TABLE product ADD COLUMN IF NOT EXISTS nature TEXT;
+CREATE INDEX IF NOT EXISTS product_nature_idx ON product(nature);
+
 -- diet_exceptions : ce que le régime interdit mais que CETTE personne mange.
 -- Sans cette colonne, un régime est un absolu — or Clémence est pescétarienne
 -- ET mange du boudin. Le contrôle bloquait un plat qu'elle accepte, et le seul

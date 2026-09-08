@@ -17,6 +17,28 @@ NEUTRAL_FORMS = ("100g", "100 g", "100ml", "100 ml")
 ABSENT_VALUES = ("null", "none", "nan", "-", "n/a", "à compléter", "a completer")
 
 
+def product_natures() -> tuple[str, ...]:
+    """Les natures de produit du vocabulaire épinglé — jamais une liste écrite ici."""
+    from cooking_manager.substitutions import load_vocabulary
+
+    return tuple(c["key"] for c in load_vocabulary().get("product_natures") or [])
+
+
+def _nature(value, path: Path) -> str | None:
+    """Une nature absente reste absente ; une nature inventée est refusée."""
+    if value is None:
+        return None
+    text = str(value).strip().lower()
+    if not text or text in ABSENT_VALUES:
+        return None
+    allowed = product_natures()
+    if text not in allowed:
+        raise ValueError(
+            f"{path} : nature {text!r} inconnue du vocabulaire, attendu parmi {list(allowed)}."
+        )
+    return text
+
+
 @dataclass
 class ImportPlan:
     foods: list[dict] = field(default_factory=list)
@@ -69,6 +91,7 @@ def build_records(root: Path) -> ImportPlan:
                 "food_key": None,
                 "status": "a_rapprocher",
                 "source": "vault",
+                "nature": _nature(fm.get("nature"), path),
                 "store_ref": str(fm.get("slug") or path.stem),
                 "_units": units,
             })
@@ -196,7 +219,10 @@ def build_report(root: Path, rows: list[dict]) -> dict:
         "missing": missing,
         "macro_mismatch": mismatch,
         "unlinked_products": [p["name"] for p in plan.products
-                              if p["status"] == "a_rapprocher"],
+                              if p["status"] == "a_rapprocher"
+                              and p.get("nature") == "single"],
+        "unclassified_products": [p["name"] for p in plan.products
+                                  if p.get("nature") is None],
         "person_constraints": constraints,
         "collisions": plan.collisions,
         "skipped": plan.skipped,
@@ -240,8 +266,9 @@ async def write_records(conn, plan: ImportPlan) -> dict:
         await conn.execute(
             """INSERT INTO product (food_key, name, brand, pack_count,
                                     pack_size_value, pack_size_unit, nutriscore,
-                                    macros_per_100g, status, source, store, store_ref)
-               VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9,$10,$11,$12)
+                                    macros_per_100g, status, source, store,
+                                    store_ref, nature)
+               VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9,$10,$11,$12,$13)
                ON CONFLICT (store, store_ref) DO UPDATE SET
                  food_key = EXCLUDED.food_key, status = EXCLUDED.status,
                  name = EXCLUDED.name, brand = EXCLUDED.brand,
@@ -249,12 +276,14 @@ async def write_records(conn, plan: ImportPlan) -> dict:
                  pack_size_value = EXCLUDED.pack_size_value,
                  pack_size_unit = EXCLUDED.pack_size_unit,
                  nutriscore = EXCLUDED.nutriscore,
-                 macros_per_100g = EXCLUDED.macros_per_100g""",
+                 macros_per_100g = EXCLUDED.macros_per_100g,
+                 nature = COALESCE(EXCLUDED.nature, product.nature)""",
             product["food_key"], product["name"], product["brand"],
             product["pack_count"], product["pack_size_value"],
             product["pack_size_unit"], product["nutriscore"],
             json.dumps(product["macros_per_100g"]), product["status"],
-            product["source"], "vault", product["store_ref"])
+            product["source"], "vault", product["store_ref"],
+            product.get("nature"))
 
     return {"foods": len(plan.foods),
             "units": len(plan.units) - orphan_units,
