@@ -214,3 +214,27 @@ class TestProductNature:
         root = with_nature(tmp_path, "composite")
         report = build_report(root, rows=[], natures={"auchan-bio-plein-air-oeufs-x12": "single"})
         assert report["unlinked_products"] == []
+
+
+class TestBrandInTheName:
+    """« Auchan Pignons de Pin » ne concorde avec rien : la marque est deja dans `brand` — refs #69."""
+
+    def test_a_leading_brand_is_removed(self):
+        from backend.food_import import strip_brand
+        assert strip_brand("Auchan Pignons de Pin", "Auchan") == "pignon de pin"
+
+    def test_a_multi_word_brand_is_removed(self):
+        from backend.food_import import strip_brand
+        assert strip_brand("Hello Fresh Boulgour", "Hello Fresh") == "boulgour"
+
+    def test_a_brand_elsewhere_than_in_front_is_kept(self):
+        from backend.food_import import strip_brand
+        assert "auchan" in strip_brand("Sauce Auchan", "Auchan")
+
+    def test_a_name_reduced_to_nothing_is_kept_whole(self):
+        from backend.food_import import strip_brand
+        assert strip_brand("Auchan", "Auchan") == "Auchan"
+
+    def test_no_brand_leaves_the_name_alone(self):
+        from backend.food_import import strip_brand
+        assert strip_brand("Pignons de Pin", None) == "Pignons de Pin"

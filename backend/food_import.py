@@ -161,11 +161,24 @@ def _as_dict(macros: Macros) -> dict:
     return {k: getattr(macros, k) for k in ("kcal", "protein", "carbs", "fat")}
 
 
+def strip_brand(name: str, brand: str | None) -> str:
+    """Le nom sans la marque qu'il répète — elle vit déjà dans `product.brand`."""
+    if not brand:
+        return name
+    words = normalize_name(brand).split()
+    remaining = normalize_name(name).split()
+    while words and remaining and remaining[0] == words[0]:
+        remaining.pop(0)
+        words.pop(0)
+    return " ".join(remaining) if remaining else name
+
+
 def _link_products(plan: ImportPlan) -> None:
     """Rattache chaque produit à un aliment quand aucun signal ne s'y oppose."""
     by_key = {f["key"]: f for f in plan.foods}
     for product in plan.products:
-        candidate = Signals(name=product["name"], grams=product.get("pack_size_value"),
+        candidate = Signals(name=strip_brand(product["name"], product.get("brand")),
+                            grams=product.get("pack_size_value"),
                             brand=product.get("brand"))
         units = product.pop("_units", [])
         for key, food in by_key.items():
