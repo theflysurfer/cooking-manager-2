@@ -149,8 +149,8 @@ async def menu_current() -> str:
     return json.dumps(menus[0], ensure_ascii=False, indent=2)
 
 @mcp.tool()
-async def pantry_ingest() -> str:
-    """Re-ingest the vault (recipes, menus, pantry) into the database."""
+async def vault_ingest() -> str:
+    """Re-ingest recipes, menus and people from the vault. Never touches the pantry."""
     data = await _api("POST", "/api/ingest")
     return json.dumps(data, ensure_ascii=False, indent=2)
 

@@ -92,9 +92,8 @@ dans `CONTEXT_REQUIRED` (ADR 0007). Lire, jamais recopier : `/api/preferences` �
 La liste **n'est pas stockée, c'est un calcul** : `GET /api/menus/{slug}/shopping-list` la
 recalcule à chaque appel (menu × tablée × stock). **La DB fait foi du stock.**
 
-⛔ **`POST /api/ingest` ÉCRASE le report d'un drive** (#91) : il repasse les lignes en
-`source = 'vault'` avec leur ancien état et ressuscite les supprimées. On le lance pour un
-menu, il défait le garde-manger — **rejouer le report après chaque ingestion**.
+⛔ **Plus rien ne lit `Garde-manger.md`** (ADR 0017) : le stock ne bouge que sur déclaration —
+`PATCH /api/pantry`, report d'un drive, ticket. Écrire dans le fichier n'atteint aucune base.
 
 ⛔ **`normalize_name` retire découpe et pluriel, jamais un ÉTAT** : « sèches », « surgelés »,
 « fraîche », « entier » changent l'identité de l'aliment.
