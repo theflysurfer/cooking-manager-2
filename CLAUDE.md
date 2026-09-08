@@ -42,16 +42,13 @@ tables recette appartiennent à **recipe-manager** (8796), CM2 est colocataire.
 
 ## Vault → base
 
-`Noyau/Cuisine/` (Dropbox, monté sur le VPS via rclone). Quatre fichiers font foi : `Recettes/*.md` · `Menus/*.md` · `Convives.md` · `Garde-manger.md`.
+`Noyau/Cuisine/` (Dropbox, monté sur le VPS via rclone) : `Recettes/*.md` · `Menus/*.md` ·
+`Convives.md` · `Garde-manger.md`. Le bloc `meals:` du frontmatter fait foi, les tableaux du
+corps ne sont pas lus. Slots, restes, délai du mount : `julien-ref-cooking-donnees` § 1.
 
-| Règle | Geste |
+| Piège | Geste |
 |---|---|
-| Le bloc `meals:` du frontmatter fait foi | Les tableaux du corps ne sont **pas** lus |
-| Relier un repas à sa fiche | `<slot>_slug:` (jamais l'appariement par titre) |
-| Repas de restes | `<slot>_leftovers: true` — **sans fiche**, sinon on rachète les ingrédients |
-| Une recette au menu | Sa fiche `Recettes/*.md` existe **avant** le calcul des courses |
-| Après un `rclone copy` | Attendre ~30 s (délai du mount), puis ré-ingérer |
-| Nouvelle colonne dans un `CREATE TABLE` | L'ajouter **aussi** à `MIGRATIONS_SQL` — le VPS a déjà les tables |
+| Nouvelle colonne dans un `CREATE TABLE` | L'ajouter **aussi** à `MIGRATIONS_SQL` — le VPS a déjà les tables. Un **index** sur cette colonne ne vit QUE dans la migration : `SCHEMA_SQL` s'exécute avant |
 | `menu_meal.position` | 1-based en DB : tout JS fait `position - 1` |
 
 ⛔ **Jamais de `DELETE FROM menu` ni `menu_meal`** : l'ingestion upsert, un DELETE global
@@ -83,33 +80,24 @@ ssh srv759970 'curl -s "localhost:8795/api/attendance?day=AAAA-MM-JJ"'
 | `dietary_preference` | ce qui **pèse sans bloquer** (`minimize`/`maximize`/`cap`/`rotate`/`no_restriction`) | ❌ **rien ne le lit** |
 
 ⛔ **Un menu « sans conflit » ne dit rien du gluten, des sucres ajoutés ni de la rotation des
-protéines** : ces règles s'appliquent à la main en composant (`julien-cooking-manager-weekly-prep`
-§ 3, #77 #78). Deux autres angles morts : les repas `leftovers` (sans fiche, donc sans ingrédients
-à confronter, #76) et les parts séparées (« pois chiches pour Clémence » reste un conflit poulet).
+protéines** : ces règles s'appliquent à la main en composant (#77 #78). Trois autres angles
+morts : les repas `leftovers` (sans fiche, donc sans ingrédients à confronter, #76), les parts
+séparées (« pois chiches pour Clémence » reste un conflit poulet), et `repairs` vide qui ne veut
+pas dire « rien à réparer » — **lire `unrepaired`**.
 
-Lire, jamais recopier : `/api/preferences` · `/api/menus/<slug>/compatibility`.
-
-### Écrire un terme alimentaire
-
-**Au singulier**, toujours (`DIETS`, `dislikes`, `forbidden`, `diet_exceptions`) : la flexion
-va du singulier vers le pluriel, jamais l'inverse. Un terme ambigu (`roti`, `blanc`, `filet`)
-se déclare avec son motif dans `CONTEXT_REQUIRED` (ADR 0007). `repairs` vide ne veut pas dire
-« rien à réparer » — **lire `unrepaired`**. Détail : `julien-cooking-manager-weekly-prep` § 3.
+Un terme alimentaire s'écrit **au singulier**, toujours : la flexion va du singulier vers le
+pluriel, jamais l'inverse. Un terme ambigu (`roti`, `blanc`, `filet`) se déclare avec son motif
+dans `CONTEXT_REQUIRED` (ADR 0007). Lire, jamais recopier : `/api/preferences` ·
+`/api/menus/<slug>/compatibility`. Détail : `julien-cooking-manager-weekly-prep` § 3.
 
 ## Courses et garde-manger
 
 La liste **n'est pas stockée, c'est un calcul** : `GET /api/menus/{slug}/shopping-list` la
-recalcule à chaque appel (menu × tablée × stock). `shopping_session`/`shopping_product` sont
-un compte rendu d'après coup, relié à aucun menu (#67, #68).
+recalcule à chaque appel (menu × tablée × stock). **La DB fait foi du stock** ; le vault n'est
+qu'une source d'ingestion, et `source != 'vault'` survit à la ré-ingestion (#69).
 
-| Règle | Geste |
-|---|---|
-| La DB est la source de vérité du stock | Le vault n'est qu'une source d'ingestion ; `source != 'vault'` survit à la ré-ingestion (#69) |
-| `normalize_name` retire découpe et pluriel | **Jamais un état** : « sèches », « surgelés », « fraîche », « entier » changent l'identité |
-| `normalize_name` a changé, ou un appariement ne se fait pas | `renormalize` (dry-run d'abord) puis `pantry/aliases` — gestes et pièges dans `julien-cooking-manager-pantry-update` |
-| Deux fiches nomment le même aliment autrement | `build_needs` les fusionne à famille d'unité égale ; les libellés absorbés restent dans `merged_from` |
-| Une ligne de courses porte `purchase` | `mesure` · `comptable` (arrondi au-dessus) · `dose` (→ 1 conditionnement) · `non_resolu`. Le format vendu appartient au magasin (#82) |
-| Auchan Drive | **Seule voie** : MCP VPS `mcp-vps-auchan` (3854). `backend/auchan*.py` est décommissionné, HydraSpecter n'est qu'un outil de diagnostic. Un panier vide + `orders` vide = session **anonyme** : lire `grocery_session_status` |
+⛔ **`normalize_name` retire découpe et pluriel, jamais un ÉTAT** : « sèches », « surgelés »,
+« fraîche », « entier » changent l'identité de l'aliment.
 
 ⛔ **`age_days` ne dit rien de l'âge des articles** : l'inventaire est daté par `MAX(updated_at)`,
 donc une seule écriture le rajeunit tout entier. Juger sur `entered_at`, par article (#84).
@@ -121,71 +109,52 @@ si tu l'as » : stock en texte libre, besoin en chiffres. Lire le `reason` et tr
 `pantry_item`, ses lignes ressortent `absent`. Lire `grocery_orders` avant de racheter — un
 `status` vide veut dire « pas encore retirée ».
 
-Déclarer l'état d'un article : `PATCH /api/pantry` (par **nom**, écrit en base, rend 409 sur
-un homonyme). Détail et pièges : `julien-cooking-manager-pantry-update`.
-
-⚠️ **`Garde-manger.md` est aussi lu et écrit par le Coach Nutrition de claude.ai**, qui n'appelle jamais l'app : les deux stocks divergent sans alerte. Croiser via `pantry_item` (DB).
+Déclarer l'état d'un article : `PATCH /api/pantry` (par **nom**, rend 409 sur un homonyme) —
+`julien-cooking-manager-pantry-update`. Calcul, `purchase`, Auchan Drive, divergence avec le
+Coach Nutrition : `julien-ref-cooking-donnees` § 5.
 
 ## Photos
 
-Une photo distante est en sursis : le fichier local `web/media/recipes/<slug>.jpg` prime et
-survit au réseau. **Extension `.jpg` obligatoire**, `ingest.py` ne scanne que celle-là (#70).
-Générer via recipe-manager, jamais un prompt improvisé (versionné v1.1 chez lui) :
-`POST localhost:8796/recipes/<slug>/generate-image?inline=true` → écrire dans
-`web/media/recipes/`, **committer**, `git pull` sur le VPS.
-
-L'upsert garde `photo_url=COALESCE($24, recipe.photo_url)` : sinon un scraping en échec efface la photo.
+Le fichier local `web/media/recipes/<slug>.jpg` prime et survit au réseau. **Extension `.jpg`
+obligatoire**, `ingest.py` ne scanne que celle-là (#70). Génération et upsert protégé :
+`julien-ref-cooking-donnees` § 4.
 
 ## Vocabulaire (ontologie)
 
-Cuissons, cuisines, textures, accommodations et axes de retour viennent de
+Cuissons, cuisines, textures, accommodations, axes de retour et natures de produit viennent de
 `data/ontology/cooking-vocabulary.yaml` → `ontology-manager` → artefact épinglé
 `cooking_manager/cooking-vocabulary.json` — **jamais d'une table écrite dans le code**.
-Régénérer : `python -m ontology_manager.cli generate --ontology cooking-vocabulary`, puis
-recopier l'artefact.
 
-⚠️ Le générateur a un **jeu de champs fixe** (dépôt ontology-manager) : un champ ajouté au
-YAML n'atteint pas l'artefact, et le consommateur lit une valeur vide sans erreur. Ajouter un
-champ = toucher les deux dépôts **plus un test**. `dominates` : n'y inscrire que l'observé.
+⚠️ Le générateur a un **jeu de champs fixe** (dépôt ontology-manager) : un champ ou une facette
+ajouté au seul YAML n'atteint **pas** l'artefact, et le consommateur lit une valeur vide sans
+erreur. Ajouter = deux dépôts **plus un test**. Régénérer et propager :
+`julien-ref-cooking-donnees` § 3.
 
 ## Référentiel aliment & produit
 
 `generiques/` → `food` · `marques/` → `product`. **Le dossier tranche**, jamais le champ
-`marque` : le frontmatter est lu ligne à ligne, donc la **chaîne** `"null"` est vraie —
-même piège sur `bio: true`, `ciqual_code: 7010`, toute liste YAML (#85).
+`marque` : le frontmatter est lu ligne à ligne, donc la **chaîne** `"null"` est vraie (#85).
 
-| Règle | Geste |
-|---|---|
-| Deux fiches sur une même clé normalisée | Ni l'une ni l'autre n'est importée — elles sortent dans `collisions`, à trancher à la main |
-| Une fiche à plusieurs formes (« Crues »/« Cuites ») | Sans forme neutre `100g`, elle part en `skipped` avec son motif |
-| Avant toute bascule de consommateur | `GET /api/food/report` : `missing` **et** `macro_mismatch` vides (ADR 0011) |
-| Un produit non rattaché | `status = 'a_rapprocher'` — un choix à faire, jamais un oubli |
-| `product.nature` avant tout rapprochement | `single` = un aliment conditionné, `food_key` vide = **lacune** · `composite` = plusieurs ingrédients, `food_key` vide = **normal**. L'import refuse de rattacher un composite (ADR 0016) |
-
-⛔ **Les fiches ne portent pas d'unité d'usage** : une « Portion courante » est un contexte
-de repas, pas une unité — ne pas la convertir en `food_unit`.
-
-⚠️ **Une fiche corrigée en local ne suffit pas** — le VPS monte le cloud : propager par
-`rclone copy` **et** `rclone delete`. Un `directory not found` signale une syntaxe fausse,
-jamais une absence.
+⛔ **`product.nature` dit ce qu'un `food_key` vide VEUT DIRE** : `single` (aliment
+conditionné) → c'est une **lacune** du référentiel ; `composite` (plusieurs ingrédients) →
+c'est **normal**, et l'import refuse de le rattacher. Sans elle, un plat rattaché à un
+ingrédient prend ses macros et se lit comme réparé (ADR 0016).
 
 ⚠️ **Un `ciqual_code` ne se croit pas sur parole** (`pain-complet` déclarait `7010`, le pain
-**bis**). Vérifier dans le XML ANSES de data.gouv.fr — il est en **cp1252** et casse tout
-parseur XML, le lire par regex. Les sites tiers mélangent les millésimes. ADR 0011.
+**bis**), et une fiche corrigée en local n'atteint pas le VPS sans `rclone copy`.
+
+Collisions, formes, XML ANSES, rattachement : `julien-ref-cooking-donnees` § 2.
 
 ## Macros
 
-`nutrition.py` applique les règles du Coach Nutrition (`Noyau/Coaches/Coach Nutrition/_coach.md`),
-il n'invente rien.
+`nutrition.py` applique les règles du Coach Nutrition, il n'invente rien.
 
 1. **Pas d'hypothèse** — non résolu ⇒ `unresolved` avec son motif. Une base sans « pour 100 g » est ignorée ; une fiche « Crues »/« Cuites » sans forme nommée ne tranche pas.
 2. **Réconcilier** — `kcal = P×4 + G×4 + L×9` ; au-delà de 5 % d'écart, montrer les deux chiffres.
 3. **Trois sources** — `marques/` > `shopping_product.nutrition` > `generiques/` (CIQUAL). Jamais de quatrième position implicite. `coverage`/`conclusive` priment sur le total.
 
-⛔ **Une énergie se lit avec son unité.** Les fiches `marques/` écrivent
-« Énergie | 2820 kJ (673 kcal) » : lire le premier nombre donnait des **kilojoules pris
-pour des kcal** — 44 produits sur 170 le 2026-09-08, soit ×4,184 sur un plat au parmesan
-ou aux pignons, sans erreur. `read_energy()` lit `kcal` s'il est écrit, convertit les kJ
+⛔ **Une énergie se lit avec son unité** — les fiches écrivent « 2820 kJ (673 kcal) », et le
+premier nombre est le mauvais. `read_energy()` prend les kcal si écrits, convertit les kJ
 sinon, et **refuse au-delà de 950 kcal/100 g** (l'huile pure plafonne à 900).
 
 Pièges : `load_food_base_cached()` obligatoire ; `qty_min` est un `Decimal`.
