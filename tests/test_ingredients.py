@@ -1,10 +1,4 @@
-"""Unitaires — parser d'ingrédients et d'étapes.
-
-Le contrat central : **aucune ligne ne disparaît jamais**. Une quantité non
-comprise doit rester visible à l'écran (`raw` conservé, `parsed=False`), parce
-qu'un ingrédient avalé en silence, c'est un achat manqué qu'on découvre en
-cuisine — trop tard.
-"""
+"""Unitaires — parser d'ingrédients et d'étapes."""
 
 import pytest
 
@@ -14,7 +8,6 @@ from cooking_manager.ingredients import (
     parse_ingredient,
     parse_recipe_body,
 )
-
 
 class TestQuantities:
     def test_simple(self):
@@ -26,8 +19,7 @@ class TestQuantities:
         assert parse_ingredient("~300 g abricots congelés", 1).qty_min == 300.0
 
     def test_range_keeps_both_bounds(self):
-        """« 2–3 c.s. » : on garde le min ET le max, la liste de courses
-        prendra le max, la fiche affichera la fourchette."""
+        """« 2–3 c.s. » : on garde le min ET le max, la liste de courses"""
         ing = parse_ingredient("2–3 c.s. lait entier", 1)
         assert (ing.qty_min, ing.qty_max, ing.unit) == (2.0, 3.0, "c.s.")
 
@@ -39,13 +31,11 @@ class TestQuantities:
 
     @pytest.mark.parametrize("glyph,expected", [("½", 0.5), ("¼", 0.25), ("¾", 0.75)])
     def test_typographic_fractions(self, glyph, expected):
-        """Le vault écrit « ½ oignon rouge » avec le vrai caractère — invisible
-        d'une regex numérique."""
+        """Le vault écrit « ½ oignon rouge » avec le vrai caractère — invisible"""
         assert parse_ingredient(f"{glyph} oignon rouge, émincé", 1).qty_min == expected
 
     def test_mixed_quantity(self):
         assert parse_ingredient("1 ½ c.s. miel", 1).qty_min == 1.5
-
 
 class TestUnits:
     @pytest.mark.parametrize("text,unit", [
@@ -61,9 +51,7 @@ class TestUnits:
         assert parse_ingredient(text, 1).unit == unit
 
     def test_dotted_unit_is_recognized(self):
-        """Régression : `\\b` après « c.c. » ne peut JAMAIS matcher — le point et
-        l'espace qui suit sont tous deux non-alphanumériques, donc il n'y a pas
-        de frontière de mot. 15 ingrédients ressortaient en unité « pièce »."""
+        """Régression : `\b` après « c.c. » ne peut JAMAIS matcher — le point et"""
         ing = parse_ingredient("1 c.c. extrait de vanille (5 ml)", 1)
         assert ing.unit == "c.c."
         assert ing.name.startswith("extrait de vanille")
@@ -73,15 +61,13 @@ class TestUnits:
         ing = parse_ingredient("2 bananes bien mûres écrasées", 1)
         assert (ing.qty_min, ing.unit) == (2.0, "pièce")
 
-
 class TestTolerance:
     def test_quantityless_line_is_kept_raw(self):
-        """« Édulcorant au choix — qs » n'a pas de quantité : elle doit rester
-        affichable, pas disparaître."""
+        """« Édulcorant au choix — qs » n'a pas de quantité : elle doit rester"""
         ing = parse_ingredient("Édulcorant au choix (stévia, érythritol) — qs", 1)
         assert ing.parsed is False
         assert ing.raw.startswith("Édulcorant")
-        assert ing.name  # jamais vide : il y a toujours quelque chose à afficher
+        assert ing.name
 
     def test_raw_is_always_preserved(self):
         for text in ["350 g farine", "Sel, poivre", "Huile d'olive pour la poêle", "???"]:
@@ -97,12 +83,9 @@ class TestTolerance:
         ing = parse_ingredient("**150 g** de chocolat noir 70%+", 1)
         assert ing.qty_min == 150.0
 
-
 class TestNormalizeName:
     def test_matches_pantry_variants(self):
-        """La clé d'appariement doit faire se rencontrer « miel » et
-        « Miel bio (liquide) » — c'est ce qui évite de racheter du miel
-        qu'on a déjà (incident du 2026-08-04)."""
+        """La clé d'appariement doit faire se rencontrer « miel » et"""
         assert normalize_name("Miel bio (liquide)") == normalize_name("miel")
 
     def test_strips_accents_and_parentheses(self):
@@ -122,8 +105,7 @@ class TestNormalizeName:
         ("pavés de saumon (environ 130 g pièce)", "pavé de saumon"),
     ])
     def test_la_decoupe_et_le_pluriel_ne_font_pas_deux_aliments(self, first, second):
-        """Deux lignes du même aliment = deux achats. Mesuré le 2026-09-07 :
-        « comté, en dés » et « comté, râpé » sortaient comme deux besoins."""
+        """Deux lignes du même aliment = deux achats. Mesuré le 2026-09-07 :"""
         assert normalize_name(first) == normalize_name(second)
 
     @pytest.mark.parametrize("name,expected", [
@@ -133,8 +115,7 @@ class TestNormalizeName:
         ("lait entier", "lait entier"),
     ])
     def test_un_etat_n_est_pas_une_decoupe(self, name, expected):
-        """« sèches », « surgelés », « fraîche », « entier » changent l'identité
-        du produit : les retirer produirait un faux « tu en as »."""
+        """« sèches », « surgelés », « fraîche », « entier » changent l'identité"""
         assert normalize_name(name) == expected
 
     @pytest.mark.parametrize("name,expected", [
@@ -144,8 +125,7 @@ class TestNormalizeName:
         ("chips de légumes", "chips de legume"),
     ])
     def test_un_adjectif_invariable_garde_son_s(self, name, expected):
-        """« frais » n'est pas le pluriel de « frai ». Repéré sur le stock réel
-        le 2026-09-07 : « aux œufs frais » devenait « aux oeuf frai »."""
+        """« frais » n'est pas le pluriel de « frai ». Repéré sur le stock réel"""
         assert normalize_name(name) == expected
 
     @pytest.mark.parametrize("name,expected", [
@@ -161,13 +141,11 @@ class TestNormalizeName:
         "noix de coco", "anis étoilé", "dos de cabillaud",
     ])
     def test_les_invariables_en_s_et_le_x_final_survivent(self, word):
-        """Le pluriel se retire, pas la dernière lettre d'un mot qui finit en s
-        ou en x au singulier — « noix » ne devient pas « noi »."""
+        """Le pluriel se retire, pas la dernière lettre d'un mot qui finit en s"""
         normalized = normalize_name(word)
         for source, result in zip(word.lower().split(), normalized.split(), strict=False):
             if source.endswith(("s", "x")) and source in INVARIABLE_IN_S | {"doux", "noix"}:
                 assert result == source, f"{source} → {result}"
-
 
 class TestRecipeBody:
     BODY = """
@@ -200,8 +178,7 @@ class TestRecipeBody:
         assert content.steps[0].text.startswith("Fouetter")
 
     def test_bold_note_closes_the_ingredient_list(self):
-        """« **Variantes testées** : … » est une note, pas un ingrédient —
-        sinon elle atterrit dans la liste de courses."""
+        """« **Variantes testées** : … » est une note, pas un ingrédient —"""
         names = [i.name for i in parse_recipe_body(self.BODY).ingredients]
         assert not any("Variantes" in n for n in names)
 
@@ -242,10 +219,7 @@ class TestRecipeBody:
 """
 
     def test_subsections_do_not_close_the_ingredient_list(self):
-        """« ## Ingrédients » puis « ### Base » : la borne de fin se compare au
-        NIVEAU du titre d'ouverture. Aveugle au niveau, elle fermait la section
-        sur la première sous-section — donc zéro ingrédient, sans un warning.
-        5 recettes sur 11 vidées ainsi (#58)."""
+        """« ## Ingrédients » puis « ### Base » : la borne de fin se compare au"""
         content = parse_recipe_body(self.GROUPED_BODY)
         names = [i.name for i in content.ingredients]
         assert len(content.ingredients) == 4, names
@@ -253,8 +227,7 @@ class TestRecipeBody:
         assert names[2].startswith("pâte d'arachide")
 
     def test_subsection_titles_are_not_ingredients(self):
-        """Les sous-titres n'ont pas de puce : ils ne doivent pas entrer dans la
-        liste de courses (« Sauce mafé » n'est pas un produit à acheter)."""
+        """Les sous-titres n'ont pas de puce : ils ne doivent pas entrer dans la"""
         names = [i.name for i in parse_recipe_body(self.GROUPED_BODY).ingredients]
         assert not any("Sauce mafé" in n or "Poisson et légumes" in n for n in names)
 
@@ -271,9 +244,7 @@ class TestRecipeBody:
         assert not any("congèle" in i.raw for i in content.ingredients)
 
     def test_numbered_section_titles_are_recognized(self):
-        """Une fiche rédigée en plan numéroté (« ## 3. Ingrédients ») porte les
-        mêmes listes que les autres — sans tolérer le préfixe, elle ressort
-        entièrement vide, ingrédients ET étapes."""
+        """Une fiche rédigée en plan numéroté (« ## 3. Ingrédients ») porte les"""
         body = (
             "# Gratin\n\n## 3. Ingrédients (4 pers)\n\n"
             "- Courge spaghetti — ~2 kg brute\n- Feta AOP — 180 g\n\n"
@@ -285,7 +256,7 @@ class TestRecipeBody:
 
     def test_parse_rate(self):
         content = parse_recipe_body(self.BODY)
-        assert content.parse_rate == 0.75  # 3 sur 4 (l'édulcorant n'a pas de quantité)
+        assert content.parse_rate == 0.75
 
     def test_empty_body_is_safe(self):
         content = parse_recipe_body("")
@@ -298,8 +269,7 @@ class TestRecipeBody:
         assert [s.position for s in content.steps] == [1, 2, 3]
 
     def test_steps_are_stripped_of_markdown(self):
-        """Le corps est du markdown, l'app rend du texte : les étapes
-        sortaient avec leurs `**` visibles (« congeler **24h minimum** »)."""
+        """Le corps est du markdown, l'app rend du texte : les étapes"""
         body = "## Préparation\n\n1. Congeler **24h minimum** à plat.\n2. Cycle *Lite Ice Cream*.\n"
         steps = parse_recipe_body(body).steps
         assert steps[0].text == "Congeler 24h minimum à plat."

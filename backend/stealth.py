@@ -1,9 +1,4 @@
-"""Thin HTTP client for the stealth-fetch service (port 8410).
-
-All HTML fetching with anti-bot bypass goes through stealth-fetch.
-Proxy management, TLS fingerprinting, and engine escalation are
-stealth-fetch's responsibility — consumers just send {url, cookies}.
-"""
+"""Thin HTTP client for the stealth-fetch service (port 8410)."""
 
 import logging
 import os

@@ -1,10 +1,4 @@
-"""Speech-to-text + LLM intent resolver for Cooking Manager.
-
-Pipeline: audio bytes → Deepgram (transcription) → Ollama cloud (intent JSON)
-→ action executor (calls existing API endpoints internally).
-
-Pattern from Family Manager (family_dashboard/stt.py), adapted to cooking domain.
-"""
+"""Speech-to-text + LLM intent resolver for Cooking Manager."""
 
 import json
 import logging

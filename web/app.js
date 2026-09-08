@@ -1,14 +1,3 @@
-/* Cooking Manager — front
- *
- * CIBLE : iPad mini 2 / Safari 12.5.8. Syntaxe limitée à ES2019 :
- *   ❌ ?.  ??  ||=  champs de classe  Array.at()  replaceAll()
- *   ✅ fetch, async/await, template literals, spread, URLSearchParams
- * Vérifié par eslint (ecmaVersion 2019) + eslint-plugin-compat.
- *
- * Pas de <dialog> : il n'existe pas avant Safari 15.4, et l'élément inconnu
- * affiche son contenu en permanence dans le flux. Les vues sont routées.
- */
-
 'use strict';
 
 var API = '/api';
@@ -18,7 +7,9 @@ var state = {
   active: { status: null, family: null, tag: null, menu: null }, q: ''
 };
 
-/* ── Utilitaires ───────────────────────────────────────────────────── */
+function ignoreSecondaryFailure(err) {
+  if (window.console && console.debug) console.debug('[cm2] echec secondaire ignore', err);
+}
 
 function esc(s) {
   if (s === null || s === undefined) return '';
@@ -69,8 +60,6 @@ function skeletonGrid(n) {
   return out + '</div>';
 }
 
-/* ── Vue : menu de la semaine ──────────────────────────────────────── */
-
 var SLOTS = [
   { key: 'breakfast', label: 'Petit-déj' },
   { key: 'lunch',     label: 'Déjeuner' },
@@ -87,7 +76,6 @@ function todayISO() {
   return d.getFullYear() + '-' + m + '-' + day;
 }
 
-/* Index des contrôles de compatibilité, par « jour/créneau ». */
 function indexCompat(compat) {
   var idx = {};
   if (!compat || !compat.results) return idx;
@@ -430,8 +418,6 @@ async function confirmSwap(recipeSlug) {
   viewMenu();
 }
 
-/* ── Vue : catalogue de recettes ───────────────────────────────────── */
-
 function recipeCard(r) {
   var media = r.photo_url
     ? '<img src="' + esc(r.photo_url) + '" alt="' + esc(r.title) + '">'
@@ -490,9 +476,6 @@ function paintRecipes(total) {
                                 'Essayez un autre mot-clé ou retirez un filtre.');
     return;
   }
-  // ⚠️ Le wrapper .grid doit être RÉÉCRIT ici : le squelette de chargement le
-  // portait, mais les cartes le remplaçaient et atterrissaient dans un
-  // conteneur sans grille — elles flottaient et leurs métadonnées se touchaient.
   host.innerHTML = '<div class="grid">' + state.recipes.map(recipeCard).join('') + '</div>';
 }
 
@@ -506,8 +489,6 @@ async function viewRecipes() {
 
   if (!state.filters) state.filters = await api('/filters');
   var f = state.filters;
-  // La puce « Cette semaine » relie le catalogue au menu courant. Sans elle,
-  // les 22 recettes se valent toutes et rien ne dit lesquelles sont au programme.
   var weekChip = '';
   if (!state.weekMenu) {
     var menus = (await api('/menus')).menus || [];
@@ -541,8 +522,6 @@ async function viewRecipes() {
     }, 250);
   });
 }
-
-/* ── Vue : fiche recette ───────────────────────────────────────────── */
 
 function roundQty(n) {
   if (n === 0) return '0';
@@ -703,7 +682,7 @@ async function viewRecipe(slug, servedOn) {
              '<span class="slot__dish">' + esc(stars) + esc(who) + '</span>' +
              (e.notes ? '<div class="slot__who">' + esc(e.notes) + '</div>' : '') + '</div>';
     }).join('');
-  } catch (e) { /* l'historique est secondaire : son échec ne casse pas la fiche */ }
+  } catch (e) { ignoreSecondaryFailure(e); }
 
   await paintFeedback(slug, servedOn || todayISO());
   if (servedOn) {
@@ -711,8 +690,6 @@ async function viewRecipe(slug, servedOn) {
     if (anchor) anchor.scrollIntoView();
   }
 }
-
-/* ── Retours de table ──────────────────────────────────────────────── */
 
 async function feedbackVocabulary() {
   if (!state.feedbackVocab) {
@@ -872,11 +849,6 @@ async function submitFeedback(btn) {
   await paintFeedback(slug, servedOn);
 }
 
-/* ── Vue : courses ─────────────────────────────────────────────────── */
-
-/* Les 4 issues du différentiel. `inconnu` n'est PAS un raté du système : c'est
-   l'app qui refuse de deviner, parce qu'un faux « tu en as » fait sauter un
-   achat et ne se découvre qu'en cuisine. */
 var OUTCOMES = {
   absent:      { label: 'À acheter',    cls: 'need--buy' },
   insuffisant: { label: 'À compléter',  cls: 'need--partial' },
@@ -913,8 +885,6 @@ function needRow(line) {
     html += '<div class="need__pantry">' + esc(line.reason) + '</div>';
   }
 
-  // Les 4 gestes ne s'affichent que là où ils ont un sens : inutile de demander
-  // « tu en as ? » pour un ingrédient dont on sait déjà qu'il manque.
   if (line.pantry) {
     html += '<div class="need__actions">' +
       '<button class="mini" data-act="have">Oui, j\'en ai</button>' +
@@ -956,15 +926,11 @@ async function viewCourses() {
     ' · ' + esc(data.covers) + ' couverts · ' +
     esc(data.recipes_matched) + ' recettes reliées</p>';
 
-  // L'âge de l'inventaire est une donnée de premier plan, pas une note de bas
-  // de page : c'est lui qui décide si le frais est encore crédible.
   if (data.pantry && data.pantry.is_stale) {
     html += '<div class="banner">Inventaire du garde-manger vieux de ' +
       esc(data.pantry.age_days) + ' jours — les produits frais sont supposés épuisés. ' +
       'Corrigez ce qui est faux plutôt que de faire confiance à cette liste.</div>';
   }
-  // Les restes ne sont pas un manque : les afficher dans la même bannière que
-  // les repas sans fiche ferait clignoter une alerte qu'on ne peut pas éteindre.
   if (data.meals_leftovers && data.meals_leftovers.length) {
     html += '<p class="page__sub">' + data.meals_leftovers.length +
       ' repas de restes — rien à acheter pour eux : ' +
@@ -1035,8 +1001,6 @@ async function applyPantryGesture(li, action) {
     box.innerHTML = '<span class="need__error">Échec de l\'enregistrement — réessayez</span>';
   }
 }
-
-/* ── Vue : drive (courses → panier enseigne) ─────────────────────── */
 
 async function viewDrive() {
   var data = state.shopping;
@@ -1244,8 +1208,6 @@ function _renderDrive(data, mappings, store) {
   render(html);
 }
 
-/* Drive event handlers — delegated from document.click */
-
 function _driveSwap(idx) {
   state.driveExpanded = (state.driveExpanded === idx) ? null : idx;
   state.driveSearchResults = null;
@@ -1291,8 +1253,6 @@ function _driveSearchKeyup(input) {
       });
   }, 400);
 }
-
-/* ── Vue : comparaison drive ──────────────────────────────────────── */
 
 async function _driveCompare() {
   var data = state.shopping;
@@ -1421,8 +1381,6 @@ function _compareCell(product, label, isCheap) {
   return html + '</div>';
 }
 
-/* ── Vue : garde-manger ───────────────────────────────────────────── */
-
 var STATUS_COLORS = { ok: '#4caf50', low: '#ff9800', out: '#f44336' };
 var STATUS_LABELS = { ok: 'En stock', low: 'Peu', out: 'Épuisé' };
 
@@ -1477,8 +1435,6 @@ async function viewPantry() {
 
   render(html);
 }
-
-/* ── Vue : historique achats ──────────────────────────────────────── */
 
 var NUTRISCORE_COLORS = { A: '#038141', B: '#85bb2f', C: '#fecb02', D: '#ee8100', E: '#e63e11' };
 
@@ -1569,17 +1525,6 @@ async function expandSession(card) {
   html += '</tbody></table>';
   container.innerHTML = html;
 }
-
-/* ── Import d'une page de livre ─────────────────────────────────────
- *
- * Capture par <input type="file" capture> : l'appareil photo natif s'ouvre.
- * PAS getUserMedia — même famille de limite que MediaRecorder, qui a déjà
- * imposé de masquer le FAB micro sur l'iPad mini 2.
- *
- * L'écran de relecture est le cœur : un modèle vision hallucine des quantités
- * plausibles, et la page photographiée n'est plus consultable une fois rangée.
- * Toute ligne non comprise DOIT se voir.
- */
 
 async function viewImport() {
   render('<h1 class="title">Importer une recette</h1>' +
@@ -1739,9 +1684,6 @@ async function commitDraft() {
     });
     var res = await api('/api/recipes/import/drafts/' + d._id + '/commit',
                         { method: 'POST' });
-    /* La fiche transite par le cloud : le serveur ne la voit qu'après
-       propagation (~30 s). Rediriger tout de suite afficherait une recette
-       absente — un import réussi qui passe pour un échec. */
     if (res.visible) {
       location.hash = '#/recette/' + res.slug;
     } else {
@@ -1753,8 +1695,6 @@ async function commitDraft() {
     status.innerHTML = '<p class="import__error">' + esc(e.message) + '</p>';
   }
 }
-
-/* ── Routeur ───────────────────────────────────────────────────────── */
 
 var ROUTES = {
   menu: viewMenu, recettes: viewRecipes, courses: viewCourses,
@@ -1796,15 +1736,12 @@ async function route() {
 
 window.addEventListener('hashchange', route);
 
-/* `change` et non `click` : sur iOS le fichier n'existe qu'après le retour de
-   l'appareil photo, et l'input est recréé à chaque rendu de vue. */
 document.addEventListener('change', function (e) {
   if (e.target && e.target.id === 'import-file' && e.target.files.length) {
     uploadImportPages(e.target.files);
   }
 });
 
-/* Délégation d'événements : le contenu est réécrit à chaque vue. */
 document.addEventListener('click', function (e) {
   var nav = e.target.closest('.nav__link');
   if (nav) { location.hash = '#/' + nav.getAttribute('data-route'); return; }
@@ -1886,17 +1823,15 @@ document.addEventListener('click', function (e) {
   }
 });
 
-/* Recherche live dans la vue drive. */
 document.addEventListener('keyup', function (e) {
   var input = e.target.closest('.drive-search__input');
   if (input) _driveSearchKeyup(input);
 });
 
-/* Thème : pas de @media prefers-color-scheme (iOS 13) — attribut sur <html>. */
 var THEME_KEY = 'cm2-theme';
 function applyTheme(t) {
   document.documentElement.setAttribute('data-theme', t);
-  try { localStorage.setItem(THEME_KEY, t); } catch (e) { /* mode privé */ }
+  try { localStorage.setItem(THEME_KEY, t); } catch (e) { ignoreSecondaryFailure(e); }
 }
 document.getElementById('theme-toggle').addEventListener('click', function () {
   var cur = document.documentElement.getAttribute('data-theme');
@@ -1906,8 +1841,6 @@ try {
   var saved = localStorage.getItem(THEME_KEY);
   applyTheme(saved || 'light');
 } catch (e) { applyTheme('light'); }
-
-/* ── Bouton micro (STT) — visible seulement si MediaRecorder existe ── */
 
 var _micRecording = false;
 var _micRecorder = null;
@@ -1957,6 +1890,7 @@ function initMic() {
 function startMic(fab) {
   navigator.mediaDevices.getUserMedia({ audio: true }).then(function (stream) {
     _micChunks = [];
+    // eslint-disable-next-line compat/compat
     _micRecorder = new MediaRecorder(stream);
     _micRecorder.ondataavailable = function (e) {
       if (e.data && e.data.size > 0) _micChunks.push(e.data);
@@ -2189,9 +2123,6 @@ function handleVoiceResult(data) {
     return;
   }
 }
-
-
-/* ── Écran de confirmation bulk garde-manger ─────────────────────── */
 
 function showBulkConfirm(items) {
   var existing = document.getElementById('bulk-confirm');

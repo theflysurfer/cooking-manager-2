@@ -1,10 +1,4 @@
-"""Unitaires — référentiel de présence.
-
-La règle qui a manqué le 2026-08-04 : la cantine n'existe **que hors vacances
-scolaires**. La grille type de `Convives.md` porte bien la mention, mais
-raisonner dessus sans vérifier la période donne une réponse fausse avec l'aplomb
-d'une règle écrite.
-"""
+"""Unitaires — référentiel de présence."""
 
 from datetime import date
 
@@ -26,7 +20,6 @@ from cooking_manager.presence import (
 
 SUMMER = SchoolPeriod("Vacances d'été 2026", date(2026, 7, 4), date(2026, 8, 31))
 
-
 class TestCustodyCycle:
     def test_reference_week_has_children(self):
         assert children_present_this_week(date(2026, 3, 3)) is True
@@ -39,13 +32,11 @@ class TestCustodyCycle:
         monday, sunday = date(2026, 3, 3), date(2026, 3, 8)
         assert children_present_this_week(monday) == children_present_this_week(sunday)
 
-
 class TestCanteen:
-    """Mardi/jeudi/vendredi midi : enfants à la cantine — mais SEULEMENT en
-    période scolaire."""
+    """Mardi/jeudi/vendredi midi : enfants à la cantine — mais SEULEMENT en"""
 
-    SCHOOL_TUESDAY = date(2026, 3, 3)   # semaine AVEC enfants, hors vacances
-    HOLIDAY_TUESDAY = date(2026, 8, 4)  # semaine AVEC enfants, en vacances
+    SCHOOL_TUESDAY = date(2026, 3, 3)
+    HOLIDAY_TUESDAY = date(2026, 8, 4)
 
     def test_canteen_applies_during_school(self):
         assert attendees(self.SCHOOL_TUESDAY, "lunch") == ["Julien", "Clémence"]
@@ -58,8 +49,7 @@ class TestCanteen:
         ]
 
     def test_without_referential_the_answer_is_wrong(self):
-        """Sans référentiel, la règle cantine s'applique à tort — c'est
-        exactement l'erreur commise, et elle a l'air d'une règle légitime."""
+        """Sans référentiel, la règle cantine s'applique à tort — c'est"""
         assert "Léa" not in attendees(self.HOLIDAY_TUESDAY, "lunch")
 
     def test_dinner_is_never_canteen(self):
@@ -68,7 +58,6 @@ class TestCanteen:
 
     def test_wednesday_lunch_is_never_canteen(self):
         assert "Léa" in attendees(date(2026, 3, 4), "lunch")
-
 
 class TestGcalCustodyPattern:
     """Non-régression 2026-09-07 — voir ADR 0004."""
@@ -100,7 +89,6 @@ class TestGcalCustodyPattern:
         friday = date(2026, 9, 11)
         assert "Léa" in attendees(friday, "dinner", ref, self.GCAL_HOUSEHOLD)
 
-
 class TestAbsences:
     def test_absent_person_is_removed(self):
         ref = Referential(
@@ -111,9 +99,7 @@ class TestAbsences:
         assert "Clémence" in attendees(date(2026, 8, 7), "dinner", ref)
 
     def test_no_adult_means_no_home_meal(self):
-        """Des enfants ne peuvent pas être les seuls convives d'un repas maison :
-        mieux vaut rendre une liste vide (« hors foyer ») qu'une table qui se
-        lirait comme un repas à préparer."""
+        """Des enfants ne peuvent pas être les seuls convives d'un repas maison :"""
         ref = Referential(
             school_holidays=[SUMMER],
             absences=[
@@ -123,11 +109,8 @@ class TestAbsences:
         )
         assert attendees(date(2026, 8, 10), "dinner", ref) == []
 
-
 class TestStays:
-    """Le correctif du bug fondateur (F.30, Bègles 2026-08-10) : en location de
-    vacances on cuisine sur place, donc les membres du séjour sont à table —
-    même s'ils sont par ailleurs marqués absents du foyer principal."""
+    """Le correctif du bug fondateur (F.30, Bègles 2026-08-10) : en location de"""
 
     BEGLES = Stay(
         label="Semaine à Bègles",
@@ -143,8 +126,7 @@ class TestStays:
         ]
 
     def test_stay_beats_absence(self):
-        """Le bug exact : les adultes marqués 'à Bordeaux/absents' vidaient la
-        tablée. Le séjour l'emporte sur l'absence."""
+        """Le bug exact : les adultes marqués 'à Bordeaux/absents' vidaient la"""
         ref = Referential(
             school_holidays=[SUMMER],
             absences=[
@@ -164,11 +146,10 @@ class TestStays:
 
     def test_outside_the_stay_the_frame_applies(self):
         """Hors période de séjour, le stay n'a aucun effet : la trame reprend."""
-        day = date(2026, 8, 20)  # hors séjour (fini le 16)
+        day = date(2026, 8, 20)
         with_stay = Referential(school_holidays=[SUMMER], stays=[self.BEGLES])
         without_stay = Referential(school_holidays=[SUMMER])
         assert attendees(day, "dinner", with_stay) == attendees(day, "dinner", without_stay)
-
 
 class TestSlotAbsence:
     def test_absence_limited_to_one_slot(self):
@@ -179,7 +160,6 @@ class TestSlotAbsence:
         )
         assert "Julien" not in attendees(date(2026, 3, 3), "lunch", ref)
         assert "Julien" in attendees(date(2026, 3, 3), "dinner", ref)
-
 
 class TestOverrides:
     def test_override_wins_over_everything(self):
@@ -195,7 +175,6 @@ class TestOverrides:
             overrides={"2026-08-10/lunch": ["Julien"]},
         )
         assert attendees(date(2026, 8, 10), "lunch", ref) == ["Julien"]
-
 
 class TestParseReferential:
     BODY = """
@@ -228,12 +207,10 @@ class TestParseReferential:
         assert not ref.is_school_holiday(date(2026, 9, 15))
 
     def test_empty_body_is_safe(self):
-        """Un référentiel absent ne casse rien : la trame déterministe
-        s'applique seule."""
+        """Un référentiel absent ne casse rien : la trame déterministe"""
         ref = parse_referential("")
         assert ref.school_holidays == [] and ref.absences == []
         assert attendees(date(2026, 8, 4), "dinner", ref)
-
 
 class TestWeekGrid:
     def test_grid_covers_seven_days(self):

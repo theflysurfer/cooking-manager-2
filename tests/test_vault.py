@@ -1,14 +1,8 @@
-"""Unitaires — lecture du vault. Aucun réseau, aucune DB.
-
-Le `slug` est la clé, pas le nom de fichier : deux fiches peuvent le déclarer en
-double, et l'upsert d'ingestion n'en garde alors qu'une. Laquelle ne doit PAS
-dépendre de l'ordre alphabétique du glob.
-"""
+"""Unitaires — lecture du vault. Aucun réseau, aucune DB."""
 
 from pathlib import Path
 
 from cooking_manager.vault import read_recipes
-
 
 def _write(dirpath: Path, name: str, *, slug: str, updated: str, marker: str) -> None:
     (dirpath / name).write_text(
@@ -16,11 +10,8 @@ def _write(dirpath: Path, name: str, *, slug: str, updated: str, marker: str) ->
         encoding="utf-8",
     )
 
-
 class TestDuplicateSlugs:
-    """`<slug>-v2.md` trie AVANT `<slug>.md` ('-' < '.') : à l'ordre de glob, la
-    version périmée écrasait la bonne. Constaté en production sur le journal
-    Creami — l'app servait l'état du 08/07 alors que le vault décrivait le 06/08."""
+    """`<slug>-v2.md` trie AVANT `<slug>.md` ('-' < '.') : à l'ordre de glob, la"""
 
     def _vault(self, tmp_path: Path) -> Path:
         recipes = tmp_path / "Recettes"
@@ -41,11 +32,10 @@ class TestDuplicateSlugs:
         assert shadowed == ["journal.md"]
 
     def test_mtime_does_not_decide(self, tmp_path: Path):
-        """Sur le VPS le vault est un mount rclone : le mtime date la COPIE.
-        Le fichier périmé touché en dernier ne doit pas gagner pour autant."""
+        """Sur le VPS le vault est un mount rclone : le mtime date la COPIE."""
         vault = self._vault(tmp_path)
         stale = vault / "Recettes" / "journal.md"
-        stale.touch()  # mtime le plus récent, donnée la plus ancienne
+        stale.touch()
         recipes = read_recipes(vault)
         assert "A_JOUR" in recipes[0]["_body"]
 

@@ -1,11 +1,6 @@
-"""Unitaires — normalisation du frontmatter. Aucun réseau, aucune DB.
-
-Le slug de menu est la clé naturelle qui a remplacé le `DELETE FROM menu` :
-s'il est instable ou vide, l'upsert se remet à dupliquer ou à écraser.
-"""
+"""Unitaires — normalisation du frontmatter. Aucun réseau, aucune DB."""
 
 from cooking_manager.normalizer import normalize_menu, normalize_recipe, slugify
-
 
 class TestSlugify:
     def test_strips_accents_and_punctuation(self):
@@ -25,7 +20,6 @@ class TestSlugify:
     def test_ascii_only(self):
         assert slugify("Crème brûlée à l'ancienne").isascii()
 
-
 class TestMenuSlug:
     def test_derived_from_filename_when_absent(self):
         data, warnings = normalize_menu({
@@ -44,8 +38,7 @@ class TestMenuSlug:
         assert data["slug"] == "slug-explicite"
 
     def test_warns_when_no_slug_can_be_derived(self):
-        """Un menu sans slug ni fichier source violerait le NOT NULL en base :
-        il doit être signalé, pas ingéré en silence."""
+        """Un menu sans slug ni fichier source violerait le NOT NULL en base :"""
         data, warnings = normalize_menu({"title": "Menu orphelin"})
         assert not data.get("slug")
         assert any("slug" in w for w in warnings)
@@ -64,7 +57,6 @@ class TestMenuSlug:
         meals = [{"day": "lundi", "lunch": "Salade", "dinner": "Curry"}]
         data, _ = normalize_menu({"title": "T", "meals": meals, "_source_path": "/x/m.md"})
         assert data["meals"] == meals
-
 
 class TestRecipeNormalization:
     def test_macros_french_keys_are_aliased(self):
@@ -85,11 +77,8 @@ class TestRecipeNormalization:
         data, _ = normalize_recipe({"title": "R", "slug": "r", "portions_base": 4})
         assert data["servings"] == 4
 
-
 class TestMealsDateSerialization:
-    """Régression : PyYAML type « date: 2026-08-04 » en `datetime.date`, et le
-    bloc `meals` part ensuite en JSONB via json.dumps — qui lève un TypeError.
-    L'ingestion entière retournait 500 dès qu'un menu portait des dates."""
+    """Régression : PyYAML type « date: 2026-08-04 » en `datetime.date`, et le"""
 
     def test_dates_in_meals_become_iso_strings(self):
         import datetime
@@ -109,4 +98,4 @@ class TestMealsDateSerialization:
             "title": "T", "_source_path": "/x/m.md",
             "meals": [{"day": "lundi", "date": datetime.date(2026, 8, 3)}],
         })
-        json.dumps(data["meals"])  # ne doit pas lever
+        json.dumps(data["meals"])

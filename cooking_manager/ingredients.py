@@ -1,21 +1,4 @@
-"""Extraction des ingrédients et des étapes depuis le corps markdown d'une recette.
-
-Les recettes du vault ne portent leurs ingrédients que dans le texte :
-
-    ## Ingrédients (1 pot Creami, ~490 g de mix)
-
-    - 350 g skyr nature 0%
-    - 2–3 c.s. lait entier (ajustement fluidité)
-    - 1 c.c. miel (optionnel — goûter d'abord sans)
-
-Sans structuration, impossible de générer une liste de courses ni de croiser
-avec le garde-manger. C'est le prérequis dur du flux menu → panier.
-
-**Principe de tolérance** : toute ligne qui résiste au parsing conserve son
-`raw` et reste affichable telle quelle. Une quantité non comprise doit se voir
-à l'écran, jamais disparaître — un ingrédient avalé en silence, c'est un achat
-manqué qu'on découvre en cuisine.
-"""
+"""Extraction des ingrédients et des étapes depuis le corps markdown d'une recette."""
 
 from __future__ import annotations
 
@@ -23,8 +6,6 @@ import re
 import unicodedata
 from dataclasses import dataclass, field
 
-# ── Unités reconnues ─────────────────────────────────────────────────
-# Clé = forme canonique, valeurs = variantes rencontrées dans le vault.
 UNIT_ALIASES: dict[str, tuple[str, ...]] = {
     "g": ("g", "gr", "grammes", "gramme"),
     "kg": ("kg", "kilo", "kilos"),
@@ -50,7 +31,6 @@ UNIT_ALIASES: dict[str, tuple[str, ...]] = {
     "qs": ("qs", "q.s."),
 }
 
-# Trié par longueur décroissante : « c. à soupe » doit gagner sur « c. ».
 _UNIT_LOOKUP: dict[str, str] = {
     variant.lower(): canonical
     for canonical, variants in UNIT_ALIASES.items()
@@ -60,15 +40,8 @@ _UNIT_PATTERN = "|".join(
     re.escape(v) for v in sorted(_UNIT_LOOKUP, key=len, reverse=True)
 )
 
-# Quantité : « 350 », « ~300 », « 2–3 », « 1/2 », « 1,5 ». Le tiret peut être
-# un vrai tiret, un demi-cadratin ou un cadratin — le vault mélange les trois.
 _QTY = r"(?:~|env\.?\s*)?(\d+(?:[.,]\d+)?(?:\s*/\s*\d+)?)(?:\s*[-–—]\s*(\d+(?:[.,]\d+)?))?"
 
-# ⚠️ `(?!\w)` et surtout PAS `\b` : les unités qui finissent par un point
-# (« c.c. », « c.s. », « q.s. ») ne peuvent jamais satisfaire `\b`, puisque le
-# point ET l'espace qui suit sont tous deux non-alphanumériques — il n'y a donc
-# aucune frontière de mot entre eux. Avec `\b`, « 1 c.c. extrait de vanille »
-# ressortait en unité « pièce » et nom « c.c. extrait de vanille ».
 _INGREDIENT_RE = re.compile(
     rf"^\s*{_QTY}\s*(?:({_UNIT_PATTERN})(?!\w))?\s*(?:de\s+|d'|du\s+|des\s+)?(.*)$",
     re.IGNORECASE,
@@ -76,30 +49,21 @@ _INGREDIENT_RE = re.compile(
 
 _OPTIONAL_RE = re.compile(r"\boptionnel(?:le)?\b|\bfacultatif\b|\bau choix\b", re.IGNORECASE)
 
-# Le vault écrit « ½ oignon rouge », « ¼ de citron » avec les caractères
-# typographiques — invisibles d'une regex numérique.
 _VULGAR_FRACTIONS = {
     "½": "0.5", "⅓": "0.333", "⅔": "0.667", "¼": "0.25", "¾": "0.75",
     "⅕": "0.2", "⅖": "0.4", "⅗": "0.6", "⅘": "0.8", "⅙": "0.167",
     "⅚": "0.833", "⅛": "0.125", "⅜": "0.375", "⅝": "0.625", "⅞": "0.875",
 }
 
-# « Jus d'un ½ citron », « Zeste d'1 citron » : l'article porte la quantité.
 _WORD_ONE = re.compile(r"\bd[eu']?\s*(?:un|une)\b", re.IGNORECASE)
-
 
 def _expand_fractions(text: str) -> str:
     """« ½ » → « 0.5 », et « 1 ½ » → « 1.5 » (quantité mixte)."""
     for glyph, value in _VULGAR_FRACTIONS.items():
-        # Quantité mixte collée : « 1½ » ou « 1 ½ ».
         text = re.sub(rf"(\d)\s*{glyph}", lambda m, v=value: str(float(m.group(1)) + float(v)), text)
         text = text.replace(glyph, value)
     return text
 
-# Sections. Les titres portent souvent une parenthèse : « ## Ingrédients (4 portions) ».
-# ⚠️ Le préfixe de numérotation est OBLIGATOIREMENT toléré : une fiche rédigée en
-# plan numéroté (« ## 3. Ingrédients (4 pers) ») porte les mêmes listes que les
-# autres, mais sans lui elle ressort intégralement vide — ingrédients ET étapes.
 _NUM_PREFIX = r"(?:\d+[.)]\s*)?"
 _H_INGREDIENTS = re.compile(rf"^#{{2,3}}\s*{_NUM_PREFIX}(?:🥕\s*)?ingr[ée]dients?\b", re.IGNORECASE)
 _H_STEPS = re.compile(
@@ -111,7 +75,6 @@ _H_ANY = re.compile(r"^(#{1,6})\s")
 
 _BULLET = re.compile(r"^\s*[-*+]\s+(.*)$")
 _NUMBERED = re.compile(r"^\s*(\d+)[.)]\s+(.*)$")
-
 
 @dataclass
 class Ingredient:
@@ -125,12 +88,10 @@ class Ingredient:
     is_optional: bool = False
     parsed: bool = False
 
-
 @dataclass
 class Step:
     position: int
     text: str
-
 
 @dataclass
 class RecipeContent:
@@ -143,9 +104,7 @@ class RecipeContent:
             return 1.0
         return sum(1 for i in self.ingredients if i.parsed) / len(self.ingredients)
 
-
 _LIGATURES = str.maketrans({"œ": "oe", "Œ": "OE", "æ": "ae", "Æ": "AE"})
-
 
 PREPARATIONS: tuple[str, ...] = (
     "cisele", "emince", "hache", "rape", "ecrase", "concasse", "coupe",
@@ -162,51 +121,23 @@ _PREPARATION_TAIL = re.compile(
     r")\b.*$"
 )
 
-
 def _display_name(name: str | None) -> str:
-    """Nom AFFICHABLE : sans la glose qui suit le tiret cadratin.
-
-    `normalize_name` coupait déjà sur « — » pour la clé d'appariement, mais le
-    nom affiché gardait tout : la liste de courses rendait « concentré de
-    vanille — *retour Julien : apporte la profondeur aromatique* ». Une ligne
-    de courses illisible est une ligne qu'on ne coche pas.
-
-    ⚠️ On ne coupe QUE sur le tiret entouré d'espaces (la convention du vault
-    pour une note) : « demi-écrémé », « pois chiches » et les traits d'union de
-    composition doivent survivre intacts.
-    """
+    """Nom AFFICHABLE : sans la glose qui suit le tiret cadratin."""
     text = re.sub(r"\s+[–—]\s+.*$", "", name or "")
     text = re.sub(r"[*_`]", "", text)
     return text.strip(" .,;")
 
-
 def normalize_name(name: str) -> str:
-    """Nom d'ingrédient → forme comparable, clé d'appariement avec le garde-manger.
-
-    « Miel bio (liquide) » et « miel » doivent se rencontrer. On retire les
-    accents, les parenthèses, la ponctuation et les qualificatifs de conditionnement.
-    """
-    text = re.sub(r"\([^)]*\)", " ", name)           # parenthèses = précisions
-    text = re.sub(r"\s+[-–—]\s+.*$", "", text)       # « — optionnel », « — qs »
-    # ⚠️ Les ligatures œ et æ n'ont AUCUNE décomposition Unicode : NFKD les
-    # laisse intactes et l'encodage ASCII les SUPPRIME. « œufs » devenait
-    # « ufs », « bœuf » devenait « buf » — donc « oeuf dur » ne rencontrait
-    # jamais les œufs du garde-manger. Même bug que dans `convives.py`.
+    """Nom d'ingrédient → forme comparable, clé d'appariement avec le garde-manger."""
+    text = re.sub(r"\([^)]*\)", " ", name)
+    text = re.sub(r"\s+[-–—]\s+.*$", "", text)
     text = text.translate(_LIGATURES)
     text = unicodedata.normalize("NFKD", text)
     text = text.encode("ascii", "ignore").decode("ascii").lower()
-    # ⚠️ Ne retirer QUE ce qui ne change jamais l'identité du produit.
-    # « fraîche », « entier », « liquide », « surgelé » en font partie :
-    # crème fraîche ≠ crème, lait entier ≠ lait demi-écrémé, abricots congelés
-    # ≠ abricots frais. Les retirer produirait de FAUX appariements avec le
-    # garde-manger — et un faux positif fait sauter un achat nécessaire, ce qui
-    # ne se découvre qu'en cuisine. Sur-normaliser est le mauvais côté de
-    # l'erreur : mieux vaut un « inconnu » que l'app pose en question.
     text = re.sub(r"\b(bio|nature|en poudre|premium|label rouge|aop|igp)\b", " ", text)
     text = _PREPARATION_TAIL.sub(" ", text)
     text = re.sub(r"[^a-z0-9]+", " ", text)
     return " ".join(_singular(word) for word in text.split())
-
 
 INVARIABLE_IN_S: frozenset[str] = frozenset({
     "pois", "ananas", "jus", "dos", "anis", "cassis", "repas", "mais",
@@ -216,7 +147,6 @@ INVARIABLE_IN_S: frozenset[str] = frozenset({
     "sans", "puis", "trois", "apres", "tres", "moins", "plus",
 })
 
-
 def _singular(word: str) -> str:
     """« oignons » → « oignon ». Les invariables en -s sont une liste fermée."""
     if word in INVARIABLE_IN_S or word.isdigit() or len(word) < 4:
@@ -225,24 +155,18 @@ def _singular(word: str) -> str:
         return word
     return word[:-1]
 
-
 def _clean_markup(text: str) -> str:
-    """Retire le balisage markdown résiduel (gras, italique, code).
-
-    Les étapes sortaient avec leurs `**` visibles à l'écran (« congeler
-    **24h minimum** ») : le corps est du markdown, mais l'app rend du texte.
-    """
+    """Retire le balisage markdown résiduel (gras, italique, code)."""
     cleaned = re.sub(r"\*\*(.+?)\*\*", r"\1", text)
     cleaned = re.sub(r"(?<!\w)\*(.+?)\*(?!\w)", r"\1", cleaned)
     cleaned = re.sub(r"`(.+?)`", r"\1", cleaned)
     return cleaned.strip()
 
-
 def _to_float(raw: str | None) -> float | None:
     if not raw:
         return None
     value = raw.replace(",", ".").strip()
-    if "/" in value:  # fractions : « 1/2 »
+    if "/" in value:
         try:
             num, den = (p.strip() for p in value.split("/", 1))
             return round(float(num) / float(den), 4)
@@ -253,20 +177,17 @@ def _to_float(raw: str | None) -> float | None:
     except ValueError:
         return None
 
-
 def parse_ingredient(raw: str, position: int) -> Ingredient:
     """Une ligne → un ingrédient structuré. Ne lève jamais : au pire `parsed=False`."""
     text = raw.strip().lstrip("-*+ ").strip()
     ing = Ingredient(position=position, raw=text)
     ing.is_optional = bool(_OPTIONAL_RE.search(text))
 
-    # Le gras markdown n'est que de la mise en forme.
     clean = re.sub(r"\*\*(.+?)\*\*", r"\1", text)
     clean = _expand_fractions(clean)
 
     m = _INGREDIENT_RE.match(clean)
     if not m:
-        # Pas de quantité : « Sel, poivre », « Édulcorant au choix ».
         ing.name = clean
         ing.name_normalized = normalize_name(clean)
         return ing
@@ -278,33 +199,18 @@ def parse_ingredient(raw: str, position: int) -> Ingredient:
     ing.name = _display_name(name)
     ing.name_normalized = normalize_name(ing.name)
 
-    # « 2 bananes bien mûres » : pas d'unité explicite, l'unité est la pièce.
     if ing.qty_min is not None and ing.unit is None and ing.name:
         ing.unit = "pièce"
 
     ing.parsed = ing.qty_min is not None and bool(ing.name)
-    if not ing.name:  # quantité seule, sans ingrédient → on rend la ligne brute
+    if not ing.name:
         ing.name = clean
         ing.name_normalized = normalize_name(clean)
         ing.parsed = False
     return ing
 
-
 def _section(body: str, header: re.Pattern) -> list[str]:
-    """Lignes d'une section, de son titre jusqu'au prochain titre DE MÊME RANG.
-
-    ⚠️ La borne de fin se compare au NIVEAU du titre d'ouverture — elle ne peut
-    pas être « le prochain titre, quel qu'il soit ». Le vault groupe couramment
-    ses ingrédients en sous-sections (« ## Ingrédients » puis « ### Base »,
-    « ### Sauce mafé ») : avec une borne aveugle au niveau, la section se ferme
-    sur la toute première sous-section, donc AVANT la moindre ligne, et la
-    recette ressort avec zéro ingrédient. Silencieusement — le garde-fou de
-    `parse_rate` ne voit rien, puisqu'il n'y a rien à noter. C'est ce qui a vidé
-    5 recettes sur 11 de la semaine Bègles (issue #58).
-
-    Les sous-titres eux-mêmes ne sont pas des ingrédients : ils ne portent pas
-    de puce, donc `_BULLET` les ignore sans qu'on ait à les filtrer.
-    """
+    """Lignes d'une section, de son titre jusqu'au prochain titre DE MÊME RANG."""
     out: list[str] = []
     level: int | None = None
     for line in body.splitlines():
@@ -319,7 +225,6 @@ def _section(body: str, header: re.Pattern) -> list[str]:
         out.append(line)
     return out
 
-
 def parse_recipe_body(body: str) -> RecipeContent:
     """Corps markdown → ingrédients + étapes."""
     content = RecipeContent()
@@ -330,8 +235,6 @@ def parse_recipe_body(body: str) -> RecipeContent:
     for line in _section(body, _H_INGREDIENTS):
         m = _BULLET.match(line)
         if not m:
-            # Un paragraphe en gras clôt la liste : c'est une note
-            # (« **Variantes testées par les sources** : … »), pas un ingrédient.
             if line.strip().startswith("**") and content.ingredients:
                 break
             continue

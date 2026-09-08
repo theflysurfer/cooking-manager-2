@@ -1,7 +1,4 @@
-"""Multi-store product search — Leclerc behind a common interface.
-
-Auchan decommissioned from this project — now served by mcp-vps-auchan.
-"""
+"""Multi-store product search — Leclerc behind a common interface."""
 
 from __future__ import annotations
 
@@ -12,7 +9,6 @@ from dataclasses import dataclass, asdict
 log = logging.getLogger(__name__)
 
 SUPPORTED_STORES = ("leclerc",)
-
 
 @dataclass
 class StoreProduct:
@@ -26,12 +22,10 @@ class StoreProduct:
     store: str
     offer_id: str = ""
 
-
 async def search_store(store: str, query: str, limit: int = 5) -> list[StoreProduct]:
     if store == "leclerc":
         return await _search_leclerc(query, limit)
     raise ValueError(f"Enseigne inconnue : {store}")
-
 
 async def map_ingredients(
     store: str,
@@ -59,9 +53,6 @@ async def map_ingredients(
         }
 
     return list(await asyncio.gather(*[_one(i) for i in ingredients]))
-
-
-# ── Leclerc ───────────────────────────────────────────────────────────
 
 async def _search_leclerc(query: str, limit: int = 5) -> list[StoreProduct]:
     try:
@@ -108,9 +99,6 @@ async def _search_leclerc(query: str, limit: int = 5) -> list[StoreProduct]:
         )
         for r in results[:limit]
     ]
-
-
-# ── Helpers ───────────────────────────────────────────────────────────
 
 def _parse_price(raw: str) -> float | None:
     try:

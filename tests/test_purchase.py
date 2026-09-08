@@ -1,10 +1,4 @@
-"""Unitaires — du besoin de recette à une quantité qu'un magasin comprend.
-
-Le contrat : une dose n'est pas une quantité d'achat. « 2 c.s. de moutarde »
-envoyé tel quel au drive demande deux cuillères de moutarde ; ce qu'il faut
-commander, c'est un pot. Et quand rien ne permet de trancher, on le DIT — même
-règle que les macros : pas d'hypothèse silencieuse.
-"""
+"""Unitaires — du besoin de recette à une quantité qu'un magasin comprend."""
 
 from cooking_manager.pantry import Need
 from cooking_manager.ingredients import normalize_name

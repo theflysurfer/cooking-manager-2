@@ -1,20 +1,4 @@
-"""Du besoin de recette à une quantité qu'un magasin sait comprendre.
-
-Une recette raisonne en doses, un drive en produits. Entre les deux, personne
-ne faisait la conversion : sur le menu du 2026-09-07, 28 lignes de besoin sur
-54 portaient une unité qu'aucun magasin ne lit (`c.s.`, `gousse`, `pièce`,
-`botte`). Envoyée telle quelle, la ligne demande « 2 cuillères à soupe de
-moutarde ».
-
-Trois familles d'unités, et un quatrième cas qui est le plus important :
-
-- **mesurée** (g, kg, ml, cl, l) — déjà une quantité d'achat ;
-- **comptable** (pièce, boîte, sachet…) — un achat, arrondi vers le HAUT ;
-- **dose** (c.s., c.c., gousse, pincée…) — jamais une quantité d'achat : il en
-  faut un conditionnement, dont le format appartient au magasin (#82) ;
-- **non résolu** — aucune unité, ou une unité inconnue. On le déclare au lieu
-  de supposer, exactement comme `nutrition.py` refuse un total partiel.
-"""
+"""Du besoin de recette à une quantité qu'un magasin sait comprendre."""
 
 from __future__ import annotations
 
@@ -53,12 +37,7 @@ class Purchase:
 
 
 def purchase_for(need: Need, to_buy: float | None = None) -> Purchase | None:
-    """Besoin (et reste à acheter) → quantité commandable, ou un refus motivé.
-
-    `to_buy` vient du différentiel : c'est le manque réel, pas le besoin total.
-    Absent, on prend le besoin entier — un besoin sans verdict s'achète en
-    entier plutôt que d'être supposé couvert.
-    """
+    """Besoin (et reste à acheter) → quantité commandable, ou un refus motivé."""
     quantity = need.qty if to_buy is None else to_buy
     if quantity is not None and quantity <= 0:
         return None

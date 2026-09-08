@@ -1,24 +1,7 @@
-/* ════════════════════════════════════════════════════════════════════
-   Cooking Manager — design system
 
-   Principes directeurs (un par couche de Norman) :
-     · Appétissant   — la photo mène, le chrome s'efface
-     · Sans friction — savoir quoi manger ce soir en un coup d'œil
-     · Maîtrisé      — macros, garde-manger et courses sous contrôle
-
-   CIBLE : iPad mini 2, iOS 12.5.8 (Safari 12). Contraintes non négociables,
-   vérifiées par `julien-audit-ios12-compat` :
-     ❌ gap en contexte FLEX (Safari 14.5)  → Grid, ou marges > * + *
-     ❌ aspect-ratio (15)                   → hack padding-bottom
-     ❌ <dialog> (15.4)                     → vue plein écran routée
-     ❌ :has() (15.4) · :focus-visible (15.4) · text-wrap (17.5)
-     ❌ @media prefers-color-scheme (13)    → classe sur <html>
-     ❌ margin-inline / inset (14.1)        → propriétés explicites
-     ✅ Grid + gap · calc() · variables CSS · object-fit · -webkit-sticky
-   ═══════════════════════════════════════════════════════════════════ */
 
 :root {
-  /* Couleurs — un seul accent, la couleur vient des plats (d'après HFC) */
+
   --bg:            #FFFFFF;
   --surface:       #FAFAFA;
   --surface-alt:   #F4F4F4;
@@ -35,23 +18,18 @@
   --warn-bg:       #FBF0ED;
   --ok:            #5A9E6F;
 
-  /* Typographie — hiérarchie par le TRACKING, jamais par la graisse.
-     Montserrat reste en 400 partout : c'est ce qui produit le registre
-     « magazine » plutôt que « blog ». */
   --font-heading: "Montserrat", "Helvetica Neue", Arial, sans-serif;
   --font-body:    "Lato", -apple-system, "Helvetica Neue", Arial, sans-serif;
 
   --sp-1: 8px;  --sp-2: 12px; --sp-3: 16px; --sp-4: 24px;
   --sp-5: 32px; --sp-6: 48px; --sp-7: 64px;
 
-  --tap: 44px;            /* cible tactile minimale (usage cuisine) */
+  --tap: 44px;
   --container: 1180px;
   --gutter: 28px;
   --shadow: 0 0 8px rgba(0,0,0,0.15);
 }
 
-/* Thème sombre : PAS de @media prefers-color-scheme (iOS 13) — c'est ce qui
-   tuait le thème sombre en silence. Le JS pose data-theme sur <html>. */
 :root[data-theme="dark"] {
   --bg:          #141414;
   --surface:     #1D1D1D;
@@ -66,14 +44,10 @@
   --warn-bg:     #3A241F;
 }
 
-/* ── Reset ─────────────────────────────────────────────────────────── */
-
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 html {
-  /* Repli AVANT clamp() : si clamp n'est pas supporté (donné 13.1), la
-     déclaration entière est JETÉE et la racine retombe au défaut 16px sans
-     que personne ne le voie. Le repli garantit une échelle lisible en cuisine. */
+
   font-size: 17px;
   font-size: clamp(16px, 1.15vw, 19px);
   -webkit-text-size-adjust: 100%;
@@ -94,7 +68,6 @@ img { max-width: 100%; display: block; }
 button, input, select { font: inherit; color: inherit; }
 a { color: inherit; text-decoration: none; }
 
-/* Titres : Montserrat 400, capitales, tracking croissant quand la taille baisse */
 h1, h2, h3, .u-heading {
   font-family: var(--font-heading);
   font-weight: 400;
@@ -104,14 +77,10 @@ h1, h2, h3, .u-heading {
   line-height: 1.25;
 }
 
-/* ── Utilitaires d'espacement (⚠️ jamais `gap` en flex) ─────────────── */
-
 .stack > * + *  { margin-top: var(--sp-3); }
 .stack-s > * + * { margin-top: var(--sp-1); }
 .row            { display: flex; align-items: center; flex-wrap: wrap; }
 .row > * + *    { margin-left: var(--sp-2); }
-
-/* ── Chrome : barre de navigation ──────────────────────────────────── */
 
 .topbar {
   position: -webkit-sticky;
@@ -173,8 +142,6 @@ h1, h2, h3, .u-heading {
   font-size: 1rem; color: var(--text);
 }
 
-/* ── Page ──────────────────────────────────────────────────────────── */
-
 .page {
   max-width: var(--container);
   margin-left: auto;
@@ -216,12 +183,10 @@ h1, h2, h3, .u-heading {
   margin-bottom: var(--sp-3);
 }
 
-/* ── Menu de la semaine — la vue d'accueil ─────────────────────────── */
-
 .week {
   display: grid;
   grid-template-columns: 1fr;
-  gap: var(--sp-3);          /* ✅ Grid : supporté depuis iOS 10.3 */
+  gap: var(--sp-3);
 }
 @media (min-width: 760px)  { .week { grid-template-columns: repeat(2, 1fr); } }
 @media (min-width: 1100px) { .week { grid-template-columns: repeat(3, 1fr); } }
@@ -232,9 +197,6 @@ h1, h2, h3, .u-heading {
   padding: var(--sp-3);
 }
 
-/* « Aujourd'hui » doit sauter aux yeux à distance : c'est le moment d'usage
-   le plus fréquent (« on mange quoi ce soir ? »), consulté depuis le plan de
-   travail, pas le nez sur l'écran. */
 .day--today {
   border: 2px solid var(--accent);
   background: var(--surface);
@@ -284,7 +246,6 @@ h1, h2, h3, .u-heading {
   margin-top: 2px;
 }
 
-/* Conflit alimentaire — visible sans être anxiogène */
 .slot--conflict { background: var(--warn-bg); margin-left: -8px; padding-left: 8px; }
 .conflict {
   font-size: 0.7rem;
@@ -294,7 +255,6 @@ h1, h2, h3, .u-heading {
 }
 .conflict strong { font-weight: 700; }
 
-/* Plat lié à une fiche recette — cliquable */
 .slot__dish--linked {
   display: -webkit-flex;
   display: flex;
@@ -306,7 +266,7 @@ h1, h2, h3, .u-heading {
   min-height: var(--tap);
   padding: 4px 0;
 }
-/* La photo mène : on reconnaît le plat avant de lire son nom. */
+
 .slot__thumb {
   width: 52px;
   height: 52px;
@@ -348,8 +308,6 @@ h1, h2, h3, .u-heading {
   font-style: italic;
 }
 
-/* ── Grille de recettes — photo-first ──────────────────────────────── */
-
 .toolbar {
   display: flex;
   align-items: center;
@@ -364,7 +322,7 @@ h1, h2, h3, .u-heading {
   padding: 0 var(--sp-2);
   border: 1px solid var(--border);
   background: var(--bg);
-  /* ≥16px sinon iOS zoome automatiquement au focus */
+
   font-size: 16px;
 }
 .search:focus { outline: none; border-color: var(--accent); }
@@ -395,13 +353,9 @@ h1, h2, h3, .u-heading {
 @media (min-width: 620px)  { .grid { grid-template-columns: repeat(2, 1fr); } }
 @media (min-width: 1000px) { .grid { grid-template-columns: repeat(3, 1fr); } }
 
-/* La carte n'est pas une carte : une image posée sur du blanc.
-   Ni fond, ni bordure, ni ombre, ni rayon — d'après HFC. */
 .card { cursor: pointer; background: none; border: none; text-align: left; padding: 0;
   display: block; text-decoration: none; color: inherit; }
 
-/* ⚠️ aspect-ratio non supporté (iOS 15) → hack padding-bottom.
-   52.6% = 10/19, le ratio 19:10 des cartes. */
 .card__media {
   position: relative;
   width: 100%;
@@ -415,8 +369,6 @@ h1, h2, h3, .u-heading {
   object-fit: cover;
 }
 
-/* Repli sans photo : 13% du catalogue seulement en a une. Un aplat + une
-   initiale vaut mieux qu'un trou blanc dans la grille. */
 .card__fallback {
   position: absolute; top: 0; left: 0;
   width: 100%; height: 100%;
@@ -453,8 +405,6 @@ h1, h2, h3, .u-heading {
   margin-top: 4px;
 }
 
-/* ── Fiche recette (vue plein écran, jamais <dialog>) ──────────────── */
-
 .recipe__hero {
   position: relative;
   width: 100%;
@@ -489,7 +439,6 @@ h1, h2, h3, .u-heading {
   margin-bottom: var(--sp-2);
 }
 
-/* Bandeau de stats — reprise du pattern Jow */
 .stats {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -558,7 +507,7 @@ h1, h2, h3, .u-heading {
 }
 .ingredient__name { flex: 1; }
 .ingredient--optional .ingredient__name { color: var(--text-muted); font-style: italic; }
-/* Ligne non structurée : affichée telle quelle plutôt que perdue */
+
 .ingredient--raw .ingredient__name { color: var(--text); }
 .ingredient--raw .ingredient__qty::before { content: "—"; color: var(--border); }
 
@@ -568,7 +517,7 @@ h1, h2, h3, .u-heading {
   position: relative;
   padding: var(--sp-2) 0 var(--sp-2) var(--sp-5);
   border-bottom: 1px solid var(--border);
-  /* lisible à distance : on cuisine en regardant l'iPad de loin */
+
   font-size: 1.02rem;
   line-height: 1.6;
 }
@@ -579,8 +528,6 @@ h1, h2, h3, .u-heading {
   font-size: 0.95rem;
   color: var(--accent);
 }
-
-/* ── Boutons ───────────────────────────────────────────────────────── */
 
 .btn {
   display: inline-flex; align-items: center; justify-content: center;
@@ -600,8 +547,6 @@ h1, h2, h3, .u-heading {
 .btn--toggle { background: none; color: var(--accent); border-color: var(--accent); font-size: 0.6rem; }
 .toggle-bar { display: flex; justify-content: flex-end; margin-bottom: var(--sp-2); }
 
-/* ── États : vides, chargement, erreur ─────────────────────────────── */
-
 .empty {
   padding: var(--sp-6) var(--sp-3);
   text-align: center;
@@ -617,7 +562,6 @@ h1, h2, h3, .u-heading {
 }
 .empty__hint { font-size: 0.85rem; }
 
-/* Skeleton plutôt que spinner anonyme : on montre la forme de ce qui arrive */
 .skeleton { background: var(--surface-alt); }
 .skeleton--card { padding-bottom: 52.6%; width: 100%; }
 .skeleton--line { height: 0.9rem; margin-top: var(--sp-2); }
@@ -631,22 +575,15 @@ h1, h2, h3, .u-heading {
   border-left: 3px solid var(--warn);
 }
 
-/* ── Mouvement : ease-out < 300ms, jamais gratuit ──────────────────── */
-/* L'A7 de l'iPad mini 2 date de 2013 → opacity/transform uniquement. */
-
 .view { animation: fade 180ms ease-out; }
 @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
 
 .nav__link, .chip, .btn { transition: background-color 160ms ease-out, color 160ms ease-out; }
 
-/* Le hover reste collé au tactile : ne l'appliquer qu'aux vrais pointeurs */
 @media (hover: none) {
   .btn:hover { background: var(--btn); border-color: var(--btn); color: var(--btn-text); }
 }
 
-/* La puce « Cette semaine » n'est pas un filtre comme les autres : elle porte
-   l'accent, parce qu'elle répond à la seule question qu'on se pose devant un
-   catalogue de 22 recettes — laquelle est au programme. */
 .chip--week[aria-pressed="true"] {
   background: var(--accent);
   border-color: var(--accent);
@@ -660,11 +597,6 @@ h1, h2, h3, .u-heading {
   color: var(--accent-dark);
   margin-top: 4px;
 }
-
-/* ── Liste de courses : le différentiel garde-manger ───────────────────
-   La couleur porte l'issue, mais jamais SEULE : chaque groupe a son titre
-   (« À acheter », « À confirmer »…). Sur un iPad tenu à bout de bras dans
-   une cuisine, un liseré de 3 px ne se lit pas — le titre, si. */
 
 .section-title {
   font-family: var(--font-heading);
@@ -692,8 +624,6 @@ h1, h2, h3, .u-heading {
 .need--have    { border-left-color: var(--ok); opacity: 0.72; }
 .need--done    { border-left-color: var(--ok); }
 
-/* Gouttière fixe plutôt qu'un flex : `gap` en flex n'existe pas avant
-   iOS 14.5 et s'effondrerait à 0 sur la cible. */
 .need__qty {
   display: inline-block;
   min-width: 88px;
@@ -719,7 +649,6 @@ h1, h2, h3, .u-heading {
 
 .need__actions { padding-left: 88px; margin-top: var(--sp-1); }
 
-/* Cibles ≥ 44 px : ces boutons se pressent avec un doigt, pas une souris. */
 .mini {
   min-height: var(--tap);
   padding: 0 var(--sp-2);
@@ -761,12 +690,10 @@ h1, h2, h3, .u-heading {
   }
   .nav__link { padding: 0 6px; font-size: 0.6rem; letter-spacing: 1px; }
 
-  /* En colonne étroite, la gouttière de 88 px mange le texte. */
   .need__qty { display: block; min-width: 0; }
   .need__why, .need__pantry, .need__actions { padding-left: 0; }
 }
 
-/* ── Bouton Changer (swap recipe in menu) ─────────────────────────── */
 .swap-btn {
   display: inline-block;
   font-family: var(--font-heading);
@@ -803,7 +730,6 @@ h1, h2, h3, .u-heading {
 }
 .covers-btn:active { background: var(--rule); }
 
-/* ── Repas mangé / pas fait ───────────────────────────────────────── */
 .served { display: flex; align-items: center; margin-top: 4px; }
 .served > * + * { margin-left: 6px; }
 .served-btn {
@@ -832,7 +758,6 @@ h1, h2, h3, .u-heading {
   text-decoration: none;
 }
 
-/* ── Retours de table ─────────────────────────────────────────────── */
 .fb-row {
   padding: var(--sp-1) 0;
   border-bottom: 1px solid var(--border);
@@ -892,7 +817,6 @@ h1, h2, h3, .u-heading {
   color: var(--warn);
 }
 
-/* ── Picker (recipe selector overlay) ─────────────────────────────── */
 .picker {
   position: fixed;
   top: 0; left: 0; right: 0; bottom: 0;
@@ -1003,7 +927,6 @@ h1, h2, h3, .u-heading {
 }
 .picker__name { -webkit-flex: 1; flex: 1; }
 
-/* ── Bouton micro flottant (FAB) ──────────────────────────────────── */
 .mic-fab {
   position: fixed;
   bottom: 24px;
@@ -1041,7 +964,6 @@ h1, h2, h3, .u-heading {
   50% { box-shadow: 0 0 0 12px rgba(229,57,53,0); }
 }
 
-/* Panneau vocal (transcription + intent) */
 .mic-panel {
   position: fixed;
   bottom: 80px;
@@ -1124,7 +1046,6 @@ h1, h2, h3, .u-heading {
 }
 [data-theme="dark"] .mic-panel__detail { color: #aaa; }
 
-/* Indicateurs d'état (dot + spinner) */
 .mic-panel__dot {
   display: inline-block;
   width: 8px; height: 8px;
@@ -1160,8 +1081,6 @@ h1, h2, h3, .u-heading {
 @keyframes mic-spin {
   to { -webkit-transform: rotate(360deg); transform: rotate(360deg); }
 }
-
-/* ── Garde-manger ──────────────────────────────────────────────────── */
 
 .pantry-age {
   font: 400 0.85rem/1.2 var(--font-body);
@@ -1234,8 +1153,6 @@ h1, h2, h3, .u-heading {
   border-radius: 4px;
 }
 
-/* ── Historique achats ─────────────────────────────────────────────── */
-
 .sessions-list > * + * { margin-top: 12px; }
 
 .session-card {
@@ -1278,8 +1195,6 @@ h1, h2, h3, .u-heading {
   border-radius: 4px;
   cursor: pointer;
 }
-
-/* ── Tableau produits ──────────────────────────────────────────────── */
 
 .products-table {
   width: 100%;
@@ -1342,8 +1257,6 @@ h1, h2, h3, .u-heading {
   max-width: 120px;
 }
 
-/* ── Badge Nutriscore ──────────────────────────────────────────────── */
-
 .nutriscore {
   display: inline-block;
   width: 22px; height: 22px;
@@ -1354,8 +1267,6 @@ h1, h2, h3, .u-heading {
   font-weight: 700;
   font-size: 0.75rem;
 }
-
-/* ── Alerte ─────────────────────────────────────────────────────────── */
 
 .alert {
   padding: 10px 14px;
@@ -1368,14 +1279,10 @@ h1, h2, h3, .u-heading {
   color: var(--warn);
 }
 
-/* ── Responsive table scroll (iPad) ────────────────────────────────── */
-
 .session-card__products {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
 }
-
-/* ── Bulk confirm overlay (pantry vocal) ──────────────────────────── */
 
 .bulk-overlay {
   position: fixed;
@@ -1516,9 +1423,6 @@ h1, h2, h3, .u-heading {
   opacity: 0.6;
   cursor: default;
 }
-
-
-/* ── Drive (courses → panier enseigne) ─────────────────────────────── */
 
 .drive-cta {
   text-align: center;
@@ -1675,8 +1579,6 @@ h1, h2, h3, .u-heading {
   white-space: nowrap;
 }
 
-/* Alternatives (expanded) */
-
 .drive-alts {
   padding: var(--sp-2) 0 var(--sp-1);
 }
@@ -1734,8 +1636,6 @@ h1, h2, h3, .u-heading {
   color: var(--text);
 }
 
-/* Summary */
-
 .drive-summary {
   display: grid;
   grid-template-columns: 1fr auto;
@@ -1765,8 +1665,6 @@ h1, h2, h3, .u-heading {
   margin-top: var(--sp-4);
   margin-bottom: var(--sp-5);
 }
-
-/* ── Comparaison drive ───────────────────────────────────────────── */
 
 .compare-summary {
   display: -webkit-box; display: flex;
@@ -1889,10 +1787,6 @@ h1, h2, h3, .u-heading {
   font-size: .85rem;
 }
 
-/* ── Import d'une page de livre ─────────────────────────────────────
-   Grid + gap partout : `gap` en flex n'arrive qu'en Safari 14.5, et l'iPad
-   mini 2 l'effondre silencieusement à 0. */
-
 .import__capture {
   display: -ms-grid; display: grid;
   grid-template-columns: 1fr;
@@ -1900,8 +1794,7 @@ h1, h2, h3, .u-heading {
   margin-bottom: var(--sp-3);
 }
 .import__shoot { text-align: center; cursor: pointer; }
-/* L'input reste dans le flux mais invisible : `display: none` empêche le clic
-   du label de le déclencher sur certaines versions de Safari. */
+
 .import__input {
   position: absolute;
   width: 1px; height: 1px;
@@ -1929,7 +1822,7 @@ h1, h2, h3, .u-heading {
   padding: var(--sp-2);
   background: none;
   border: 1px solid var(--border);
-  /* 44 px : cible tactile minimale confortable en cuisine, doigt mouillé. */
+
   min-height: 44px;
 }
 .draft-row__title { display: block; font-family: var(--font-heading); }
@@ -1965,8 +1858,7 @@ h1, h2, h3, .u-heading {
   text-transform: uppercase;
   color: var(--text-muted);
 }
-/* 16 px minimum : en dessous, iOS zoome tout seul au focus et l'utilisateur
-   perd la page. Aucun scanner ne voit ça. */
+
 .draft-ing__raw { width: 100%; font-size: 16px; }
 .draft-ing__parsed {
   display: block;

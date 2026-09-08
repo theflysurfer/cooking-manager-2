@@ -5,7 +5,6 @@ from pathlib import Path
 
 import yaml
 
-
 def _parse_frontmatter(path: Path) -> tuple[dict, str]:
     """Return (frontmatter_dict, body_text) from a Markdown file with YAML front matter."""
     text = path.read_text(encoding="utf-8")
@@ -18,31 +17,12 @@ def _parse_frontmatter(path: Path) -> tuple[dict, str]:
         fm = {}
     return fm, m.group(2)
 
-
 def _declared_date(fm: dict) -> str:
-    """Date que le fichier DÉCLARE — jamais son mtime.
-
-    ⚠️ Le mtime ne peut pas servir à départager deux fiches : sur le VPS, le
-    vault est un mount rclone, donc le mtime date la COPIE, pas la donnée. Deux
-    fichiers transférés le même jour y sont indiscernables, et le plus récent
-    des deux peut porter le mtime le plus ancien.
-    """
+    """Date que le fichier DÉCLARE — jamais son mtime."""
     return str(fm.get("updated") or fm.get("created") or "")
 
-
 def read_recipes(vault_root: Path) -> list[dict]:
-    """Read all recipe .md files under Cuisine/Recettes/.
-
-    Deux fichiers peuvent déclarer le MÊME `slug` — le slug est la clé, pas le
-    nom de fichier. L'upsert d'ingestion n'en garde alors qu'un, et lequel
-    dépendait de l'ordre alphabétique du glob : `<slug>-v2.md` étant lu AVANT
-    `<slug>.md`, c'est la version périmée qui écrasait la bonne. Silencieusement,
-    et à rebours de l'intention (constaté sur le journal Creami : la prod servait
-    l'état du 08/07 alors que le vault décrivait celui du 06/08).
-
-    On tranche donc sur la date DÉCLARÉE, et on garde trace du perdant pour que
-    l'ingestion puisse le dire.
-    """
+    """Read all recipe .md files under Cuisine/Recettes/."""
     recipes_dir = vault_root / "Recettes"
     if not recipes_dir.is_dir():
         return []
@@ -69,7 +49,6 @@ def read_recipes(vault_root: Path) -> list[dict]:
             results.append(fm)
             continue
 
-        # Collision : le plus récemment déclaré gagne, à égalité le premier lu.
         loser, winner = (
             (previous, fm)
             if _declared_date(fm) > _declared_date(previous)
@@ -81,7 +60,6 @@ def read_recipes(vault_root: Path) -> list[dict]:
             results[results.index(previous)] = fm
             by_slug[slug] = fm
     return results
-
 
 def read_menus(vault_root: Path) -> list[dict]:
     """Read all menu .md files under Cuisine/Menus/."""
@@ -101,7 +79,6 @@ def read_menus(vault_root: Path) -> list[dict]:
         results.append(fm)
     return results
 
-
 def read_convives(vault_root: Path) -> dict:
     """Read Convives.md — returns raw frontmatter + body."""
     p = vault_root / "Convives.md"
@@ -110,7 +87,6 @@ def read_convives(vault_root: Path) -> dict:
     fm, body = _parse_frontmatter(p)
     fm["_body"] = body
     return fm
-
 
 def read_garde_manger(vault_root: Path) -> dict:
     """Read Garde-manger.md — returns raw frontmatter + body."""

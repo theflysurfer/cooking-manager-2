@@ -1,8 +1,4 @@
-"""Macros calculées depuis les ingrédients. Aucun réseau, aucune DB.
-
-Les règles testées ici ne sont pas inventées : elles viennent du Coach Nutrition
-du vault (`Coaches/Coach Nutrition/_coach.md`), Règle 1 et Règle 2bis.
-"""
+"""Macros calculées depuis les ingrédients. Aucun réseau, aucune DB."""
 
 from cooking_manager.nutrition import (
     FoodEntry,
@@ -35,7 +31,6 @@ source: ANSES-Ciqual
 | **Lipides** | 0.4g | 0.6g |
 """
 
-
 LENTILLES = """---
 type: generique
 statut: partiel
@@ -51,7 +46,6 @@ source: ANSES-Ciqual
 | **Lipides** | 1.4g | 0.5g | 0.4g |
 """
 
-
 class TestParseFoodSheet:
     def test_reads_frontmatter_and_the_per_100g_column(self):
         fm, forms = parse_food_sheet(COURGETTE)
@@ -61,21 +55,17 @@ class TestParseFoodSheet:
         assert (m.kcal, m.protein, m.carbs, m.fat) == (17, 2, 2, 0.4)
 
     def test_portion_columns_are_ignored(self):
-        """« Portion 150g » n'est pas exprimée pour 100 g : la lire donnerait
-        des macros rapportées à une base inconnue."""
+        """« Portion 150g » n'est pas exprimée pour 100 g : la lire donnerait"""
         assert list(parse_food_sheet(COURGETTE)[1]) == ["100g"]
 
     def test_fibres_are_not_mistaken_for_a_macro(self):
         assert parse_food_sheet(COURGETTE)[1]["100g"].fat == 0.4
 
     def test_every_per_100g_column_is_kept_not_just_the_first(self):
-        """⚠️ La 1re colonne n'est pas toujours « /100g » : `lentilles.md`
-        porte « Crues » PUIS « Cuites ». Prendre la première donnait 339 kcal
-        là où la recette veut 116 — facteur 3, en silence."""
+        """⚠️ La 1re colonne n'est pas toujours « /100g » : `lentilles.md`"""
         forms = parse_food_sheet(LENTILLES)[1]
         assert forms["crues"].kcal == 339
         assert forms["cuites"].kcal == 116
-
 
 MOZZARELLA = """---
 type: generique
@@ -94,11 +84,8 @@ source: ANSES-Ciqual
 | Lipides | 17g (dont AGS ~11g) |
 """
 
-
 class TestThirdTableShape:
-    """« | Nutriment | Valeur | », base annoncée par le TITRE DE SECTION.
-    47 fiches sur 247 l'utilisent — toutes silencieusement absentes du calcul
-    avant ce correctif, trouvé par la skill d'audit."""
+    """« | Nutriment | Valeur | », base annoncée par le TITRE DE SECTION."""
 
     def test_value_column_is_read_when_the_document_says_pour_100g(self):
         forms = parse_food_sheet(MOZZARELLA)[1]
@@ -107,32 +94,27 @@ class TestThirdTableShape:
         assert forms["100g"].fat == 17
 
     def test_without_the_mention_the_table_is_ignored_not_assumed(self):
-        """Sans « pour 100 g » explicite, rapporter les valeurs à une base
-        supposée fabriquerait des macros fausses."""
+        """Sans « pour 100 g » explicite, rapporter les valeurs à une base"""
         text = MOZZARELLA.replace("## Macros pour 100g", "## Macros")
         assert parse_food_sheet(text)[1] == {}
-
 
 class TestReconcile:
     """Règle 2bis (erreur #25) : kcal annoncées vs P×4 + G×4 + L×9."""
 
     def test_coherent_values_reconcile(self):
-        # 20×4 + 0×4 + 13×9 = 197 ≈ 208 → 5,3 %… donc NON réconcilié.
-        r = reconcile(100.0, 10.0, 10.0, 2.0)  # 40+40+18 = 98, écart 2 %
+        r = reconcile(100.0, 10.0, 10.0, 2.0)
         assert r["reconciled"] is True
         assert r["gap_pct"] == 2.0
 
     def test_structural_gap_is_reported_not_hidden(self):
-        """Un écart n'est pas un bug (eau, cendres, fibres hors somme) — mais
-        au-delà de 5 % il doit être MONTRÉ, jamais lissé."""
-        r = reconcile(200.0, 10.0, 10.0, 2.0)  # 98 vs 200 → 51 %
+        """Un écart n'est pas un bug (eau, cendres, fibres hors somme) — mais"""
+        r = reconcile(200.0, 10.0, 10.0, 2.0)
         assert r["reconciled"] is False
         assert r["kcal_declared"] == 200.0 and r["kcal_rebuilt"] == 98.0
         assert r["gap_pct"] == 51.0
 
     def test_incomplete_data_never_pretends_to_reconcile(self):
         assert reconcile(100.0, None, 10.0, 2.0)["reconciled"] is None
-
 
 class TestToGrams:
     def test_mass_units(self):
@@ -144,25 +126,20 @@ class TestToGrams:
         assert to_grams(1, "c.c.") == 5.0
 
     def test_decimal_quantities_from_the_database(self):
-        """asyncpg rend les colonnes NUMERIC en `Decimal`, qui ne se multiplie
-        pas par un flottant. Les tests a base de float ne pouvaient pas le voir :
-        le defaut n'est apparu qu'a l'appel reel (500 en production)."""
+        """asyncpg rend les colonnes NUMERIC en `Decimal`, qui ne se multiplie"""
         from decimal import Decimal
         assert to_grams(Decimal("1.2"), "kg") == 1200.0
 
     def test_piece_units_are_NOT_converted(self):
-        """« 4 carottes » n'a pas de poids sans un poids unitaire. Convertir
-        « à peu près » fabriquerait des macros fausses."""
+        """« 4 carottes » n'a pas de poids sans un poids unitaire. Convertir"""
         assert to_grams(4, "pièce") is None
         assert to_grams(1, "gousse") is None
         assert to_grams(1, "botte") is None
-
 
 def _entry(key, kcal, protein, kind="generique"):
     return FoodEntry(key=key, title=key, kind=kind, source="test",
                      forms={"100g": Macros(kcal=kcal, protein=protein,
                                            carbs=0.0, fat=0.0)})
-
 
 def _multiform(key, **forms):
     return FoodEntry(
@@ -171,10 +148,8 @@ def _multiform(key, **forms):
                for k, v in forms.items()},
     )
 
-
 class TestAmbiguousForms:
-    """Règle 1 — pas d'hypothèse : entre lentilles crues et cuites, deviner
-    c'est se tromper d'un facteur 3 sans que rien ne le signale."""
+    """Règle 1 — pas d'hypothèse : entre lentilles crues et cuites, deviner"""
 
     LENTILLES = _multiform("lentilles", crues=339.0, cuites=116.0)
 
@@ -193,7 +168,6 @@ class TestAmbiguousForms:
         assert macros is not None
         assert macros.kcal == 17 and why == ""
 
-
 class TestMatchEntry:
     BASE = {"courgette": _entry("courgette", 17, 2),
             "chevre": _entry("chevre", 300, 20),
@@ -208,18 +182,15 @@ class TestMatchEntry:
         assert found is not None and found.key == "chevre"
 
     def test_no_fuzzy_match(self):
-        """« crème de coco » ne doit PAS rencontrer « crème fraîche » : un faux
-        appariement produit un nombre faux et invisible."""
+        """« crème de coco » ne doit PAS rencontrer « crème fraîche » : un faux"""
         assert match_entry("creme de coco", self.BASE) is None
 
     def test_unknown_is_none_not_a_guess(self):
         assert match_entry("brocciu", self.BASE) is None
 
-
 def _ing(raw, name_normalized, qty, unit, optional=False):
     return {"raw": raw, "name": raw, "name_normalized": name_normalized,
             "qty_min": qty, "unit": unit, "is_optional": optional}
-
 
 class TestRecipeMacros:
     BASE = {"courgette": _entry("courgette", 17, 2),
@@ -228,7 +199,7 @@ class TestRecipeMacros:
     def test_sums_over_resolved_ingredients(self):
         ings = [_ing("300 g de courgette", "courgette", 300, "g")]
         m = recipe_macros(ings, self.BASE)
-        assert m.kcal == 51.0        # 17 × 3
+        assert m.kcal == 51.0
         assert m.protein == 6.0
 
     def test_unconvertible_unit_lands_in_unresolved_with_a_reason(self):
@@ -244,8 +215,7 @@ class TestRecipeMacros:
         assert m.unresolved[0].reason == "aucune fiche aliment"
 
     def test_coverage_reports_what_was_actually_counted(self):
-        """Une somme partielle présentée comme un total est le « nombre faux
-        avec l'aplomb d'un nombre juste » que la Règle 1 interdit."""
+        """Une somme partielle présentée comme un total est le « nombre faux"""
         ings = [_ing("300 g de courgette", "courgette", 300, "g"),
                 _ing("4 carottes", "carottes", 4, "pièce"),
                 _ing("1 oignon", "oignon", 1, "pièce")]
@@ -262,7 +232,6 @@ class TestRecipeMacros:
     def test_empty_recipe_is_safe(self):
         m = recipe_macros([], self.BASE)
         assert m.coverage == 0.0 and m.kcal == 0.0
-
 
 class TestLoadFoodBase:
     def test_brand_sheet_wins_over_generic_on_the_same_key(self, tmp_path):

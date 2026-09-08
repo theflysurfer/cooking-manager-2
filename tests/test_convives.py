@@ -1,13 +1,4 @@
-"""Unitaires — profils des convives et contrôle de compatibilité.
-
-Tous ces tests dérivent d'un incident réel du 2026-08-04 : le menu programmait
-des wraps au poulet un mardi midi alors que Clémence est pescétarienne, et
-personne ne l'a vu. Le contrôle n'existait pas, et la table `convive` était vide.
-
-Les faux positifs sont testés aussi durement que les faux négatifs : une alerte
-qui se trompe finit par être ignorée, puis désactivée — et on se retrouve au
-point de départ.
-"""
+"""Unitaires — profils des convives et contrôle de compatibilité."""
 
 from cooking_manager.convives import (
     Convive,
@@ -50,7 +41,6 @@ VAULT_EXTRACT = """
 | Ail | Gingembre |
 """
 
-
 class TestParsing:
     def setup_method(self):
         self.by_name = {c.name: c for c in parse_convives(VAULT_EXTRACT)}
@@ -59,9 +49,7 @@ class TestParsing:
         assert self.by_name["Clémence"].diet == "pescetarian"
 
     def test_semi_vegetarian_is_not_vegetarian(self):
-        """« semi-végétarien » contient « végétarien ». Sans tri par longueur,
-        Philippe passait pour végétarien strict et tout plat carné levait une
-        fausse alerte."""
+        """« semi-végétarien » contient « végétarien ». Sans tri par longueur,"""
         assert self.by_name["Philippe"].diet == "semi-vegetarian"
 
     def test_dislikes_are_read(self):
@@ -71,8 +59,7 @@ class TestParsing:
         assert any("riz blanc" in t for t in self.by_name["Julien"].forbidden)
 
     def test_egg_refusals_are_read(self):
-        """Régression : les interdits ❌ écrasaient les refus d'œufs accumulés
-        juste avant (réassignation au lieu d'un ajout)."""
+        """Régression : les interdits ❌ écrasaient les refus d'œufs accumulés"""
         assert "oeuf dur" in self.by_name["Clémence"].forbidden
         assert "oeuf omelette" in self.by_name["Léa"].forbidden
 
@@ -80,8 +67,7 @@ class TestParsing:
         assert self.by_name["Julien"].forbidden
 
     def test_guests_are_parsed_from_their_table_only(self):
-        """Régression : balayer TOUS les tableaux markdown faisait entrer
-        « Maïs », « Mardi », « Ail »… dans le répertoire des convives."""
+        """Régression : balayer TOUS les tableaux markdown faisait entrer"""
         names = set(self.by_name)
         assert "Guillaume" in names
         assert not {"Maïs", "Mardi", "Ail", "Aliment"} & names
@@ -89,18 +75,14 @@ class TestParsing:
     def test_guest_constraints(self):
         assert "ail" in self.by_name["Guillaume"].forbidden
 
-
 class TestFolding:
     def test_oe_ligature_is_expanded(self):
-        """⚠️ œ et æ n'ont AUCUNE décomposition Unicode : `encode('ascii')` les
-        supprime. « œuf » devenait « uf », « bœuf » devenait « buf » — donc un
-        interdit « oeuf dur » ne matchait jamais un plat écrit « œuf dur »."""
+        """⚠️ œ et æ n'ont AUCUNE décomposition Unicode : `encode('ascii')` les"""
         assert _fold("œuf dur") == "oeuf dur"
         assert _fold("bœuf bourguignon") == "boeuf bourguignon"
 
     def test_accents_removed(self):
         assert _fold("Céleri rémoulade") == "celeri remoulade"
-
 
 class TestCheckMeal:
     def setup_method(self):
@@ -126,9 +108,7 @@ class TestCheckMeal:
         assert {c.convive for c in conflicts} == {"Clémence", "Léa"}
 
     def test_substring_is_not_a_match(self):
-        """⚠️ « maïs » matchait dans « hou­mous **mais**on » : l'assiette froide
-        du vendredi ressortait en conflit alors qu'elle ne contient pas de maïs.
-        Un faux positif ruine la confiance autant qu'un faux négatif."""
+        """⚠️ « maïs » matchait dans « hou­mous **mais**on » : l'assiette froide"""
         assert not check_meal("Assiette froide (crevettes, houmous maison, crudités)",
                               [self.by_name["Clémence"], self.by_name["Léa"]])
 
@@ -143,23 +123,19 @@ class TestCheckMeal:
         assert not check_meal("Wraps poulet", [self.by_name["Julien"]])
 
     def test_veggie_marker_cancels_dish_name_implication(self):
-        """Faux positif réel du menu Bègles (refs #61) : « carbonara » implique
-        la viande par son NOM, mais « végétarienne » dans le libellé annule
-        l'implication — le plat est sans viande par déclaration."""
+        """Faux positif réel du menu Bègles (refs #61) : « carbonara » implique"""
         assert not check_meal("Tagliatelles carbonara végétarienne",
                               [self.by_name["Clémence"]])
 
     def test_veggie_marker_keeps_explicit_ingredient_alert(self):
-        """Le marqueur n'annule QUE l'implication de nom de plat : un ingrédient
-        carné explicite continue d'alerter — mieux vaut une alerte de trop."""
+        """Le marqueur n'annule QUE l'implication de nom de plat : un ingrédient"""
         conflicts = check_meal("Burger végétarien au bacon",
                                [self.by_name["Clémence"]])
         assert len(conflicts) == 1
         assert conflicts[0].matched == "bacon"
 
     def test_plain_carbonara_still_alerts(self):
-        """Sans marqueur, l'implication tient : une carbonara classique porte
-        du guanciale/lardon même si le libellé ne les nomme pas."""
+        """Sans marqueur, l'implication tient : une carbonara classique porte"""
         conflicts = check_meal("Tagliatelles carbonara",
                                [self.by_name["Clémence"]])
         assert len(conflicts) == 1
@@ -167,7 +143,6 @@ class TestCheckMeal:
 
     def test_empty_description_is_safe(self):
         assert check_meal("", self.people) == []
-
 
 class TestCheckMenu:
     def test_reports_conflicts_by_slot(self):
@@ -180,15 +155,12 @@ class TestCheckMenu:
         assert list(result) == ["mardi/lunch"]
         assert result["mardi/lunch"][0].matched == "poulet"
 
-
 def _ing(raw, name_normalized):
     return {"raw": raw, "name": raw, "name_normalized": name_normalized}
-
 
 class TestCheckIngredients:
     """Ce que le libellé d'un repas ne nomme pas, il ne peut pas le signaler."""
 
-    # Salade de haricots verts à la tomme de Savoie, telle qu'imprimée.
     SALADE = [
         _ing("400 g de haricots verts frais", "haricots verts frais"),
         _ing("2 œufs extra-frais", "oeufs extra frais"),
@@ -197,8 +169,7 @@ class TestCheckIngredients:
     ]
 
     def test_catches_what_the_title_never_mentions(self):
-        """« Salade de haricots verts à la tomme » ne dit pas qu'elle contient
-        six anchois — muet au titre, bloquant pour une végétarienne."""
+        """« Salade de haricots verts à la tomme » ne dit pas qu'elle contient"""
         veggie = Convive(name="Test", diet="vegetarian")
         assert check_meal("Salade de haricots verts à la tomme de Savoie", [veggie]) == []
         conflicts = check_ingredients(self.SALADE, [veggie])
@@ -206,13 +177,11 @@ class TestCheckIngredients:
         assert "anchois" in conflicts[0].matched
 
     def test_anchovies_do_not_block_a_pescetarian(self):
-        """Le sur-blocage érode la confiance plus vite qu'un oubli : le poisson
-        est compatible pescétarien et ne doit produire aucune alerte."""
+        """Le sur-blocage érode la confiance plus vite qu'un oubli : le poisson"""
         assert check_ingredients(self.SALADE, [Convive(name="C", diet="pescetarian")]) == []
 
     def test_conflict_carries_the_raw_line_not_the_diet_term(self):
-        """En cuisine on cherche « 8 tranches de lard fumé » dans la liste,
-        pas « lard »."""
+        """En cuisine on cherche « 8 tranches de lard fumé » dans la liste,"""
         champignons = [_ing("8 tranches de lard fumé", "lard fume")]
         c = check_ingredients(champignons, [Convive(name="C", diet="pescetarian")])[0]
         assert c.matched == "8 tranches de lard fumé"
@@ -222,20 +191,17 @@ class TestCheckIngredients:
         assert len(check_ingredients(lots, [Convive(name="C", diet="pescetarian")])) == 1
 
     def test_ligatures_survive_normalisation(self):
-        """« bœuf » qu'un ASCII naïf réduirait à « buf » ne rencontrerait
-        jamais le terme du régime."""
+        """« bœuf » qu'un ASCII naïf réduirait à « buf » ne rencontrerait"""
         boeuf = [_ing("500 g de bœuf haché", "boeuf hache")]
         assert check_ingredients(boeuf, [Convive(name="C", diet="vegetarian")])
 
     def test_tuna_rillettes_stay_compatible_for_a_pescetarian(self):
-        """« rillettes » est volontairement absent de MEAT : celles du vault
-        sont au THON. L'ajouter bloquerait une recette mangeable."""
+        """« rillettes » est volontairement absent de MEAT : celles du vault"""
         thon = [_ing("2 boîtes de rillettes de thon", "rillettes de thon")]
         assert check_ingredients(thon, [Convive(name="C", diet="pescetarian")]) == []
 
     def test_empty_is_safe(self):
         assert check_ingredients([], [Convive(name="C", diet="vegan")]) == []
-
 
 class TestPluriels:
     """Les termes du régime sont au singulier, les recettes écrivent au pluriel."""
@@ -266,7 +232,6 @@ class TestPluriels:
         convive = Convive(name="C", diet="standard", dislikes=["mais"])
         assert check_ingredients([_ing("houmous maison", "houmous maison")], [convive]) == []
         assert check_ingredients([_ing("200 g de mais", "mais")], [convive])
-
 
 class TestDietExceptions:
     """Un régime n'est pas un absolu : Clémence est pescétarienne ET mange du boudin."""

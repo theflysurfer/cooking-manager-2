@@ -1,26 +1,4 @@
-"""Qui est présent à quel repas — le référentiel de présence.
-
-Pourquoi ce module existe (incident 2026-08-04) : le menu programmait des wraps
-au poulet un mardi midi alors que Clémence est pescétarienne. Deux causes
-distinctes, et c'est la seconde qui est la plus vicieuse :
-
-1. Aucun contrôle de compatibilité ne tournait (cf. `convives.py`).
-2. **La composition de la table était devinée, pas calculée.** La grille type de
-   `Convives.md` dit « mardi midi : enfants à la cantine » — mais elle porte la
-   mention « **hors vacances scolaires** ». En août, elle ne s'applique pas, et
-   raisonner dessus donne une réponse fausse avec l'aplomb d'une règle écrite.
-
-**L'agenda seul ne suffit pas.** Vérifié le 2026-08-04 : la semaine ne portait
-qu'un seul événement (« Semaine à Bordeaux » du 8 au 16). Rien sur la garde
-alternée, rien sur les vacances, rien sur la cantine. Un export d'agenda
-n'aurait donc rien rattrapé — il apporte les *exceptions*, pas la trame.
-
-Trois sources, dans cet ordre de priorité croissante :
-
-    trame déterministe (garde alternée × période scolaire)
-      └─> absences déclarées (vault ou agenda)
-            └─> override manuel explicite      ← gagne toujours
-"""
+"""Qui est présent à quel repas — le référentiel de présence."""
 
 from __future__ import annotations
 
@@ -28,8 +6,6 @@ import re
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 
-# ── Garde alternée ───────────────────────────────────────────────────
-# Constantes historiques — fallback quand aucune HouseholdConfig n'est fournie.
 CUSTODY_REFERENCE_WEEK = date(2026, 3, 3)
 ADULTS = ("Julien", "Clémence")
 CHILDREN = ("Léa", "Titouan")
@@ -42,7 +18,6 @@ _DAY_INDEX = {
 }
 _DAY_NAMES = list(_DAY_INDEX)
 
-
 @dataclass
 class SchoolPeriod:
     label: str
@@ -52,30 +27,22 @@ class SchoolPeriod:
     def covers(self, day: date) -> bool:
         return self.start <= day <= self.end
 
-
 @dataclass
 class Absence:
     who: str
     start: date
     end: date
     reason: str = ""
-    slot: str | None = None  # None = toute la journée ; sinon un seul créneau
+    slot: str | None = None
 
     def covers(self, day: date, slot: str | None = None) -> bool:
         if not (self.start <= day <= self.end):
             return False
         return self.slot is None or slot is None or self.slot == slot
 
-
 @dataclass
 class Stay:
-    """Un séjour hors domicile — le modèle qui corrige le bug Bègles (F.30).
-
-    Ses membres sont à table pour tous les repas de la période, quelle que soit
-    la trame de garde/cantine et quelles que soient les absences déclarées.
-    `cooking` distingue « on cuisine sur place » (location, F.30) de « pas de
-    cuisine » (hôtel, F.31).
-    """
+    """Un séjour hors domicile — le modèle qui corrige le bug Bègles (F.30)."""
     label: str
     start: date
     end: date
@@ -86,7 +53,6 @@ class Stay:
     def covers(self, day: date) -> bool:
         return self.start <= day <= self.end
 
-
 class ChildWeekUnknown(Exception):
     """Semaine jamais synchronisée via POST /api/child-week/sync — pas assimilée à "absents"."""
 
@@ -96,7 +62,6 @@ class ChildWeekUnknown(Exception):
             f"Semaine du {monday.isoformat()} non synchronisée avec gcal "
             "(POST /api/child-week/sync?day=...) — présence des enfants inconnue."
         )
-
 
 @dataclass
 class Referential:
@@ -120,9 +85,6 @@ class Referential:
             if s.covers(day):
                 return s
         return None
-
-
-# ── Configuration du foyer (données DB ou fallback constantes) ──────
 
 @dataclass
 class CustodyInfo:
@@ -148,12 +110,10 @@ class HouseholdConfig:
         CanteenEntry(name=n, weekday=wd) for n in CHILDREN for wd in (0, 1, 3, 4)
     ])
 
-
 def children_present_this_week(day: date, reference: date = CUSTODY_REFERENCE_WEEK) -> bool:
     monday = day - timedelta(days=day.weekday())
     ref_monday = reference - timedelta(days=reference.weekday())
     return ((monday - ref_monday).days // 7) % 2 == 0
-
 
 def _child_present(day: date, custody: CustodyInfo, ref: Referential) -> bool:
     if custody.pattern == "always":
@@ -168,7 +128,6 @@ def _child_present(day: date, custody: CustodyInfo, ref: Referential) -> bool:
         return is_ref_week == custody.reference_present
     return True
 
-
 def _child_at_canteen(
     child_name: str, day: date, slot: str,
     canteen: list[CanteenEntry], ref: Referential,
@@ -181,7 +140,6 @@ def _child_at_canteen(
         return True
     return False
 
-
 def attendees(
     day: date, slot: str,
     ref: Referential | None = None,
@@ -190,19 +148,14 @@ def attendees(
     ref = ref or Referential()
     hh = household or HouseholdConfig()
 
-    # 1. Override manuel/vocal explicite — gagne toujours.
     override = ref.overrides.get(f"{day.isoformat()}/{slot}")
     if override is not None:
         return list(override)
 
-    # 2. Séjour : ses membres sont à table, quelle que soit la trame et les
-    #    absences. C'est le correctif du bug Bègles (F.30) — une « absence » du
-    #    foyer principal ne doit plus vider la tablée quand on cuisine sur place.
     stay = ref.stay_covering(day)
     if stay is not None:
         return list(stay.members)
 
-    # 3. Trame déterministe (garde alternée × cantine × vacances).
     people = list(hh.adults)
     for child in hh.children:
         if not _child_present(day, child, ref):
@@ -211,7 +164,6 @@ def attendees(
             continue
         people.append(child.name)
 
-    # 4. Absences déclarées (par jour, ou par créneau si `slot` renseigné).
     present = [
         p for p in people
         if not any(a.who == p and a.covers(day, slot) for a in ref.absences)
@@ -222,7 +174,6 @@ def attendees(
         return []
 
     return present
-
 
 def week_grid(
     monday: date,
@@ -247,9 +198,6 @@ def week_grid(
         out.append(row)
     return out
 
-
-# ── Lecture du référentiel depuis le vault ───────────────────────────
-
 _PERIOD_ROW = re.compile(
     r"^\|\s*([^|]+?)\s*\|\s*(\d{4}-\d{2}-\d{2})\s*\|\s*(\d{4}-\d{2}-\d{2})\s*\|",
     re.MULTILINE,
@@ -260,7 +208,6 @@ _ABSENCE_ROW = re.compile(
 )
 _H2 = re.compile(r"^##\s+(.+?)\s*$", re.MULTILINE)
 
-
 def _section(body: str, keyword: str) -> str:
     heads = list(_H2.finditer(body))
     for idx, head in enumerate(heads):
@@ -268,7 +215,6 @@ def _section(body: str, keyword: str) -> str:
             end = heads[idx + 1].start() if idx + 1 < len(heads) else len(body)
             return body[head.end():end]
     return ""
-
 
 def parse_referential(body: str) -> Referential:
     ref = Referential()
