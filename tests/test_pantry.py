@@ -320,3 +320,25 @@ class TestRealVault:
         age = p.age_days()
         assert age is not None and age >= 0
         assert p.is_stale(today=p.updated + timedelta(days=15)) is True
+
+
+class TestBulkPayload:
+    """Un lot de courses porte sa date d'entrée réelle et sa provenance."""
+
+    def test_a_batch_carries_its_real_entry_date_and_source(self):
+        from backend.app import PantryBulkItem
+        item = PantryBulkItem.model_validate({
+            "name": "Feta grecque AOP 200g",
+            "section": "Frais — Protéines",
+            "qty_text": "2 barquettes 200 g",
+            "entered_at": "2026-09-08",
+            "source": "drive",
+        })
+        assert item.entered_at == date(2026, 9, 8)
+        assert item.source == "drive"
+
+    def test_the_voice_payload_keeps_working_without_the_new_fields(self):
+        from backend.app import PantryBulkItem
+        item = PantryBulkItem(name="Concombre")
+        assert item.entered_at is None
+        assert item.source == "voice"

@@ -835,6 +835,8 @@ class PantryBulkItem(BaseModel):
     name: str
     section: str = "Frais — Légumes & Fruits"
     qty_text: str = ""
+    entered_at: datetime.date | None = None
+    source: str = "voice"
 
 @app.post("/api/pantry/bulk")
 async def bulk_upsert_pantry(items: list[PantryBulkItem]):
@@ -867,11 +869,12 @@ async def bulk_upsert_pantry(items: list[PantryBulkItem]):
                 await conn.execute(
                     """UPDATE pantry_item SET
                            qty_text=$1, qty_value=$2, unit=$3, status='ok', xstatus='ok',
-                           perishable=$4, updated_at=NOW(), source='voice'
-                       WHERE id=$5""",
+                           perishable=$4, updated_at=NOW(), source=$5,
+                           entered_at=COALESCE($6, entered_at)
+                       WHERE id=$7""",
                     item.qty_text,
                     float(qty_value) if qty_value is not None else None,
-                    unit, perishable, existing["id"],
+                    unit, perishable, item.source, item.entered_at, existing["id"],
                 )
                 results.append({
                     "id": existing["id"], "name": item.name,
@@ -882,11 +885,12 @@ async def bulk_upsert_pantry(items: list[PantryBulkItem]):
                     """INSERT INTO pantry_item
                        (name, name_normalized, section, qty_text, qty_value, unit,
                         status, xstatus, perishable, entered_at, source)
-                       VALUES ($1,$2,$3,$4,$5,$6,'ok','ok',$7,$8,'voice')
+                       VALUES ($1,$2,$3,$4,$5,$6,'ok','ok',$7,$8,$9)
                        RETURNING id""",
                     item.name, name_normalized, item.section, item.qty_text,
                     float(qty_value) if qty_value is not None else None,
-                    unit, perishable, datetime.date.today(),
+                    unit, perishable, item.entered_at or datetime.date.today(),
+                    item.source,
                 )
                 results.append({
                     "id": row["id"], "name": item.name,
