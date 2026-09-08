@@ -459,7 +459,6 @@ CREATE TABLE IF NOT EXISTS product (
 
 CREATE INDEX IF NOT EXISTS product_food_idx ON product(food_key);
 CREATE INDEX IF NOT EXISTS product_ean_idx ON product(ean);
-CREATE INDEX IF NOT EXISTS product_nature_idx ON product(nature);
 """
 
 MIGRATIONS_SQL = """
