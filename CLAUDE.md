@@ -119,10 +119,12 @@ un compte rendu d'après coup, relié à aucun menu (#67, #68).
 donc une seule écriture le rajeunit tout entier. Juger la fraîcheur sur `entered_at`, par article (#84).
 
 ⛔ **`outcome: inconnu` veut dire « présent, quantité incomparable »**, jamais « on ne sait pas
-si tu l'as » — le stock est en texte libre (« 1 sachet 300 g »), le besoin en chiffres. Lire le
-`reason` de la ligne et **trancher à la main** : le 2026-09-07, 25 lignes « inconnu » cachaient
-4 manques réels, dont le poisson qui portait deux repas. Un humain compare « 1 » à « 8 pièces »
-en une seconde là où le calcul ne peut pas.
+si tu l'as » : stock en texte libre, besoin en chiffres. Lire le `reason` et **trancher à la
+main** — un humain compare « 1 » à « 8 pièces » là où le calcul ne peut pas.
+
+⛔ **Une commande drive non retirée n'est ni du stock ni un manque** : absente de
+`pantry_item`, toutes ses lignes ressortent `absent`. Lire `grocery_orders` avant de racheter —
+un `status` vide veut dire « pas encore retirée ».
 
 Déclarer l'état d'un article : `PATCH /api/pantry` (par **nom**, écrit en base, rend 409 sur
 un homonyme). Détail et pièges : `julien-cooking-manager-pantry-update`.
@@ -170,9 +172,8 @@ une « Portion courante » est un contexte de repas, pas une unité — ne pas l
 en `food_unit`.
 
 ⚠️ **Une fiche corrigée en local ne suffit pas** — le VPS monte le cloud : propager par
-`rclone copy` **et** `rclone delete`. `aliments-vérifiés/` porte deux dossiers
-`feculents-legumineuses` homonymes, et un `directory not found` de rclone signale une
-syntaxe fausse, jamais une absence.
+`rclone copy` **et** `rclone delete`. Un `directory not found` signale une syntaxe fausse,
+jamais une absence.
 
 ⚠️ **Un `ciqual_code` ne se croit pas sur parole** (`pain-complet` déclarait `7010`, le pain
 **bis**). Vérifier dans le XML ANSES de data.gouv.fr — il est en **cp1252** et casse tout
