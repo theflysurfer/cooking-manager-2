@@ -247,13 +247,17 @@ async def import_food(dry_run: bool = True):
     """Vault `aliments-vérifiés/` → tables food, food_unit, product."""
     from .food_import import build_records, write_records
 
-    plan = build_records(FOOD_BASE_ROOT)
+    pool = await get_pool(DATABASE_DSN)
+    async with pool.acquire() as conn:
+        stored = await conn.fetch(
+            "SELECT store_ref, nature FROM product WHERE nature IS NOT NULL"
+        )
+    plan = build_records(FOOD_BASE_ROOT, {r["store_ref"]: r["nature"] for r in stored})
     counts = {"foods": len(plan.foods), "units": len(plan.units),
               "products": len(plan.products), "skipped": len(plan.skipped)}
     if dry_run:
         return {"dry_run": True, "counts": counts, "skipped": plan.skipped[:20]}
 
-    pool = await get_pool(DATABASE_DSN)
     async with pool.acquire() as conn:
         written = await write_records(conn, plan)
     return {"dry_run": False, "counts": counts, "written": written,

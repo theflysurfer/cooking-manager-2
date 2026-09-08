@@ -48,7 +48,7 @@ class ImportPlan:
     collisions: list[dict] = field(default_factory=list)
 
 
-def build_records(root: Path) -> ImportPlan:
+def build_records(root: Path, natures: dict[str, str] | None = None) -> ImportPlan:
     """Lit le vault et prépare les lignes, sans écrire en base."""
     plan = ImportPlan()
     if not root.is_dir():
@@ -112,6 +112,10 @@ def build_records(root: Path) -> ImportPlan:
         for unit in units:
             plan.units.append({"food_key": key, "unit": unit["unit"],
                                "grams": unit["grams"], "source": "fiche"})
+
+    for product in plan.products:
+        if product.get("nature") is None:
+            product["nature"] = (natures or {}).get(product["store_ref"])
 
     _hold_collisions(plan)
     _link_products(plan)
@@ -181,6 +185,11 @@ def _link_products(plan: ImportPlan) -> None:
                             grams=product.get("pack_size_value"),
                             brand=product.get("brand"))
         units = product.pop("_units", [])
+        if product.get("nature") == "composite":
+            for unit in units:
+                plan.units.append({"food_key": None, "unit": unit["unit"],
+                                   "grams": unit["grams"], "source": "produit"})
+            continue
         for key, food in by_key.items():
             if compare(candidate, Signals(name=food["name"])).verdict != PROPOSE:
                 continue
@@ -201,11 +210,8 @@ AVERSION_MARKERS = ("pas de", "pas d'", "n'aime", "naime", "deteste", "déteste"
 
 def build_report(root: Path, rows: list[dict], natures: dict[str, str] | None = None) -> dict:
     """Compare le vault à ce qui est en base — sans rien corriger."""
-    plan = build_records(root)
+    plan = build_records(root, natures)
     by_key = {r["key"]: r for r in rows}
-    for product in plan.products:
-        if product.get("nature") is None:
-            product["nature"] = (natures or {}).get(product["store_ref"])
 
     missing = [f["key"] for f in plan.foods if f["key"] not in by_key]
     mismatch = []

@@ -238,3 +238,37 @@ class TestBrandInTheName:
     def test_no_brand_leaves_the_name_alone(self):
         from backend.food_import import strip_brand
         assert strip_brand("Pignons de Pin", None) == "Pignons de Pin"
+
+
+class TestCompositeIsNeverLinked:
+    """Un plat rattache a un ingredient donne les macros de l'ingredient au plat — refs #90."""
+
+    def test_a_composite_is_not_linked_even_when_the_name_matches(self, tmp_path):
+        root = make_vault(tmp_path)
+        generic = root / "generiques" / "oeuf.md"
+        generic.write_text(GENERIC.replace("title: Pain complet", "title: Oeufs")
+                           .replace("slug: pain-complet", "slug: oeufs"), encoding="utf-8")
+        plan = build_records(root, {"auchan-bio-plein-air-oeufs-x12": "composite"})
+        assert plan.products[0]["food_key"] is None
+        assert plan.products[0]["status"] == "a_rapprocher"
+
+    def test_a_single_whose_name_designates_the_food_is_linked(self, tmp_path):
+        root = make_vault(tmp_path)
+        generic = root / "generiques" / "oeuf.md"
+        generic.write_text(GENERIC.replace("title: Pain complet", "title: Oeufs")
+                           .replace("slug: pain-complet", "slug: oeufs"), encoding="utf-8")
+        sheet = root / "marques" / "oeufs.md"
+        sheet.write_text(sheet.read_text(encoding="utf-8")
+                         .replace("title: Auchan Bio Plein Air Oeufs x12",
+                                  "title: Auchan Oeufs x12"), encoding="utf-8")
+        plan = build_records(root, {"auchan-bio-plein-air-oeufs-x12": "single"})
+        assert plan.products[0]["food_key"] == "oeuf"
+
+    def test_a_qualifier_before_the_food_still_blocks_the_link(self, tmp_path):
+        """« Auchan Bio Plein Air Oeufs » : marque retirée, le mot de tête reste « bio »."""
+        root = make_vault(tmp_path)
+        generic = root / "generiques" / "oeuf.md"
+        generic.write_text(GENERIC.replace("title: Pain complet", "title: Oeufs")
+                           .replace("slug: pain-complet", "slug: oeufs"), encoding="utf-8")
+        plan = build_records(root, {"auchan-bio-plein-air-oeufs-x12": "single"})
+        assert plan.products[0]["food_key"] is None
