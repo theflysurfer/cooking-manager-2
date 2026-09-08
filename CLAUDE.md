@@ -92,12 +92,9 @@ Lire, jamais recopier : `/api/preferences` · `/api/menus/<slug>/compatibility`.
 ### Écrire un terme alimentaire
 
 **Au singulier**, toujours (`DIETS`, `dislikes`, `forbidden`, `diet_exceptions`) : la flexion
-va du singulier vers le pluriel, jamais l'inverse. Un terme ambigu (`roti`, `blanc`, `filet`,
-`cuisse`) se déclare avec son motif dans `CONTEXT_REQUIRED`, sinon « pois chiches rôtis »
-sort incompatible pescétarien (ADR 0007). Une règle nommée ne s'ajoute que sur observation —
-sa raison s'affiche à l'utilisateur. Détail : `julien-cooking-manager-weekly-prep` § 3.
-
-`repairs` vide ne veut pas dire « rien à réparer » — **lire `unrepaired`** : `RULES_BY_DIET` ne couvre qu'une minorité des termes de `DIETS`.
+va du singulier vers le pluriel, jamais l'inverse. Un terme ambigu (`roti`, `blanc`, `filet`)
+se déclare avec son motif dans `CONTEXT_REQUIRED` (ADR 0007). `repairs` vide ne veut pas dire
+« rien à réparer » — **lire `unrepaired`**. Détail : `julien-cooking-manager-weekly-prep` § 3.
 
 ## Courses et garde-manger
 
@@ -108,23 +105,21 @@ un compte rendu d'après coup, relié à aucun menu (#67, #68).
 | Règle | Geste |
 |---|---|
 | La DB est la source de vérité du stock | Le vault n'est qu'une source d'ingestion ; `source != 'vault'` survit à la ré-ingestion (#69) |
-| `normalize_name` a changé | `POST /api/pantry/renormalize?dry_run=true` puis sans — les clés stockées sont figées et désalignent le stock en silence |
 | `normalize_name` retire découpe et pluriel | **Jamais un état** : « sèches », « surgelés », « fraîche », « entier » changent l'identité |
-| Un appariement qu'aucune règle ne peut trancher | `POST /api/pantry/aliases` — l'alias vise un **nom** (`target_normalized`), jamais un id |
+| `normalize_name` a changé, ou un appariement ne se fait pas | `renormalize` (dry-run d'abord) puis `pantry/aliases` — gestes et pièges dans `julien-cooking-manager-pantry-update` |
 | Deux fiches nomment le même aliment autrement | `build_needs` les fusionne à famille d'unité égale ; les libellés absorbés restent dans `merged_from` |
 | Une ligne de courses porte `purchase` | `mesure` · `comptable` (arrondi au-dessus) · `dose` (→ 1 conditionnement) · `non_resolu`. Le format vendu appartient au magasin (#82) |
 | Auchan Drive | **Seule voie** : MCP VPS `mcp-vps-auchan` (3854). `backend/auchan*.py` est décommissionné, HydraSpecter n'est qu'un outil de diagnostic. Un panier vide + `orders` vide = session **anonyme** : lire `grocery_session_status` |
 
 ⛔ **`age_days` ne dit rien de l'âge des articles** : l'inventaire est daté par `MAX(updated_at)`,
-donc une seule écriture le rajeunit tout entier. Juger la fraîcheur sur `entered_at`, par article (#84).
+donc une seule écriture le rajeunit tout entier. Juger sur `entered_at`, par article (#84).
 
 ⛔ **`outcome: inconnu` veut dire « présent, quantité incomparable »**, jamais « on ne sait pas
-si tu l'as » : stock en texte libre, besoin en chiffres. Lire le `reason` et **trancher à la
-main** — un humain compare « 1 » à « 8 pièces » là où le calcul ne peut pas.
+si tu l'as » : stock en texte libre, besoin en chiffres. Lire le `reason` et trancher à la main.
 
 ⛔ **Une commande drive non retirée n'est ni du stock ni un manque** : absente de
-`pantry_item`, toutes ses lignes ressortent `absent`. Lire `grocery_orders` avant de racheter —
-un `status` vide veut dire « pas encore retirée ».
+`pantry_item`, ses lignes ressortent `absent`. Lire `grocery_orders` avant de racheter — un
+`status` vide veut dire « pas encore retirée ».
 
 Déclarer l'état d'un article : `PATCH /api/pantry` (par **nom**, écrit en base, rend 409 sur
 un homonyme). Détail et pièges : `julien-cooking-manager-pantry-update`.
@@ -155,10 +150,9 @@ champ = toucher les deux dépôts **plus un test**. `dominates` : n'y inscrire q
 
 ## Référentiel aliment & produit
 
-`generiques/` → `food` · `marques/` → `product`. **Le dossier tranche**, jamais le
-champ `marque` : 49 fiches génériques portent `marque: null`, et le frontmatter étant
-lu ligne à ligne, la **chaîne** `"null"` est vraie (#85 — même piège sur `bio: true`,
-`ciqual_code: 7010`, toute liste YAML).
+`generiques/` → `food` · `marques/` → `product`. **Le dossier tranche**, jamais le champ
+`marque` : le frontmatter est lu ligne à ligne, donc la **chaîne** `"null"` est vraie —
+même piège sur `bio: true`, `ciqual_code: 7010`, toute liste YAML (#85).
 
 | Règle | Geste |
 |---|---|
@@ -166,11 +160,10 @@ lu ligne à ligne, la **chaîne** `"null"` est vraie (#85 — même piège sur `
 | Une fiche à plusieurs formes (« Crues »/« Cuites ») | Sans forme neutre `100g`, elle part en `skipped` avec son motif |
 | Avant toute bascule de consommateur | `GET /api/food/report` : `missing` **et** `macro_mismatch` vides (ADR 0011) |
 | Un produit non rattaché | `status = 'a_rapprocher'` — un choix à faire, jamais un oubli |
-| `product.nature` avant tout rapprochement | `single` = conditionnement d'un aliment (un `food_key` vide est une **lacune**) · `composite` = plusieurs ingrédients (un `food_key` vide est **normal**). Rattacher un composite donne les macros d'un ingrédient au plat entier, et le fait sortir du compteur (ADR 0016) |
+| `product.nature` avant tout rapprochement | `single` = un aliment conditionné, `food_key` vide = **lacune** · `composite` = plusieurs ingrédients, `food_key` vide = **normal**. L'import refuse de rattacher un composite (ADR 0016) |
 
-⛔ **Les fiches ne portent pas d'unité d'usage** (1 fiche sur 248, mesuré le 2026-09-07) :
-une « Portion courante » est un contexte de repas, pas une unité — ne pas la convertir
-en `food_unit`.
+⛔ **Les fiches ne portent pas d'unité d'usage** : une « Portion courante » est un contexte
+de repas, pas une unité — ne pas la convertir en `food_unit`.
 
 ⚠️ **Une fiche corrigée en local ne suffit pas** — le VPS monte le cloud : propager par
 `rclone copy` **et** `rclone delete`. Un `directory not found` signale une syntaxe fausse,
