@@ -267,7 +267,14 @@ async def food_report():
     pool = await get_pool(DATABASE_DSN)
     async with pool.acquire() as conn:
         rows = await conn.fetch("SELECT key, macros_per_100g FROM food")
-    return build_report(FOOD_BASE_ROOT, [dict(r) for r in rows])
+        natures = await conn.fetch(
+            "SELECT store_ref, nature FROM product WHERE nature IS NOT NULL"
+        )
+    return build_report(
+        FOOD_BASE_ROOT,
+        [dict(r) for r in rows],
+        {r["store_ref"]: r["nature"] for r in natures},
+    )
 
 @app.get("/api/recipes/{slug}/macros")
 async def recipe_macros_endpoint(slug: str):

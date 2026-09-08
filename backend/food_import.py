@@ -186,10 +186,13 @@ AVERSION_MARKERS = ("pas de", "pas d'", "n'aime", "naime", "deteste", "déteste"
                     "eviter", "éviter", "ne mange pas", "jamais", "sans ")
 
 
-def build_report(root: Path, rows: list[dict]) -> dict:
+def build_report(root: Path, rows: list[dict], natures: dict[str, str] | None = None) -> dict:
     """Compare le vault à ce qui est en base — sans rien corriger."""
     plan = build_records(root)
     by_key = {r["key"]: r for r in rows}
+    for product in plan.products:
+        if product.get("nature") is None:
+            product["nature"] = (natures or {}).get(product["store_ref"])
 
     missing = [f["key"] for f in plan.foods if f["key"] not in by_key]
     mismatch = []

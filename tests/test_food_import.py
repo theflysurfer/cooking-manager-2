@@ -201,3 +201,16 @@ class TestProductNature:
     def test_the_vocabulary_carries_the_two_natures(self):
         from backend.food_import import product_natures
         assert product_natures() == ("single", "composite")
+
+    def test_the_base_supplies_a_nature_the_vault_does_not_declare(self, tmp_path):
+        from backend.food_import import build_report
+        root = make_vault(tmp_path)
+        report = build_report(root, rows=[], natures={"auchan-bio-plein-air-oeufs-x12": "single"})
+        assert report["unlinked_products"] == ["Auchan Bio Plein Air Oeufs"]
+        assert report["unclassified_products"] == []
+
+    def test_the_vault_wins_over_the_base(self, tmp_path):
+        from backend.food_import import build_report
+        root = with_nature(tmp_path, "composite")
+        report = build_report(root, rows=[], natures={"auchan-bio-plein-air-oeufs-x12": "single"})
+        assert report["unlinked_products"] == []
