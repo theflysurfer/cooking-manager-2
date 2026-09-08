@@ -1,3 +1,17 @@
+SHEET_KJ = """---
+title: Pignons de pin
+---
+
+## Macros pour 100 g
+
+| Nutriment | Valeur |
+|---|---|
+| Energie | 2820 kJ (673 kcal) |
+| Proteines | 13,7 g |
+| Glucides | 4,0 g |
+| Lipides | 68,4 g |
+"""
+
 """Macros calculées depuis les ingrédients. Aucun réseau, aucune DB."""
 
 from cooking_manager.nutrition import (
@@ -249,3 +263,30 @@ class TestLoadFoodBase:
 
     def test_missing_root_is_safe(self, tmp_path):
         assert load_food_base(tmp_path / "absent") == {}
+
+
+class TestEnergyUnit:
+    """« 2820 kJ (673 kcal) » : la bonne valeur est dans la cellule, il suffit de la lire."""
+
+    def test_kcal_wins_over_the_kilojoules_beside_it(self):
+        from cooking_manager.nutrition import read_energy
+        assert read_energy("2820 kJ (673 kcal)") == 673.0
+
+    def test_kilojoules_alone_are_converted(self):
+        from cooking_manager.nutrition import read_energy
+        assert read_energy("2820 kJ") == 674.0
+
+    def test_a_bare_number_stays_as_it_is(self):
+        from cooking_manager.nutrition import read_energy
+        assert read_energy("140") == 140.0
+
+    def test_an_impossible_energy_is_refused_not_stored(self):
+        """Aucun aliment ne depasse ~900 kcal/100 g : l'huile pure plafonne a 900."""
+        from cooking_manager.nutrition import read_energy
+        assert read_energy("2820") is None
+
+    def test_a_sheet_in_kilojoules_yields_kcal(self):
+        from cooking_manager.nutrition import parse_food_sheet
+        sheet = SHEET_KJ
+        _, forms = parse_food_sheet(sheet)
+        assert forms["100g"].kcal == 673.0

@@ -127,6 +127,28 @@ def _first_number(text: str) -> float | None:
     m = _NUM_RE.search(text.replace("~", ""))
     return float(m.group(1).replace(",", ".")) if m else None
 
+KJ_PER_KCAL = 4.184
+
+MAX_KCAL_PER_100G = 950.0
+
+_KCAL_RE = re.compile(r"(\d+(?:[.,]\d+)?)\s*kcal", re.IGNORECASE)
+_KJ_RE = re.compile(r"(\d+(?:[.,]\d+)?)\s*kj", re.IGNORECASE)
+
+
+def read_energy(text: str) -> float | None:
+    """Une énergie en kcal : la cellule dit son unité, on ne lit pas le premier nombre venu."""
+    clean = text.replace("~", "")
+    m = _KCAL_RE.search(clean)
+    if m:
+        return float(m.group(1).replace(",", "."))
+    m = _KJ_RE.search(clean)
+    if m:
+        return round(float(m.group(1).replace(",", ".")) / KJ_PER_KCAL, 1)
+    value = _first_number(clean)
+    if value is not None and value > MAX_KCAL_PER_100G:
+        return None
+    return value
+
 def _cells(line: str) -> list[str]:
     return [c.strip().strip("*").strip() for c in line.strip().strip("|").split("|")]
 
@@ -176,15 +198,17 @@ def parse_food_sheet(text: str) -> tuple[dict, dict[str, Macros]]:
             macros = forms.setdefault(label, Macros())
             for idx, key in metric_cols.items():
                 if idx < len(cells) and getattr(macros, key) is None:
-                    setattr(macros, key, _first_number(cells[idx]))
+                    read = read_energy if key == "kcal" else _first_number
+                    setattr(macros, key, read(cells[idx]))
             continue
 
         key = _METRIC_KEYS.get(cells[0].lower())
         if not key:
             continue
+        read = read_energy if key == "kcal" else _first_number
         for idx, label in columns.items():
             if idx < len(cells) and getattr(forms[label], key) is None:
-                setattr(forms[label], key, _first_number(cells[idx]))
+                setattr(forms[label], key, read(cells[idx]))
 
     return fm, forms
 
