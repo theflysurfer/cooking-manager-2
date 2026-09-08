@@ -189,6 +189,12 @@ il n'invente rien.
 2. **Réconcilier** — `kcal = P×4 + G×4 + L×9` ; au-delà de 5 % d'écart, montrer les deux chiffres.
 3. **Trois sources** — `marques/` > `shopping_product.nutrition` > `generiques/` (CIQUAL). Jamais de quatrième position implicite. `coverage`/`conclusive` priment sur le total.
 
+⛔ **Une énergie se lit avec son unité.** Les fiches `marques/` écrivent
+« Énergie | 2820 kJ (673 kcal) » : lire le premier nombre donnait des **kilojoules pris
+pour des kcal** — 44 produits sur 170 le 2026-09-08, soit ×4,184 sur un plat au parmesan
+ou aux pignons, sans erreur. `read_energy()` lit `kcal` s'il est écrit, convertit les kJ
+sinon, et **refuse au-delà de 950 kcal/100 g** (l'huile pure plafonne à 900).
+
 Pièges : `load_food_base_cached()` obligatoire ; `qty_min` est un `Decimal`.
 
 ## Commande vocale
