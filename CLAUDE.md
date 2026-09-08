@@ -58,10 +58,7 @@ déclarée. Écrire un menu de bout en bout : `julien-cooking-manager-weekly-pre
 
 ## Qui est à table
 
-```bash
-ssh srv759970 'curl -s -X POST "localhost:8795/api/child-week/sync?day=AAAA-MM-JJ"'   # D'ABORD
-ssh srv759970 'curl -s "localhost:8795/api/attendance?day=AAAA-MM-JJ"'
-```
+`POST /api/child-week/sync?day=` **d'abord**, puis `GET /api/attendance?day=`.
 
 - **409** = semaine non synchronisée → lancer le sync. Ne veut **jamais** dire « enfants absents ».
 - **422** = event « Semaine enfants » introuvable sur ±60 j → demander à Julien, ne pas supposer.
@@ -93,8 +90,11 @@ dans `CONTEXT_REQUIRED` (ADR 0007). Lire, jamais recopier : `/api/preferences` �
 ## Courses et garde-manger
 
 La liste **n'est pas stockée, c'est un calcul** : `GET /api/menus/{slug}/shopping-list` la
-recalcule à chaque appel (menu × tablée × stock). **La DB fait foi du stock** ; le vault n'est
-qu'une source d'ingestion, et `source != 'vault'` survit à la ré-ingestion (#69).
+recalcule à chaque appel (menu × tablée × stock). **La DB fait foi du stock.**
+
+⛔ **`POST /api/ingest` ÉCRASE le report d'un drive** (#91) : il repasse les lignes en
+`source = 'vault'` avec leur ancien état et ressuscite les supprimées. On le lance pour un
+menu, il défait le garde-manger — **rejouer le report après chaque ingestion**.
 
 ⛔ **`normalize_name` retire découpe et pluriel, jamais un ÉTAT** : « sèches », « surgelés »,
 « fraîche », « entier » changent l'identité de l'aliment.
