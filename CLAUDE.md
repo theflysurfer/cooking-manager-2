@@ -166,6 +166,7 @@ lu ligne à ligne, la **chaîne** `"null"` est vraie (#85 — même piège sur `
 | Une fiche à plusieurs formes (« Crues »/« Cuites ») | Sans forme neutre `100g`, elle part en `skipped` avec son motif |
 | Avant toute bascule de consommateur | `GET /api/food/report` : `missing` **et** `macro_mismatch` vides (ADR 0011) |
 | Un produit non rattaché | `status = 'a_rapprocher'` — un choix à faire, jamais un oubli |
+| `product.nature` avant tout rapprochement | `single` = conditionnement d'un aliment (un `food_key` vide est une **lacune**) · `composite` = plusieurs ingrédients (un `food_key` vide est **normal**). Rattacher un composite donne les macros d'un ingrédient au plat entier, et le fait sortir du compteur (ADR 0016) |
 
 ⛔ **Les fiches ne portent pas d'unité d'usage** (1 fiche sur 248, mesuré le 2026-09-07) :
 une « Portion courante » est un contexte de repas, pas une unité — ne pas la convertir
