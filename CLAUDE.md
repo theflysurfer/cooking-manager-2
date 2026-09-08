@@ -163,8 +163,8 @@ Pièges : `load_food_base_cached()` obligatoire ; `qty_min` est un `Decimal`.
 
 MediaRecorder → `POST /api/audio` → Deepgram → Groq (intent JSON) → exécution. Les intents
 sont déclarés **dans le prompt** de `backend/stt.py` : un intent ajouté sans être câblé échoue
-en silence. Clés en credstore systemd (`deploy/run-with-cred.sh`). MediaRecorder exige
-Safari 14.5+ : le micro est masqué sur l'iPad mini 2.
+en silence. Clés en credstore systemd. MediaRecorder exige Safari 14.5+ : micro masqué sur
+l'iPad mini 2.
 
 ## Gate iOS 12
 
@@ -172,8 +172,8 @@ Cible **Safari 12.5.8** : `gap` en flex, `aspect-ratio`, `<dialog>`,
 `prefers-color-scheme`, `:focus-visible`, `?.`/`??`/`||=` et les champs de classe sont
 hors d'atteinte. Le catalogue interdit → parade vit dans `julien-audit-ios12-compat`.
 
-Vérifier : `python ~/.claude/skills/julien-audit-ios12-compat/scripts/audit_ios12.py web`
-(score ≥ 90 et zéro bloquant). `package.json` est en devDependencies : **pas de build**.
+Vérifier : `audit_ios12.py web` (score ≥ 90, zéro bloquant). `package.json` est en
+devDependencies : **pas de build**.
 
 ⚠️ Aucun scanner ne voit le zoom auto sur `input` < 16 px, `100vh` mouvant, `:hover`
 collant. **Seul l'iPad réel valide.**
@@ -183,10 +183,12 @@ collant. **Seul l'iPad réel valide.**
 **Appétissant** (la photo mène) · **Sans friction** (quoi manger ce soir en un coup d'œil) ·
 **Maîtrisé** (macros, stock, courses). Hiérarchie par le letter-spacing jamais par la graisse,
 un seul accent, ni rayon ni ombre. Détail : `2026.08 Product Toolkit/research/`.
+
 ## Skills liées
 
-- `julien-cooking-manager-weekly-prep` — **owner** — toute la semaine : tablée, menu écrit et contrôlé, photos, stock, courses, macros, retours de table.
-- `julien-cooking-manager-pantry-update` — **owner** — déclarer un aliment épuisé, bas ou présent, corriger une quantité, reporter un drive ; écrit en base.
+- `julien-cooking-manager-weekly-prep` — **owner** — toute la semaine : tablée, menu, photos, stock, courses, macros, retours de table.
+- `julien-cooking-manager-pantry-update` — **owner** — déclarer un aliment épuisé, bas ou présent, corriger une quantité, reporter un drive.
+- `julien-ref-cooking-donnees` — **owner** — les chaînes de données : ingestion du vault, référentiel aliment/produit, ontologie, photos, calcul des courses.
 - `julien-audit-cooking-vault` — **owner** — auditer les données ingérées, **avant** toute génération de courses.
 - `cooking-manager-auchan-drive` — gros consommateur — pilote le panier depuis ces courses.
 
@@ -194,6 +196,5 @@ un seul accent, ni rayon ni ombre. Détail : `2026.08 Product Toolkit/research/`
 
 `cooking_mcp.py` importe `from fastmcp import FastMCP` (pas `mcp.server.fastmcp`) : seul
 `fastmcp` v3.4+ expose `host`/`port`/`allowed_hosts` dans `run()`. Derrière nginx avec
-`Host $host`, passer `allowed_hosts=[<domaine>]`, sinon Starlette rend 421.
-`httpx`/`selectolax`/`mcp` sont déclarés dans `pyproject.toml` — un venv reconstruit à neuf
-est le test de vérité.
+`Host $host`, passer `allowed_hosts=[<domaine>]`, sinon Starlette rend 421. Un venv
+reconstruit à neuf est le test de vérité des dépendances de `pyproject.toml`.
