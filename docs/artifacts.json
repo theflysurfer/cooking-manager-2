@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "artifacts": [
+    {
+      "file": "docs/atlas-cooking-manager.html",
+      "url": "https://claude.ai/code/artifact/84aca2b0-4d7f-46b4-b1c0-da485c96b985",
+      "title": "Atlas Cooking Manager",
+      "sha256": "e6afc67511f9339e2fdeb4d63c91e74ad50c2c7d9643e8d1a169079fcf3a5fdc",
+      "published_at": "2026-09-09T16:27:33+02:00"
+    }
+  ]
+}

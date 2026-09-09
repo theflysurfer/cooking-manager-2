@@ -44,7 +44,7 @@ tables recette appartiennent à **recipe-manager** (8796), CM2 est colocataire.
 
 `Noyau/Cuisine/` (Dropbox, monté sur le VPS via rclone) : `Recettes/*.md` · `Menus/*.md` ·
 `Convives.md` · `Garde-manger.md`. Le bloc `meals:` du frontmatter fait foi, les tableaux du
-corps ne sont pas lus. Slots, restes, délai du mount : `julien-ref-cooking-donnees` § 1.
+corps ne sont pas lus. Slots, restes, délai du mount : `julien-cooking-donnees` § 1.
 
 | Piège | Geste |
 |---|---|
@@ -110,13 +110,13 @@ si tu l'as » : stock en texte libre, besoin en chiffres. Lire le `reason` et tr
 
 Déclarer l'état d'un article : `PATCH /api/pantry` (par **nom**, rend 409 sur un homonyme) —
 `julien-cooking-manager-pantry-update`. Calcul, `purchase`, Auchan Drive, divergence avec le
-Coach Nutrition : `julien-ref-cooking-donnees` § 5.
+Coach Nutrition : `julien-cooking-donnees` § 5.
 
 ## Photos
 
 Le fichier local `web/media/recipes/<slug>.jpg` prime et survit au réseau. **Extension `.jpg`
 obligatoire**, `ingest.py` ne scanne que celle-là (#70). Génération et upsert protégé :
-`julien-ref-cooking-donnees` § 4.
+`julien-cooking-donnees` § 4.
 
 ## Vocabulaire (ontologie)
 
@@ -127,7 +127,7 @@ Cuissons, cuisines, textures, accommodations, axes de retour et natures de produ
 ⚠️ Le générateur a un **jeu de champs fixe** (dépôt ontology-manager) : un champ ou une facette
 ajouté au seul YAML n'atteint **pas** l'artefact, et le consommateur lit une valeur vide sans
 erreur. Ajouter = deux dépôts **plus un test**. Régénérer et propager :
-`julien-ref-cooking-donnees` § 3.
+`julien-cooking-donnees` § 3.
 
 ## Référentiel aliment & produit
 
@@ -142,7 +142,7 @@ ingrédient prend ses macros et se lit comme réparé (ADR 0016).
 ⚠️ **Un `ciqual_code` ne se croit pas sur parole** (`pain-complet` déclarait `7010`, le pain
 **bis**), et une fiche corrigée en local n'atteint pas le VPS sans `rclone copy`.
 
-Collisions, formes, XML ANSES, rattachement : `julien-ref-cooking-donnees` § 2.
+Collisions, formes, XML ANSES, rattachement : `julien-cooking-donnees` § 2.
 
 ## Macros
 
@@ -187,7 +187,7 @@ un seul accent, ni rayon ni ombre. Détail : `2026.08 Product Toolkit/research/`
 
 - `julien-cooking-manager-weekly-prep` — **owner** — toute la semaine : tablée, menu, photos, stock, courses, macros, retours de table.
 - `julien-cooking-manager-pantry-update` — **owner** — déclarer un aliment épuisé, bas ou présent, corriger une quantité, reporter un drive.
-- `julien-ref-cooking-donnees` — **owner** — les chaînes de données : ingestion du vault, référentiel aliment/produit, ontologie, photos, calcul des courses.
+- `julien-cooking-donnees` — **owner** — les chaînes de données : ingestion du vault, référentiel aliment/produit, ontologie, photos, calcul des courses.
 - `julien-audit-cooking-vault` — **owner** — auditer les données ingérées, **avant** toute génération de courses.
 - `cooking-manager-auchan-drive` — gros consommateur — pilote le panier depuis ces courses.
 
