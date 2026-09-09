@@ -50,6 +50,7 @@ corps ne sont pas lus. Slots, restes, délai du mount : `julien-cooking-donnees`
 |---|---|
 | Nouvelle colonne dans un `CREATE TABLE` | L'ajouter **aussi** à `MIGRATIONS_SQL` — le VPS a déjà les tables. Un **index** sur cette colonne ne vit QUE dans la migration : `SCHEMA_SQL` s'exécute avant |
 | `menu_meal.position` | 1-based en DB : tout JS fait `position - 1` |
+| Marquer un repas mangé | `POST /api/menus/{slug}/served` (day/slot), **jamais** le `PATCH` du repas |
 
 ⛔ **Jamais de `DELETE FROM menu` ni `menu_meal`** : l'ingestion upsert, un DELETE global
 efface les menus créés par l'API et la colonne `served`. ⛔ **Jamais départager deux fiches
@@ -92,8 +93,11 @@ dans `CONTEXT_REQUIRED` (ADR 0007). Lire, jamais recopier : `/api/preferences` �
 La liste **n'est pas stockée, c'est un calcul** : `GET /api/menus/{slug}/shopping-list` la
 recalcule à chaque appel (menu × tablée × stock). **La DB fait foi du stock.**
 
-⛔ **Plus rien ne lit `Garde-manger.md`** (ADR 0017) : le stock ne bouge que sur déclaration —
-`PATCH /api/pantry`, report d'un drive, ticket. Écrire dans le fichier n'atteint aucune base.
+⛔ **`pantry_item` est un JOURNAL D'ENTRÉES, pas un inventaire** : rien ne le décrémente, aucun
+repas servi ne retire rien. `ok` répond « quelqu'un l'a acheté un jour », jamais « il y en a » —
+et un `out` n'est pas plus fiable. **Faire confirmer avant de composer dessus** (#94). Corollaire :
+un `insuffisant` en cours de semaine additionne les repas déjà mangés, ne pas racheter dessus.
+Plus rien ne lit `Garde-manger.md` (ADR 0017) : le stock ne bouge que sur déclaration.
 
 ⛔ **`normalize_name` retire découpe et pluriel, jamais un ÉTAT** : « sèches », « surgelés »,
 « fraîche », « entier » changent l'identité de l'aliment.
@@ -105,12 +109,9 @@ donc une seule écriture le rajeunit tout entier. Juger sur `entered_at`, par ar
 si tu l'as » : stock en texte libre, besoin en chiffres. Lire le `reason` et trancher à la main.
 
 ⛔ **Une commande drive non retirée n'est ni du stock ni un manque** : absente de
-`pantry_item`, ses lignes ressortent `absent`. Lire `grocery_orders` avant de racheter — un
-`status` vide veut dire « pas encore retirée ».
-
-Déclarer l'état d'un article : `PATCH /api/pantry` (par **nom**, rend 409 sur un homonyme) —
-`julien-cooking-manager-pantry-update`. Calcul, `purchase`, Auchan Drive, divergence avec le
-Coach Nutrition : `julien-cooking-donnees` § 5.
+`pantry_item`, ses lignes ressortent `absent`. Lire `grocery_orders` (un `status` vide = pas
+retirée) avant de racheter. Déclarer un article : `PATCH /api/pantry`, par **nom**, 409 sur un
+homonyme — `julien-cooking-manager-pantry-update` · calcul et drive : `julien-cooking-donnees` § 5.
 
 ## Photos
 
