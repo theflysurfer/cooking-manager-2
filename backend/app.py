@@ -10,7 +10,7 @@ from pathlib import Path
 from fastapi import FastAPI, Query, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from cooking_manager.presence import HouseholdConfig, CustodyInfo, CanteenEntry, Referential
 from cooking_manager.feedback import (
@@ -1063,6 +1063,7 @@ async def set_meals_served(slug: str, body: ServedBody):
     return {"ok": True, "slug": slug, "served": body.served, "updated": len(rows)}
 
 class MealUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     recipe_slug: str | None = None
     dish: str | None = None
     covers: int | None = None
@@ -1082,8 +1083,11 @@ async def update_menu_meal(slug: str, meal_id: int, body: MealUpdate):
         if not meal:
             raise HTTPException(404, f"Repas introuvable : {meal_id}")
 
-        recipe_id = None
-        match_kind = None
+        current = await conn.fetchrow(
+            "SELECT recipe_id, match_kind FROM menu_meal WHERE id = $1", meal_id,
+        )
+        recipe_id = current["recipe_id"]
+        match_kind = current["match_kind"]
         dish = meal["dish"]
 
         if body.recipe_slug:
