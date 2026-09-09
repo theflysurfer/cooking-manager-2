@@ -715,10 +715,11 @@ async def update_pantry(body: PantryUpdate):
         after = await conn.fetchrow(
             """UPDATE pantry_item
                   SET status = $2,
+                      xstatus = $2,
                       qty_text = COALESCE($3, qty_text),
                       updated_at = NOW()
                 WHERE id = $1
-            RETURNING id, name, qty_text, status""",
+            RETURNING id, name, qty_text, status, xstatus""",
             before["id"], PANTRY_ACTION_STATUS[body.action], body.qty_text)
 
     if after is None:
@@ -729,7 +730,8 @@ async def update_pantry(body: PantryUpdate):
         "id": after["id"],
         "name": after["name"],
         "before": {"status": before["status"], "qty_text": before["qty_text"]},
-        "after": {"status": after["status"], "qty_text": after["qty_text"]},
+        "after": {"status": after["status"], "xstatus": after["xstatus"],
+                  "qty_text": after["qty_text"]},
     }
 
 class PantryItemCreate(BaseModel):
