@@ -16,6 +16,7 @@ GRAMS_PER_UNIT: dict[str, float] = {
     "l": 1000.0,
     "c.s.": 15.0,
     "c.c.": 5.0,
+    "scoop": 30.0,
 }
 
 GRAMS_PER_PIECE: dict[str, dict[str, float]] = {
@@ -26,8 +27,12 @@ GRAMS_PER_PIECE: dict[str, dict[str, float]] = {
         "patate douce": 250.0, "echalote": 30.0, "aubergine": 250.0,
         "concombre": 300.0, "chou-fleur": 600.0, "chou fleur": 600.0,
         "brocoli": 500.0, "orange": 150.0, "avocat": 170.0, "kiwi": 75.0,
+        "mangue": 200.0, "nectarine": 130.0, "abricot": 50.0, "tortilla": 40.0,
+        "salade": 300.0, "laitue": 300.0, "batavia": 300.0, "frisee": 150.0,
+        "saumon": 130.0, "cornichon": 10.0, "baguette": 250.0,
     },
     "gousse": {"ail": 5.0},
+    "tranche": {"pain": 30.0},
 }
 
 _PIECE_GRAMS_RE = re.compile(
@@ -40,7 +45,8 @@ NEGLIGIBLE: frozenset[str] = frozenset({
     "ciboulette", "thym", "romarin", "laurier", "basilic", "coriandre",
     "menthe", "aneth", "estragon", "paprika", "cumin", "curcuma", "cannelle",
     "muscade", "piment", "curry", "vinaigre", "levure", "bicarbonate",
-    "zeste", "eau",
+    "zeste", "eau", "gingembre", "origan", "vanille", "citronnelle",
+    "hanout", "stevia", "psyllium", "safran", "noix muscade", "poele",
 })
 
 UNCONVERTIBLE_REASON = "unité non convertible en grammes sans poids unitaire"
