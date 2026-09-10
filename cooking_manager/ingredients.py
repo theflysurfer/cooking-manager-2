@@ -151,6 +151,10 @@ def _singular(word: str) -> str:
     """« oignons » → « oignon ». Les invariables en -s sont une liste fermée."""
     if word in INVARIABLE_IN_S or word.isdigit() or len(word) < 4:
         return word
+    if word.endswith("eaux"):
+        return word[:-1]
+    if word.endswith("oux") and len(word) > 4:
+        return word[:-1]
     if word.endswith("ss") or not word.endswith("s"):
         return word
     return word[:-1]

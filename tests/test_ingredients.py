@@ -132,6 +132,8 @@ class TestNormalizeName:
         ("gésiers de canard confits", "gesier de canard confit"),
         ("lardons fumés", "lardon fume"),
         ("pilons de poulet", "pilon de poulet"),
+        ("poireaux", "poireau"),
+        ("choux de bruxelles", "chou de bruxelles"),
     ])
     def test_un_vrai_pluriel_se_singularise(self, name, expected):
         assert normalize_name(name) == expected

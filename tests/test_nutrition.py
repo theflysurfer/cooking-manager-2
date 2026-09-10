@@ -172,10 +172,17 @@ class TestAmbiguousForms:
         assert macros is not None
         assert macros.kcal == 116.0 and why == ""
 
-    def test_an_unnamed_form_is_refused_not_guessed(self):
+    def test_an_unnamed_form_defaults_to_raw(self):
+        """ADR 0019 : forme non nommée → cru (une recette pèse l'ingrédient cru)."""
         macros, why = self.LENTILLES.macros_for("200 g de lentilles")
-        assert macros is None
-        assert "ambigu" in why
+        assert macros is not None
+        assert macros.kcal == 339.0 and why == ""
+
+    def test_a_form_without_raw_stays_ambiguous(self):
+        """Sans forme crue au tableau, on ne devine pas : deux cuissons, aucun défaut."""
+        entry = _multiform("poulet", grille=200.0, roti=250.0)
+        macros, why = entry.macros_for("200 g de poulet")
+        assert macros is None and "ambigu" in why
 
     def test_a_single_form_needs_no_disambiguation(self):
         macros, why = _entry("courgette", 17, 2).macros_for("300 g de courgette")
@@ -194,6 +201,20 @@ class TestMatchEntry:
     def test_longest_prefix_wins(self):
         found = match_entry("chevre tres sec", self.BASE)
         assert found is not None and found.key == "chevre"
+
+    def test_variety_words_find_the_generic_by_token_subset(self):
+        """« riz basmati complet » trouve « riz complet » (clé ⊆ ingrédient)."""
+        base = {"riz complet": _entry("riz complet", 350, 8),
+                "riz": _entry("riz", 130, 3)}
+        found = match_entry("riz basmati complet", base)
+        assert found is not None and found.key == "riz complet"
+
+    def test_a_state_key_never_matches_a_bare_ingredient(self):
+        """« patate douce cuite » (clé) ne s'applique pas à « patate douce » pesée crue."""
+        base = {"patate douce cuite": _entry("patate douce cuite", 90, 2)}
+        assert match_entry("patate douce", base) is None
+        found = match_entry("patate douce cuite", base)
+        assert found is not None and found.key == "patate douce cuite"
 
     def test_no_fuzzy_match(self):
         """« crème de coco » ne doit PAS rencontrer « crème fraîche » : un faux"""
@@ -217,11 +238,32 @@ class TestRecipeMacros:
         assert m.protein == 6.0
 
     def test_unconvertible_unit_lands_in_unresolved_with_a_reason(self):
-        ings = [_ing("4 carottes", "carottes", 4, "pièce")]
+        """Une pièce sans poids connu ni parenthèse reste non convertible."""
+        ings = [_ing("2 machins", "machin", 2, "pièce")]
         m = recipe_macros(ings, self.BASE)
         assert m.kcal == 0.0
         assert len(m.unresolved) == 1
         assert "convertible" in m.unresolved[0].reason
+
+    def test_parenthetical_grams_resolve_a_counted_unit(self):
+        """« 2 courgettes (environ 300 g) » : le poids est écrit dans la ligne."""
+        ings = [_ing("2 courgettes (environ 300 g)", "courgette", 2, "pièce")]
+        m = recipe_macros(ings, self.BASE)
+        assert m.kcal == 51.0 and len(m.resolved) == 1
+
+    def test_piece_table_resolves_a_known_vegetable(self):
+        """« 2 courgettes » sans poids : table poids/pièce (courgette ~150 g)."""
+        ings = [_ing("2 courgettes", "courgette", 2, "pièce")]
+        m = recipe_macros(ings, self.BASE)
+        assert m.kcal == 51.0 and len(m.resolved) == 1
+
+    def test_seasonings_do_not_penalise_coverage(self):
+        """Sel et poivre non optionnels ne comptent pas comme non résolus."""
+        ings = [_ing("300 g de courgette", "courgette", 300, "g"),
+                _ing("sel", "sel", None, None),
+                _ing("poivre du moulin", "poivre", None, None)]
+        m = recipe_macros(ings, self.BASE)
+        assert m.coverage == 1.0 and not m.unresolved
 
     def test_missing_food_sheet_lands_in_unresolved(self):
         ings = [_ing("200 g de brocciu", "brocciu", 200, "g")]

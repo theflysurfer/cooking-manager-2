@@ -18,6 +18,31 @@ GRAMS_PER_UNIT: dict[str, float] = {
     "c.c.": 5.0,
 }
 
+GRAMS_PER_PIECE: dict[str, dict[str, float]] = {
+    "pièce": {
+        "courgette": 150.0, "oignon": 110.0, "carotte": 70.0, "poivron": 150.0,
+        "poireau": 100.0, "citron": 100.0, "citron vert": 70.0, "banane": 120.0,
+        "oeuf": 50.0, "tomate": 120.0, "pomme": 150.0, "pomme de terre": 150.0,
+        "patate douce": 250.0, "echalote": 30.0, "aubergine": 250.0,
+        "concombre": 300.0, "chou-fleur": 600.0, "chou fleur": 600.0,
+        "brocoli": 500.0, "orange": 150.0, "avocat": 170.0, "kiwi": 75.0,
+    },
+    "gousse": {"ail": 5.0},
+}
+
+_PIECE_GRAMS_RE = re.compile(
+    r"\((?:environ\s*|env\.?\s*|~\s*|soit\s*)?(\d+(?:[.,]\d+)?)\s*(?:g|ml)\b[^)]*\)",
+    re.IGNORECASE,
+)
+
+NEGLIGIBLE: frozenset[str] = frozenset({
+    "sel", "poivre", "epice", "epices", "herbe", "herbes", "persil",
+    "ciboulette", "thym", "romarin", "laurier", "basilic", "coriandre",
+    "menthe", "aneth", "estragon", "paprika", "cumin", "curcuma", "cannelle",
+    "muscade", "piment", "curry", "vinaigre", "levure", "bicarbonate",
+    "zeste", "eau",
+})
+
 UNCONVERTIBLE_REASON = "unité non convertible en grammes sans poids unitaire"
 
 @dataclass
@@ -59,6 +84,9 @@ class FoodEntry:
             words = [w for w in label.replace("/", " ").split() if w]
             if any(w in FORM_WORDS and re.search(rf"\b{re.escape(_singular(w))}\b", name)
                    for w in words):
+                return macros, ""
+        for label, macros in self.forms.items():
+            if any(w in RAW_FORM_WORDS for w in label.replace("/", " ").split()):
                 return macros, ""
         return None, f"forme ambiguë ({' / '.join(self.forms)}) — préciser dans la recette"
 
@@ -122,6 +150,9 @@ def match_key(name: str) -> str:
 
 FORM_WORDS = ("cuit", "cuite", "cuits", "cuites", "cru", "crue", "crus", "crues",
               "sec", "secs", "seche", "sechees", "egoutte", "egouttes")
+
+RAW_FORM_WORDS = frozenset({"cru", "crue", "crus", "crues",
+                            "sec", "secs", "seche", "sechees"})
 
 def _first_number(text: str) -> float | None:
     m = _NUM_RE.search(text.replace("~", ""))
@@ -288,19 +319,29 @@ def merge_sources(*bases: dict[str, FoodEntry]) -> dict[str, FoodEntry]:
     return merged
 
 def match_entry(name_normalized: str, base: dict[str, FoodEntry]) -> FoodEntry | None:
-    """Ingrédient → fiche. Exact d'abord, puis le préfixe le plus long."""
+    """Ingrédient → fiche : exact, puis la clé la plus spécifique dont tous les mots sont dans l'ingrédient (ADR 0019)."""
     name = match_key(name_normalized)
     if not name:
         return None
     if name in base:
         return base[name]
 
+    ing_tokens = set(name.split())
     best: FoodEntry | None = None
+    best_len = 0
     for key, entry in base.items():
-        if name.startswith(key + " ") or key == name:
-            if best is None or len(key) > len(best.key):
-                best = entry
+        key_tokens = key.split()
+        if all(t in ing_tokens for t in key_tokens):
+            more_specific = len(key_tokens) > best_len
+            same_but_better = len(key_tokens) == best_len and (
+                best is None or entry.rank < best.rank)
+            if more_specific or same_but_better:
+                best, best_len = entry, len(key_tokens)
     return best
+
+def _is_negligible(name_normalized: str) -> bool:
+    """Assaisonnement (sel, poivre, herbes…) : macros ≈ 0, hors couverture."""
+    return any(tok in NEGLIGIBLE for tok in match_key(name_normalized).split())
 
 def to_grams(qty, unit: str | None) -> float | None:
     """Quantité + unité → grammes, ou None si l'unité n'est pas convertible."""
@@ -308,6 +349,25 @@ def to_grams(qty, unit: str | None) -> float | None:
         return None
     factor = GRAMS_PER_UNIT.get((unit or "").lower())
     return float(qty) * factor if factor is not None else None
+
+def grams_from_raw(raw: str) -> float | None:
+    """Poids écrit entre parenthèses de la ligne : « 2 courgettes (environ 300 g) »."""
+    m = _PIECE_GRAMS_RE.search(raw or "")
+    return float(m.group(1).replace(",", ".")) if m else None
+
+def grams_from_piece(name_normalized: str, qty, unit: str | None) -> float | None:
+    """Unité comptée × poids moyen d'une pièce, si l'aliment est dans la table."""
+    if qty is None:
+        return None
+    table = GRAMS_PER_PIECE.get((unit or "").lower())
+    if not table:
+        return None
+    name = match_key(name_normalized)
+    weight = table.get(name)
+    if weight is None:
+        weight = next((w for k, w in table.items()
+                       if all(t in name.split() for t in k.split())), None)
+    return float(qty) * weight if weight is not None else None
 
 def recipe_macros(ingredients: list, base: dict[str, FoodEntry]) -> RecipeMacros:
     """Ingrédients parsés + base aliments → macros totales et couverture."""
@@ -320,8 +380,14 @@ def recipe_macros(ingredients: list, base: dict[str, FoodEntry]) -> RecipeMacros
 
         if get("is_optional"):
             continue
+        if _is_negligible(name):
+            continue
 
         grams = to_grams(get("qty_min"), get("unit"))
+        if grams is None:
+            grams = grams_from_raw(label)
+        if grams is None:
+            grams = grams_from_piece(name, get("qty_min"), get("unit"))
         entry = match_entry(name, base)
 
         if grams is None:
