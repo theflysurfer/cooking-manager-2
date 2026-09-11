@@ -195,14 +195,16 @@ def test_toute_cle_citee_est_detectable():
 
 
 def test_le_vocabulaire_est_epingle():
-    assert VOCABULARY_VERSION == "0.6.0"
+    assert VOCABULARY_VERSION == "0.7.0"
 
 
 def test_le_bornage_dun_axe_atteint_lartefact():
     """Un `_scope` écrit dans la source ne borne rien tant qu'il n'est pas ici — refs #90."""
     scopes = load_vocabulary().get("_scope") or {}
-    assert set(scopes) == {"appreciations", "product_natures"}
+    assert {"appreciations", "product_natures", "product_qualities",
+            "cooking_tip_kinds", "substitution_outcomes", "service_contexts"} <= set(scopes)
     assert "PAS INSTRUIT" in scopes["product_natures"]["absence_means"]
+    assert "PAS INSTRUIT" in scopes["product_qualities"]["absence_means"]
 
 
 FEEDBACK_FACETS = {

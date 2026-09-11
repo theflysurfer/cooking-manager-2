@@ -1,4 +1,4 @@
-version: "0.6.0"
+version: "0.7.0"
 slug: cooking-vocabulary
 kind: cooking
 origin: >-
@@ -277,6 +277,39 @@ _scope:
       - "`mixed` recouvre deux natures : « bon mais pas terrible » et « une partie du plat oui, une autre non ». Scinder si la distinction devient décisive."
       - "`effort` est un défaut ressenti par le cuisinier, pas par la tablée — seul axe où l'avis de celui qui cuisine prime."
 
+  product_qualities:
+    applies_to: "Un produit spécifique acheté et cuisiné — rattaché à un `shopping_product` (drive/ticket) ou au référentiel `marques/`."
+    does_not_apply_to:
+      - "aliments génériques sans marque ni source identifiable — le jugement porte sur un produit concret, pas sur une catégorie"
+      - "plats cuisinés à la maison — c'est `appreciations` qui les couvre"
+    absence_means: "PAS INSTRUIT — aucun retour qualité n'a été donné sur ce produit. Ne pas combler par défaut."
+    known_tensions:
+      - "Un retour peut porter sur le canal (marché vs drive) plutôt que sur le produit lui-même. Le `channel` + `aspect` désambiguent."
+
+  cooking_tip_kinds:
+    applies_to: "Une recette cuisinée au moins une fois — le tip vient de l'expérience, pas de la lecture."
+    does_not_apply_to:
+      - "recettes jamais cuisinées — c'est de la planification, pas un retour"
+    absence_means: "PAS INSTRUIT — aucun tip n'a été donné. Ne pas combler."
+    known_tensions:
+      - "`ingredient_tweak` chevauche une substitution : l'un modifie une quantité/forme, l'autre remplace un ingrédient entier."
+
+  substitution_outcomes:
+    applies_to: "Un remplacement d'ingrédient effectivement testé à table dans une recette identifiée."
+    does_not_apply_to:
+      - "substitutions théoriques de `substitutions.py` non testées — elles sont des suggestions, pas des retours"
+    absence_means: "PAS INSTRUIT — la substitution n'a pas été évaluée."
+    known_tensions:
+      - "Un substitut `success` dans un contexte (enfants) peut être `failure` dans un autre (adultes). Le champ `who_preferred` désambigue."
+
+  service_contexts:
+    applies_to: "Un plat dont le contexte de service a été identifié par l'expérience (pas par lecture de la recette)."
+    does_not_apply_to:
+      - "plats jamais cuisinés"
+    absence_means: "PAS INSTRUIT — le plat n'a pas de contexte de service déclaré. Ne signifie pas « universel »."
+    known_tensions:
+      - "Un plat peut avoir plusieurs contextes (`batch_cooking` + `next_day`). Les valeurs ne s'excluent pas."
+
   product_natures:
     applies_to: "Tout produit du référentiel `marques/` — la question « ses macros sont-elles celles d'un aliment ? » a toujours une réponse."
     does_not_apply_to: []
@@ -361,6 +394,189 @@ product_natures:
     synonyms: ["plat cuisine", "preparation", "assaisonnement compose"]
     applicable_when: "Le nom designe un plat, une patisserie, un assaisonnement compose, un complement ou une boisson preparee."
     observed_in: ["Picard Lasagnes Legumes Grilles Mozzarella", "pesto-genovese", "Snickers hi-protein", "Patak's Sauce Tikka Masala"]
+
+# ============================================================================
+# RETOURS PRODUIT (v0.7.0) — qualité d'un produit acheté spécifique
+# ============================================================================
+# L'objet n'est PAS la recette mais le PRODUIT (rattaché via shopping_product
+# ou référentiel marques/). Le canal d'achat (drive, marché, épicerie) et
+# l'aspect jugé (goût, fraîcheur, rapport qualité/prix) sont des métadonnées,
+# pas des valeurs de la facette.
+#
+# TOUT EN PROBATION : aucun retour produit enregistré à ce jour.
+
+product_qualities:
+  - key: excellent
+    label: "Excellent"
+    status: probation
+    definition: "À racheter sans hésiter, meilleur que les alternatives connues."
+    synonyms: ["excellent", "top", "hyper bon", "parfait", "le meilleur"]
+  - key: good
+    label: "Bon"
+    status: probation
+    definition: "Satisfaisant, choix par défaut."
+    synonyms: ["bon", "bien", "correct", "ok"]
+  - key: mediocre
+    label: "Médiocre"
+    status: probation
+    definition: "Mangeable mais décevant — chercher une alternative."
+    synonyms: ["médiocre", "bof", "moyen", "pas terrible", "décevant"]
+  - key: bad
+    label: "Mauvais"
+    status: probation
+    definition: "Ne pas racheter."
+    synonyms: ["mauvais", "nul", "immangeable", "dégueulasse", "à jeter"]
+
+product_aspects:
+  - key: freshness
+    label: "Fraîcheur"
+    status: probation
+    definition: "État de fraîcheur à réception ou ouverture."
+  - key: taste
+    label: "Goût"
+    status: probation
+    definition: "Saveur du produit tel quel."
+  - key: texture
+    label: "Texture"
+    status: probation
+    definition: "Consistance, tenue, fondant."
+  - key: value
+    label: "Rapport qualité/prix"
+    status: probation
+    definition: "Ce que le produit vaut pour son prix."
+  - key: packaging
+    label: "Conditionnement"
+    status: probation
+    definition: "Praticité, quantité, conservation de l'emballage."
+  - key: general
+    label: "Général"
+    status: probation
+    definition: "Jugement global sans aspect précis."
+
+purchase_channels:
+  - key: auchan_drive
+    label: "Auchan Drive"
+    status: probation
+    definition: "Commande drive retirée en magasin Auchan."
+  - key: leclerc_drive
+    label: "Leclerc Drive"
+    status: probation
+    definition: "Commande drive retirée en magasin Leclerc."
+  - key: marche
+    label: "Marché"
+    status: probation
+    definition: "Achat sur un marché de plein vent."
+  - key: boucherie
+    label: "Boucherie"
+    status: probation
+    definition: "Achat chez un boucher."
+  - key: epicerie
+    label: "Épicerie"
+    status: probation
+    definition: "Achat en épicerie de quartier ou spécialisée."
+  - key: bio
+    label: "Magasin bio"
+    status: probation
+    definition: "Achat en magasin bio (Biocoop, Naturalia…)."
+  - key: autre
+    label: "Autre"
+    status: probation
+    definition: "Canal d'achat non listé."
+
+# ============================================================================
+# TIPS DE CUISINE (v0.7.0) — astuces apprises en cuisinant
+# ============================================================================
+# Rattaché à une recette, optionnellement à une étape.
+
+cooking_tip_kinds:
+  - key: timing
+    label: "Temps"
+    status: probation
+    definition: "Ajuster durée de cuisson, repos, marinade."
+    synonyms: ["cuire moins", "cuire plus", "laisser reposer", "5 min de moins"]
+  - key: ingredient_tweak
+    label: "Ajustement ingrédient"
+    status: probation
+    definition: "Changer quantité, forme ou ajouter un ingrédient."
+    synonyms: ["ajouter", "mettre moins de", "mettre plus de", "rajouter du citron"]
+  - key: technique
+    label: "Technique"
+    status: probation
+    definition: "Geste ou méthode à changer."
+    synonyms: ["à la poêle plutôt", "au four plutôt", "couper plus fin", "mixer"]
+  - key: equipment
+    label: "Matériel"
+    status: probation
+    definition: "Ustensile ou contenant qui change le résultat."
+    synonyms: ["cocotte", "plaque", "moule", "thermomètre"]
+
+# ============================================================================
+# SUBSTITUTIONS DÉCOUVERTES (v0.7.0) — remplacements testés à table
+# ============================================================================
+
+substitution_outcomes:
+  - key: success
+    label: "Réussi"
+    status: probation
+    definition: "Le remplacement marche, à proposer par défaut."
+    synonyms: ["les enfants ont préféré", "mieux", "ça marche bien"]
+  - key: acceptable
+    label: "Acceptable"
+    status: probation
+    definition: "Dépannage OK, pas un upgrade."
+    synonyms: ["ça passe", "en dépannage", "faute de mieux"]
+  - key: failure
+    label: "Raté"
+    status: probation
+    definition: "Ne pas reproposer."
+    synonyms: ["raté", "pas bon", "ça ne marche pas", "ne pas refaire"]
+
+# ============================================================================
+# CONTEXTES DE SERVICE (v0.7.0) — quand un plat fonctionne
+# ============================================================================
+# Enrichit replay_verdict: situational avec une donnée structurée.
+
+service_contexts:
+  - key: batch_cooking
+    label: "Batch cooking"
+    status: probation
+    definition: "Se prépare à l'avance en quantité."
+    synonyms: ["en batch", "à préparer en avance", "meal prep"]
+  - key: next_day
+    label: "Préparé la veille"
+    status: probation
+    definition: "Supporte d'être réchauffé le lendemain."
+    synonyms: ["la veille", "réchauffé", "le lendemain", "se réchauffe bien"]
+  - key: picnic
+    label: "Pique-nique"
+    status: probation
+    definition: "Se transporte et se mange froid."
+    synonyms: ["pique-nique", "à emporter", "froid", "lunch box"]
+  - key: quick_meal
+    label: "Repas rapide"
+    status: probation
+    definition: "Préparation inférieure à 20 minutes."
+    synonyms: ["rapide", "vite fait", "express", "quand on a pas le temps"]
+  - key: leftovers_base
+    label: "Base de restes"
+    status: probation
+    definition: "Se transforme bien en un autre plat le lendemain."
+    synonyms: ["base de restes", "ça se transforme", "on peut en refaire"]
+  - key: guests
+    label: "Invités"
+    status: probation
+    definition: "Assez présentable pour recevoir."
+    synonyms: ["invités", "quand on reçoit", "pour les amis"]
+  - key: kids_only
+    label: "Enfants seuls"
+    status: probation
+    definition: "Quand les adultes ne mangent pas avec."
+    synonyms: ["enfants seuls", "les soirs sans nous"]
+  - key: brunch
+    label: "Brunch"
+    status: probation
+    definition: "Format brunch du weekend."
+    synonyms: ["brunch", "dimanche matin", "grasse matinée"]
 
 issue_kinds:
   - key: seasoning

@@ -1,5 +1,5 @@
 {
-  "version": "0.6.0",
+  "version": "0.7.0",
   "slug": "cooking-vocabulary",
   "origin": "Extrait du moteur de substitutions porté de cooking-manager v1 (server/src/services/intelligentSubstitutions.ts) et mesuré en production dans cooking-manager-2 le 2026-09-02. Voir cooking-manager-2 ADR 0001.",
   "cooking_methods": [
@@ -841,6 +841,428 @@
       ]
     }
   ],
+  "product_qualities": [
+    {
+      "key": "excellent",
+      "label": "Excellent",
+      "status": "probation",
+      "definition": "À racheter sans hésiter, meilleur que les alternatives connues.",
+      "synonyms": [
+        "excellent",
+        "top",
+        "hyper bon",
+        "parfait",
+        "le meilleur"
+      ],
+      "applicable_when": "",
+      "dominates": [],
+      "observed_in": []
+    },
+    {
+      "key": "good",
+      "label": "Bon",
+      "status": "probation",
+      "definition": "Satisfaisant, choix par défaut.",
+      "synonyms": [
+        "bon",
+        "bien",
+        "correct",
+        "ok"
+      ],
+      "applicable_when": "",
+      "dominates": [],
+      "observed_in": []
+    },
+    {
+      "key": "mediocre",
+      "label": "Médiocre",
+      "status": "probation",
+      "definition": "Mangeable mais décevant — chercher une alternative.",
+      "synonyms": [
+        "médiocre",
+        "bof",
+        "moyen",
+        "pas terrible",
+        "décevant"
+      ],
+      "applicable_when": "",
+      "dominates": [],
+      "observed_in": []
+    },
+    {
+      "key": "bad",
+      "label": "Mauvais",
+      "status": "probation",
+      "definition": "Ne pas racheter.",
+      "synonyms": [
+        "mauvais",
+        "nul",
+        "immangeable",
+        "dégueulasse",
+        "à jeter"
+      ],
+      "applicable_when": "",
+      "dominates": [],
+      "observed_in": []
+    }
+  ],
+  "product_aspects": [
+    {
+      "key": "freshness",
+      "label": "Fraîcheur",
+      "status": "probation",
+      "definition": "État de fraîcheur à réception ou ouverture.",
+      "synonyms": [],
+      "applicable_when": "",
+      "dominates": [],
+      "observed_in": []
+    },
+    {
+      "key": "taste",
+      "label": "Goût",
+      "status": "probation",
+      "definition": "Saveur du produit tel quel.",
+      "synonyms": [],
+      "applicable_when": "",
+      "dominates": [],
+      "observed_in": []
+    },
+    {
+      "key": "texture",
+      "label": "Texture",
+      "status": "probation",
+      "definition": "Consistance, tenue, fondant.",
+      "synonyms": [],
+      "applicable_when": "",
+      "dominates": [],
+      "observed_in": []
+    },
+    {
+      "key": "value",
+      "label": "Rapport qualité/prix",
+      "status": "probation",
+      "definition": "Ce que le produit vaut pour son prix.",
+      "synonyms": [],
+      "applicable_when": "",
+      "dominates": [],
+      "observed_in": []
+    },
+    {
+      "key": "packaging",
+      "label": "Conditionnement",
+      "status": "probation",
+      "definition": "Praticité, quantité, conservation de l'emballage.",
+      "synonyms": [],
+      "applicable_when": "",
+      "dominates": [],
+      "observed_in": []
+    },
+    {
+      "key": "general",
+      "label": "Général",
+      "status": "probation",
+      "definition": "Jugement global sans aspect précis.",
+      "synonyms": [],
+      "applicable_when": "",
+      "dominates": [],
+      "observed_in": []
+    }
+  ],
+  "purchase_channels": [
+    {
+      "key": "auchan_drive",
+      "label": "Auchan Drive",
+      "status": "probation",
+      "definition": "Commande drive retirée en magasin Auchan.",
+      "synonyms": [],
+      "applicable_when": "",
+      "dominates": [],
+      "observed_in": []
+    },
+    {
+      "key": "leclerc_drive",
+      "label": "Leclerc Drive",
+      "status": "probation",
+      "definition": "Commande drive retirée en magasin Leclerc.",
+      "synonyms": [],
+      "applicable_when": "",
+      "dominates": [],
+      "observed_in": []
+    },
+    {
+      "key": "marche",
+      "label": "Marché",
+      "status": "probation",
+      "definition": "Achat sur un marché de plein vent.",
+      "synonyms": [],
+      "applicable_when": "",
+      "dominates": [],
+      "observed_in": []
+    },
+    {
+      "key": "boucherie",
+      "label": "Boucherie",
+      "status": "probation",
+      "definition": "Achat chez un boucher.",
+      "synonyms": [],
+      "applicable_when": "",
+      "dominates": [],
+      "observed_in": []
+    },
+    {
+      "key": "epicerie",
+      "label": "Épicerie",
+      "status": "probation",
+      "definition": "Achat en épicerie de quartier ou spécialisée.",
+      "synonyms": [],
+      "applicable_when": "",
+      "dominates": [],
+      "observed_in": []
+    },
+    {
+      "key": "bio",
+      "label": "Magasin bio",
+      "status": "probation",
+      "definition": "Achat en magasin bio (Biocoop, Naturalia…).",
+      "synonyms": [],
+      "applicable_when": "",
+      "dominates": [],
+      "observed_in": []
+    },
+    {
+      "key": "autre",
+      "label": "Autre",
+      "status": "probation",
+      "definition": "Canal d'achat non listé.",
+      "synonyms": [],
+      "applicable_when": "",
+      "dominates": [],
+      "observed_in": []
+    }
+  ],
+  "cooking_tip_kinds": [
+    {
+      "key": "timing",
+      "label": "Temps",
+      "status": "probation",
+      "definition": "Ajuster durée de cuisson, repos, marinade.",
+      "synonyms": [
+        "cuire moins",
+        "cuire plus",
+        "laisser reposer",
+        "5 min de moins"
+      ],
+      "applicable_when": "",
+      "dominates": [],
+      "observed_in": []
+    },
+    {
+      "key": "ingredient_tweak",
+      "label": "Ajustement ingrédient",
+      "status": "probation",
+      "definition": "Changer quantité, forme ou ajouter un ingrédient.",
+      "synonyms": [
+        "ajouter",
+        "mettre moins de",
+        "mettre plus de",
+        "rajouter du citron"
+      ],
+      "applicable_when": "",
+      "dominates": [],
+      "observed_in": []
+    },
+    {
+      "key": "technique",
+      "label": "Technique",
+      "status": "probation",
+      "definition": "Geste ou méthode à changer.",
+      "synonyms": [
+        "à la poêle plutôt",
+        "au four plutôt",
+        "couper plus fin",
+        "mixer"
+      ],
+      "applicable_when": "",
+      "dominates": [],
+      "observed_in": []
+    },
+    {
+      "key": "equipment",
+      "label": "Matériel",
+      "status": "probation",
+      "definition": "Ustensile ou contenant qui change le résultat.",
+      "synonyms": [
+        "cocotte",
+        "plaque",
+        "moule",
+        "thermomètre"
+      ],
+      "applicable_when": "",
+      "dominates": [],
+      "observed_in": []
+    }
+  ],
+  "substitution_outcomes": [
+    {
+      "key": "success",
+      "label": "Réussi",
+      "status": "probation",
+      "definition": "Le remplacement marche, à proposer par défaut.",
+      "synonyms": [
+        "les enfants ont préféré",
+        "mieux",
+        "ça marche bien"
+      ],
+      "applicable_when": "",
+      "dominates": [],
+      "observed_in": []
+    },
+    {
+      "key": "acceptable",
+      "label": "Acceptable",
+      "status": "probation",
+      "definition": "Dépannage OK, pas un upgrade.",
+      "synonyms": [
+        "ça passe",
+        "en dépannage",
+        "faute de mieux"
+      ],
+      "applicable_when": "",
+      "dominates": [],
+      "observed_in": []
+    },
+    {
+      "key": "failure",
+      "label": "Raté",
+      "status": "probation",
+      "definition": "Ne pas reproposer.",
+      "synonyms": [
+        "raté",
+        "pas bon",
+        "ça ne marche pas",
+        "ne pas refaire"
+      ],
+      "applicable_when": "",
+      "dominates": [],
+      "observed_in": []
+    }
+  ],
+  "service_contexts": [
+    {
+      "key": "batch_cooking",
+      "label": "Batch cooking",
+      "status": "probation",
+      "definition": "Se prépare à l'avance en quantité.",
+      "synonyms": [
+        "en batch",
+        "à préparer en avance",
+        "meal prep"
+      ],
+      "applicable_when": "",
+      "dominates": [],
+      "observed_in": []
+    },
+    {
+      "key": "next_day",
+      "label": "Préparé la veille",
+      "status": "probation",
+      "definition": "Supporte d'être réchauffé le lendemain.",
+      "synonyms": [
+        "la veille",
+        "réchauffé",
+        "le lendemain",
+        "se réchauffe bien"
+      ],
+      "applicable_when": "",
+      "dominates": [],
+      "observed_in": []
+    },
+    {
+      "key": "picnic",
+      "label": "Pique-nique",
+      "status": "probation",
+      "definition": "Se transporte et se mange froid.",
+      "synonyms": [
+        "pique-nique",
+        "à emporter",
+        "froid",
+        "lunch box"
+      ],
+      "applicable_when": "",
+      "dominates": [],
+      "observed_in": []
+    },
+    {
+      "key": "quick_meal",
+      "label": "Repas rapide",
+      "status": "probation",
+      "definition": "Préparation inférieure à 20 minutes.",
+      "synonyms": [
+        "rapide",
+        "vite fait",
+        "express",
+        "quand on a pas le temps"
+      ],
+      "applicable_when": "",
+      "dominates": [],
+      "observed_in": []
+    },
+    {
+      "key": "leftovers_base",
+      "label": "Base de restes",
+      "status": "probation",
+      "definition": "Se transforme bien en un autre plat le lendemain.",
+      "synonyms": [
+        "base de restes",
+        "ça se transforme",
+        "on peut en refaire"
+      ],
+      "applicable_when": "",
+      "dominates": [],
+      "observed_in": []
+    },
+    {
+      "key": "guests",
+      "label": "Invités",
+      "status": "probation",
+      "definition": "Assez présentable pour recevoir.",
+      "synonyms": [
+        "invités",
+        "quand on reçoit",
+        "pour les amis"
+      ],
+      "applicable_when": "",
+      "dominates": [],
+      "observed_in": []
+    },
+    {
+      "key": "kids_only",
+      "label": "Enfants seuls",
+      "status": "probation",
+      "definition": "Quand les adultes ne mangent pas avec.",
+      "synonyms": [
+        "enfants seuls",
+        "les soirs sans nous"
+      ],
+      "applicable_when": "",
+      "dominates": [],
+      "observed_in": []
+    },
+    {
+      "key": "brunch",
+      "label": "Brunch",
+      "status": "probation",
+      "definition": "Format brunch du weekend.",
+      "synonyms": [
+        "brunch",
+        "dimanche matin",
+        "grasse matinée"
+      ],
+      "applicable_when": "",
+      "dominates": [],
+      "observed_in": []
+    }
+  ],
   "_scope": {
     "appreciations": {
       "applies_to": "Un plat cuisiné à la maison et servi à une tablée identifiée.",
@@ -853,6 +1275,47 @@
       "known_tensions": [
         "`mixed` recouvre deux natures : « bon mais pas terrible » et « une partie du plat oui, une autre non ». Scinder si la distinction devient décisive.",
         "`effort` est un défaut ressenti par le cuisinier, pas par la tablée — seul axe où l'avis de celui qui cuisine prime."
+      ]
+    },
+    "product_qualities": {
+      "applies_to": "Un produit spécifique acheté et cuisiné — rattaché à un `shopping_product` (drive/ticket) ou au référentiel `marques/`.",
+      "does_not_apply_to": [
+        "aliments génériques sans marque ni source identifiable — le jugement porte sur un produit concret, pas sur une catégorie",
+        "plats cuisinés à la maison — c'est `appreciations` qui les couvre"
+      ],
+      "absence_means": "PAS INSTRUIT — aucun retour qualité n'a été donné sur ce produit. Ne pas combler par défaut.",
+      "known_tensions": [
+        "Un retour peut porter sur le canal (marché vs drive) plutôt que sur le produit lui-même. Le `channel` + `aspect` désambiguent."
+      ]
+    },
+    "cooking_tip_kinds": {
+      "applies_to": "Une recette cuisinée au moins une fois — le tip vient de l'expérience, pas de la lecture.",
+      "does_not_apply_to": [
+        "recettes jamais cuisinées — c'est de la planification, pas un retour"
+      ],
+      "absence_means": "PAS INSTRUIT — aucun tip n'a été donné. Ne pas combler.",
+      "known_tensions": [
+        "`ingredient_tweak` chevauche une substitution : l'un modifie une quantité/forme, l'autre remplace un ingrédient entier."
+      ]
+    },
+    "substitution_outcomes": {
+      "applies_to": "Un remplacement d'ingrédient effectivement testé à table dans une recette identifiée.",
+      "does_not_apply_to": [
+        "substitutions théoriques de `substitutions.py` non testées — elles sont des suggestions, pas des retours"
+      ],
+      "absence_means": "PAS INSTRUIT — la substitution n'a pas été évaluée.",
+      "known_tensions": [
+        "Un substitut `success` dans un contexte (enfants) peut être `failure` dans un autre (adultes). Le champ `who_preferred` désambigue."
+      ]
+    },
+    "service_contexts": {
+      "applies_to": "Un plat dont le contexte de service a été identifié par l'expérience (pas par lecture de la recette).",
+      "does_not_apply_to": [
+        "plats jamais cuisinés"
+      ],
+      "absence_means": "PAS INSTRUIT — le plat n'a pas de contexte de service déclaré. Ne signifie pas « universel ».",
+      "known_tensions": [
+        "Un plat peut avoir plusieurs contextes (`batch_cooking` + `next_day`). Les valeurs ne s'excluent pas."
       ]
     },
     "product_natures": {
