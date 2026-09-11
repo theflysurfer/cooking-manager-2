@@ -50,7 +50,27 @@ Actions possibles :
 8. search_recipe — chercher une recette
    {"action": "search_recipe", "query": "poulet"}
 
-9. pantry_bulk_update — inventaire du garde-manger (liste de produits)
+9. product_remark — retour qualité sur un produit acheté
+   {"action": "product_remark", "product": "saumon Auchan", "quality": "excellent", \
+"channel": "auchan_drive", "aspect": "taste", "verbatim": "hyper bon"}
+   quality : excellent | good | mediocre | bad
+   channel : auchan_drive | leclerc_drive | marche | boucherie | epicerie | bio | autre
+   aspect : freshness | taste | texture | value | packaging | general
+
+10. cooking_tip — astuce de cuisine apprise sur la recette en cours
+   {"action": "cooking_tip", "kind": "timing", "verbatim": "cuire 5 minutes de moins"}
+   kind : timing | ingredient_tweak | technique | equipment
+
+11. substitution_discovery — un remplacement d'ingrédient testé
+   {"action": "substitution_discovery", "original": "brocoli", "substitute": "haricots verts", \
+"outcome": "success", "who": "les enfants"}
+   outcome : success | acceptable | failure
+
+12. service_context — contexte où le plat fonctionne
+   {"action": "service_context", "context": "batch_cooking", "verbatim": "ça se garde bien"}
+   context : batch_cooking | next_day | picnic | quick_meal | leftovers_base | guests | kids_only | brunch
+
+13. pantry_bulk_update — inventaire du garde-manger (liste de produits)
    L'utilisateur énumère ce qu'il a / ce qu'il vient d'acheter.
    Extrais CHAQUE produit avec sa quantité et classe-le dans une section.
    Sections possibles : Frais — Légumes & Fruits, Frais — Protéines,

@@ -1733,6 +1733,200 @@ async def get_feedback_vocabulary():
         },
     }
 
+# ═══════════════════════════════════════════════════════════════════════
+# Retours utilisateur v0.7.0
+# ═══════════════════════════════════════════════════════════════════════
+
+class ProductRemarkBody(BaseModel):
+    shopping_product_id: int | None = None
+    product_ref: str | None = None
+    quality: str
+    channel: str | None = None
+    aspect: str = "general"
+    verbatim: str | None = None
+    served_on: datetime.date | None = None
+    person: str | None = None
+
+@app.post("/api/product-remarks")
+async def add_product_remark(body: ProductRemarkBody):
+    vocab = load_vocabulary()
+    valid_q = {c["key"] for c in vocab.get("product_qualities", [])}
+    if body.quality not in valid_q:
+        raise HTTPException(422, f"quality inconnue : {body.quality}, attendu {sorted(valid_q)}")
+    pool = await get_pool(DATABASE_DSN)
+    async with pool.acquire() as conn:
+        person_id = None
+        if body.person:
+            p = await conn.fetchrow("SELECT id FROM person WHERE LOWER(name) = LOWER($1)", body.person)
+            if p:
+                person_id = p["id"]
+        if body.shopping_product_id is None and body.product_ref is None and body.verbatim:
+            sp = await conn.fetchrow(
+                """SELECT id FROM shopping_product
+                   WHERE LOWER(product_name) LIKE '%' || LOWER($1) || '%'
+                   ORDER BY created_at DESC LIMIT 1""",
+                body.verbatim.split()[0] if body.verbatim else "",
+            )
+            if sp:
+                body.shopping_product_id = sp["id"]
+        row = await conn.fetchrow(
+            """INSERT INTO product_remark
+                   (shopping_product_id, product_ref, quality, channel, aspect,
+                    verbatim, served_on, person_id)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+               RETURNING id""",
+            body.shopping_product_id, body.product_ref, body.quality,
+            body.channel, body.aspect, body.verbatim, body.served_on, person_id,
+        )
+    return {"ok": True, "id": row["id"]}
+
+@app.get("/api/product-remarks")
+async def list_product_remarks(shopping_product_id: int | None = None, limit: int = 50):
+    pool = await get_pool(DATABASE_DSN)
+    async with pool.acquire() as conn:
+        if shopping_product_id:
+            rows = await conn.fetch(
+                """SELECT r.*, p.name AS person_name
+                   FROM product_remark r LEFT JOIN person p ON p.id = r.person_id
+                   WHERE r.shopping_product_id = $1
+                   ORDER BY r.created_at DESC LIMIT $2""",
+                shopping_product_id, limit,
+            )
+        else:
+            rows = await conn.fetch(
+                """SELECT r.*, p.name AS person_name
+                   FROM product_remark r LEFT JOIN person p ON p.id = r.person_id
+                   ORDER BY r.created_at DESC LIMIT $1""",
+                limit,
+            )
+    out = [dict(r) for r in rows]
+    for o in out:
+        _serialize_dates(o, ("served_on", "created_at"))
+    return {"remarks": out}
+
+
+class CookingTipBody(BaseModel):
+    kind: str
+    step_number: int | None = None
+    verbatim: str
+
+@app.post("/api/recipes/{slug}/tips")
+async def add_cooking_tip(slug: str, body: CookingTipBody):
+    vocab = load_vocabulary()
+    valid_k = {c["key"] for c in vocab.get("cooking_tip_kinds", [])}
+    if body.kind not in valid_k:
+        raise HTTPException(422, f"kind inconnu : {body.kind}, attendu {sorted(valid_k)}")
+    pool = await get_pool(DATABASE_DSN)
+    async with pool.acquire() as conn:
+        recipe_id = await _get_recipe_id(conn, slug)
+        row = await conn.fetchrow(
+            """INSERT INTO cooking_tip (recipe_id, kind, step_number, verbatim)
+               VALUES ($1, $2, $3, $4) RETURNING id""",
+            recipe_id, body.kind, body.step_number, body.verbatim,
+        )
+    return {"ok": True, "id": row["id"]}
+
+@app.get("/api/recipes/{slug}/tips")
+async def list_cooking_tips(slug: str):
+    pool = await get_pool(DATABASE_DSN)
+    async with pool.acquire() as conn:
+        recipe_id = await _get_recipe_id(conn, slug)
+        rows = await conn.fetch(
+            "SELECT * FROM cooking_tip WHERE recipe_id = $1 ORDER BY created_at DESC",
+            recipe_id,
+        )
+    out = [dict(r) for r in rows]
+    for o in out:
+        _serialize_dates(o, ("created_at",))
+    return {"tips": out}
+
+
+class SubstitutionDiscoveryBody(BaseModel):
+    original_ingredient: str
+    substitute_ingredient: str
+    outcome: str
+    who_preferred: str | None = None
+    verbatim: str | None = None
+    served_on: datetime.date | None = None
+
+@app.post("/api/recipes/{slug}/substitutions")
+async def add_substitution_discovery(slug: str, body: SubstitutionDiscoveryBody):
+    vocab = load_vocabulary()
+    valid_o = {c["key"] for c in vocab.get("substitution_outcomes", [])}
+    if body.outcome not in valid_o:
+        raise HTTPException(422, f"outcome inconnu : {body.outcome}, attendu {sorted(valid_o)}")
+    pool = await get_pool(DATABASE_DSN)
+    async with pool.acquire() as conn:
+        recipe_id = await _get_recipe_id(conn, slug)
+        row = await conn.fetchrow(
+            """INSERT INTO substitution_discovery
+                   (recipe_id, original_ingredient, substitute_ingredient,
+                    outcome, who_preferred, verbatim, served_on)
+               VALUES ($1, $2, $3, $4, $5, $6, $7)
+               ON CONFLICT (recipe_id, original_ingredient, substitute_ingredient)
+               DO UPDATE SET outcome = EXCLUDED.outcome,
+                            who_preferred = EXCLUDED.who_preferred,
+                            verbatim = EXCLUDED.verbatim,
+                            served_on = EXCLUDED.served_on
+               RETURNING id""",
+            recipe_id, body.original_ingredient, body.substitute_ingredient,
+            body.outcome, body.who_preferred, body.verbatim, body.served_on,
+        )
+    return {"ok": True, "id": row["id"]}
+
+@app.get("/api/recipes/{slug}/substitutions")
+async def list_substitution_discoveries(slug: str):
+    pool = await get_pool(DATABASE_DSN)
+    async with pool.acquire() as conn:
+        recipe_id = await _get_recipe_id(conn, slug)
+        rows = await conn.fetch(
+            "SELECT * FROM substitution_discovery WHERE recipe_id = $1 ORDER BY created_at DESC",
+            recipe_id,
+        )
+    out = [dict(r) for r in rows]
+    for o in out:
+        _serialize_dates(o, ("served_on", "created_at"))
+    return {"substitutions": out}
+
+
+class ServiceContextBody(BaseModel):
+    context: str
+    verbatim: str | None = None
+
+@app.post("/api/recipes/{slug}/service-contexts")
+async def add_service_context(slug: str, body: ServiceContextBody):
+    vocab = load_vocabulary()
+    valid_c = {c["key"] for c in vocab.get("service_contexts", [])}
+    if body.context not in valid_c:
+        raise HTTPException(422, f"context inconnu : {body.context}, attendu {sorted(valid_c)}")
+    pool = await get_pool(DATABASE_DSN)
+    async with pool.acquire() as conn:
+        recipe_id = await _get_recipe_id(conn, slug)
+        row = await conn.fetchrow(
+            """INSERT INTO service_context (recipe_id, context, verbatim)
+               VALUES ($1, $2, $3)
+               ON CONFLICT (recipe_id, context) DO UPDATE
+               SET verbatim = EXCLUDED.verbatim
+               RETURNING id""",
+            recipe_id, body.context, body.verbatim,
+        )
+    return {"ok": True, "id": row["id"]}
+
+@app.get("/api/recipes/{slug}/service-contexts")
+async def list_service_contexts(slug: str):
+    pool = await get_pool(DATABASE_DSN)
+    async with pool.acquire() as conn:
+        recipe_id = await _get_recipe_id(conn, slug)
+        rows = await conn.fetch(
+            "SELECT * FROM service_context WHERE recipe_id = $1 ORDER BY created_at DESC",
+            recipe_id,
+        )
+    out = [dict(r) for r in rows]
+    for o in out:
+        _serialize_dates(o, ("created_at",))
+    return {"contexts": out}
+
+
 class LeftoverBody(BaseModel):
     ingredient: str
     quantity: str | None = None

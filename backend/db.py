@@ -619,6 +619,59 @@ WHERE person_id IN (SELECT id FROM person WHERE role = 'child' AND circle = 'hou
 -- ultérieure d'une colonne passe par ici et non par SCHEMA_SQL.
 ALTER TABLE product ADD COLUMN IF NOT EXISTS price_seen_at DATE;
 ALTER TABLE product ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'linked';
+
+-- ═══════════════════════════════════════════════════════════════════════
+-- Retours utilisateur v0.7.0 — 4 tables, ontologie cooking-vocabulary
+-- ═══════════════════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS product_remark (
+    id                  SERIAL PRIMARY KEY,
+    shopping_product_id INTEGER REFERENCES shopping_product(id) ON DELETE SET NULL,
+    product_ref         TEXT,
+    quality             TEXT NOT NULL,
+    channel             TEXT,
+    aspect              TEXT DEFAULT 'general',
+    verbatim            TEXT,
+    served_on           DATE,
+    person_id           INTEGER REFERENCES person(id) ON DELETE SET NULL,
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_product_remark_product ON product_remark(shopping_product_id);
+
+CREATE TABLE IF NOT EXISTS cooking_tip (
+    id          SERIAL PRIMARY KEY,
+    recipe_id   INTEGER NOT NULL REFERENCES recipe(id) ON DELETE CASCADE,
+    kind        TEXT NOT NULL,
+    step_number INTEGER,
+    verbatim    TEXT NOT NULL,
+    applied     BOOLEAN DEFAULT FALSE,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_cooking_tip_recipe ON cooking_tip(recipe_id);
+
+CREATE TABLE IF NOT EXISTS substitution_discovery (
+    id                    SERIAL PRIMARY KEY,
+    recipe_id             INTEGER NOT NULL REFERENCES recipe(id) ON DELETE CASCADE,
+    original_ingredient   TEXT NOT NULL,
+    substitute_ingredient TEXT NOT NULL,
+    outcome               TEXT NOT NULL,
+    who_preferred         TEXT,
+    verbatim              TEXT,
+    served_on             DATE,
+    created_at            TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (recipe_id, original_ingredient, substitute_ingredient)
+);
+CREATE INDEX IF NOT EXISTS idx_substitution_recipe ON substitution_discovery(recipe_id);
+
+CREATE TABLE IF NOT EXISTS service_context (
+    id         SERIAL PRIMARY KEY,
+    recipe_id  INTEGER NOT NULL REFERENCES recipe(id) ON DELETE CASCADE,
+    context    TEXT NOT NULL,
+    verbatim   TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (recipe_id, context)
+);
+CREATE INDEX IF NOT EXISTS idx_service_context_recipe ON service_context(recipe_id);
 """
 
 _pool: asyncpg.Pool | None = None
