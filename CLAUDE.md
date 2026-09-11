@@ -46,12 +46,6 @@ tables recette appartiennent à **recipe-manager** (8796), CM2 est colocataire.
 `Convives.md` · `Garde-manger.md`. Le bloc `meals:` du frontmatter fait foi, les tableaux du
 corps ne sont pas lus. Slots, restes, délai du mount : `julien-cooking-donnees` § 1.
 
-⚠️ **Recettes : dual-writer en cours de bascule (ADR 0020).** Un chemin d'écriture DB-natif
-existe (`POST/PUT/DELETE /api/recipes`, MCP `recipe_upsert`/`menu_upsert`) — mais le vault
-reste la SOURCE. Une écriture DB sur un slug qui **a une fiche `.md`** est **écrasée au prochain
-ingest** ; ne s'y fier que pour un slug sans fiche vault, sinon éditer le `.md`. Bascule à finir
-(voie b) : recipe-manager + gel du vault, Phase 2.
-
 | Piège | Geste |
 |---|---|
 | Nouvelle colonne dans un `CREATE TABLE` | L'ajouter **aussi** à `MIGRATIONS_SQL` — le VPS a déjà les tables. Un **index** sur cette colonne ne vit QUE dans la migration : `SCHEMA_SQL` s'exécute avant |
@@ -61,7 +55,8 @@ ingest** ; ne s'y fier que pour un slug sans fiche vault, sinon éditer le `.md`
 ⛔ **Jamais de `DELETE FROM menu` ni `menu_meal`** : l'ingestion upsert, un DELETE global
 efface les menus créés par l'API et la colonne `served`. ⛔ **Jamais départager deux fiches
 au `mtime`** — sur le mount rclone il date la copie ; `read_recipes()` tranche sur la date
-déclarée. Écrire un menu de bout en bout : `julien-cooking-manager-weekly-prep` § 4 à 6.
+déclarée. Menu de bout en bout : `weekly-prep` § 4-6. ⛔ **Recette écrite via l'API sur un slug
+ayant une fiche `.md` = écrasée au prochain ingest** (dual-writer en cours de bascule, ADR 0020).
 
 ## Qui est à table
 
@@ -202,5 +197,4 @@ un seul accent, ni rayon ni ombre. Détail : `2026.08 Product Toolkit/research/`
 
 `cooking_mcp.py` importe `from fastmcp import FastMCP` (pas `mcp.server.fastmcp`) : seul
 `fastmcp` v3.4+ expose `host`/`port`/`allowed_hosts` dans `run()`. Derrière nginx avec
-`Host $host`, passer `allowed_hosts=[<domaine>]`, sinon Starlette rend 421. Un venv
-reconstruit à neuf est le test de vérité des dépendances de `pyproject.toml`.
+`Host $host`, passer `allowed_hosts=[<domaine>]`, sinon Starlette rend 421.

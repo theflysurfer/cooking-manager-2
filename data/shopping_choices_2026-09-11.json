@@ -1,0 +1,48 @@
+{
+  "date": "2026-09-11",
+  "store": "Auchan Drive Aubagne-En-Provence",
+  "cart_id": "048614af-116d-414c-88f2-a27f05382446",
+  "window": "ven 11 -> lun 14 sept",
+  "total_eur": 76.56,
+  "item_count": 27,
+  "covers": 4,
+  "verified_in_browser": true,
+  "items": [
+    {"requested": "brocoli x2", "product": "Brocolis en fleurettes 900g (AUCHAN)", "auchan_id": "C1456707", "qty": 2, "note": "pas de tete entiere au drive, sachet fleurettes"},
+    {"requested": "carottes x9", "product": "Carottes france 1,5kg (AUCHAN)", "auchan_id": "C1521014", "qty": 1},
+    {"requested": "courgettes x10", "product": "Courgettes prix bas france 1kg", "auchan_id": "C1350169", "qty": 2},
+    {"requested": "poireaux x2", "product": "Poireaux bio france 750g", "auchan_id": "C1349926", "qty": 1},
+    {"requested": "chou-fleur x1", "product": "Chou-fleur france 1 piece", "auchan_id": "C1349028", "qty": 1},
+    {"requested": "asperges vertes", "product": "Asperges vertes 600g (AUCHAN)", "auchan_id": "C1457546", "qty": 1},
+    {"requested": "poivrons rouge+jaune x4", "product": "Poivrons panaches espagne 500g", "auchan_id": "C1349698", "qty": 1, "note": "pas de poivron jaune seul; panaches = melange couleurs"},
+    {"requested": "poivrons rouge+jaune x4", "product": "Poivron rouge espagne 1 piece", "auchan_id": "C1350674", "qty": 1, "note": "complement pour atteindre ~4 poivrons"},
+    {"requested": "tomates cerises 450g", "product": "Tomates cerises rouges 250g", "auchan_id": "C1348834", "qty": 2, "note": "pas de 450g exact, 2x250g = 500g"},
+    {"requested": "concombre x1", "product": "Concombre france 1 piece", "auchan_id": "C1350470", "qty": 1},
+    {"requested": "oignon rouge x1", "product": "Oignons rouges france 500g (filet)", "auchan_id": "C1350876", "qty": 1, "note": "vendu seulement en filet 500g"},
+    {"requested": "echalotes", "product": "Echalotes demi-longues 250g", "auchan_id": "C1349071", "qty": 1},
+    {"requested": "ail", "product": "Ail filet 3 tetes france", "auchan_id": "C1350809", "qty": 1, "note": "article test de la boucle de feedback chrome-relay"},
+    {"requested": "oignons blancs", "product": "Oignons blancs france 1 botte", "auchan_id": "C1349317", "qty": 1},
+    {"requested": "citron jaune x5", "product": "Citrons jaunes afrique du sud 500g", "auchan_id": "C1350760", "qty": 1},
+    {"requested": "salade batavia x1", "product": "Salade batavia france 1 piece", "auchan_id": "C1348409", "qty": 1},
+    {"requested": "melange frisee/mache/chicoree x1", "product": "Melange gourmand frisee mache chicoree rouge 200g (AUCHAN)", "auchan_id": "C1195836", "qty": 1},
+    {"requested": "persil x1", "product": "Persil frise france 1 botte", "auchan_id": "C1350103", "qty": 1},
+    {"requested": "nectarine x1", "product": "Nectarine jaune france 1 piece", "auchan_id": "C1352363", "qty": 1},
+    {"requested": "bananes x2 mures", "product": "Bananes Prix Bas 5 pieces", "auchan_id": "C1774822", "qty": 1, "note": "vendues par 5, maturite non garantie au drive"},
+    {"requested": "myrtilles 400g", "product": "Myrtilles fruits entiers 450g (AUCHAN)", "auchan_id": "C1177619", "qty": 1},
+    {"requested": "roquette (Julien seul)", "product": "Roquette 125g (AUCHAN)", "auchan_id": "C1198898", "qty": 1, "note": "remplace mache-roquette familiale; profil MAJ: roquette -> dislike Clemence/Titouan/Lea"},
+    {"requested": "mozzarella rapee x1", "product": "Mozzarella rapee 150g (GALBANI)", "auchan_id": "C1198911", "qty": 1},
+    {"requested": "thon en boite", "product": "Thon listao au naturel 3x112g (AUCHAN CULTIVONS LE BON)", "auchan_id": "C1610278", "qty": 1},
+    {"requested": "oeufs", "product": "Oeufs plein air 12 (LA NOUVELLE AGRICULTURE)", "auchan_id": "C1168584", "qty": 1, "note": "Auchan 12 en rupture"},
+    {"requested": "Harpic WC", "product": "Gel WC javel ultra blancheur 750ml (HARPIC)", "auchan_id": "C1782342", "qty": 1},
+    {"requested": "coriandre", "product": "Coriandre espagne 1 botte 100g", "auchan_id": "C1489781", "qty": 1, "note": "trouvee apres correction du bug de recherche (requete 'coriandre' nue, pas 'coriandre fraiche')"}
+  ],
+  "not_bought_ruptures": [
+    {"item": "mache-roquette x2", "reason": "melange mache+roquette reellement en rupture (bientot dispo, confirme navigateur); roquette pure prise a la place pour Julien seul"}
+  ],
+  "complement_primeur": ["mache-roquette si voulue en plus"],
+  "search_root_cause": "Recherche Auchan litterale sur le titre, pas semantique. Un qualificatif (fraiche/frais, format 1kg, couleur absente du titre) filtre OUT le produit frais dont le titre est le nom nu -> faux 'rupture'. Regle: requete = nom nu. Rates session: 'coriandre fraiche', 'brocoli frais', 'carottes 1kg', 'poivron jaune'.",
+  "profile_updates": [
+    {"table": "person", "ids": [3, 4, 9], "names": ["Clemence", "Titouan", "Lea"], "change": "dislikes += roquette", "reason": "personne n'aime la roquette au foyer sauf Julien"}
+  ],
+  "next": "panier pret; checkout (creneau + paiement 3DS) reste humain; reporter les achats au garde-manger UNE FOIS la commande validee"
+}
