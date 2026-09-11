@@ -67,6 +67,87 @@ var SLOTS = [
   { key: 'dinner',    label: 'Dîner' }
 ];
 
+var SLOT_HOURS = [
+  { key: 'breakfast', after: 0,  label: 'Petit-déj' },
+  { key: 'lunch',     after: 10, label: 'Déjeuner' },
+  { key: 'snack',     after: 14, label: 'Goûter' },
+  { key: 'dinner',    after: 17, label: 'Dîner' }
+];
+
+function findNextMeal(meals, nowOverride) {
+  if (!meals || !meals.length) return null;
+  var now = nowOverride || new Date();
+  var m2 = String(now.getMonth() + 1);
+  var d2 = String(now.getDate());
+  if (m2.length < 2) m2 = '0' + m2;
+  if (d2.length < 2) d2 = '0' + d2;
+  var today = now.getFullYear() + '-' + m2 + '-' + d2;
+  var hour = now.getHours();
+
+  var currentSlotIdx = 0;
+  for (var s = SLOT_HOURS.length - 1; s >= 0; s--) {
+    if (hour >= SLOT_HOURS[s].after) { currentSlotIdx = s; break; }
+  }
+
+  for (var i = 0; i < meals.length; i++) {
+    var m = meals[i];
+    if (m.date < today) continue;
+    var isToday = m.date === today;
+    var startSlot = isToday ? currentSlotIdx : 0;
+    for (var si = startSlot; si < SLOT_HOURS.length; si++) {
+      var sk = SLOT_HOURS[si].key;
+      if (m[sk] && m[sk + '_served'] !== true && m[sk + '_served'] !== false) {
+        return {
+          day: m.day, date: m.date,
+          slot: SLOT_HOURS[si].label, slotKey: sk,
+          dish: m[sk], slug: m[sk + '_slug'],
+          photo: m[sk + '_photo'],
+          isLeftovers: m[sk + '_leftovers'],
+          isToday: isToday
+        };
+      }
+    }
+  }
+  return null;
+}
+
+function renderNextMeal(next) {
+  if (!next) return '';
+  var tag = next.slug ? 'a' : 'div';
+  var link = next.slug
+    ? ' href="#/recette/' + encodeURIComponent(next.slug) + '"'
+    : '';
+  var ariaLabel = next.slug
+    ? ' aria-label="Voir la recette : ' + esc(next.dish) + '"'
+    : '';
+  var when = next.isToday
+    ? next.slot + ' — aujourd\'hui'
+    : next.slot + ' — ' + next.day;
+
+  var media;
+  if (next.photo) {
+    media = '<div class="next-meal__media">' +
+      '<img class="next-meal__photo" src="' + esc(next.photo) + '" alt="">' +
+      '<div class="next-meal__overlay"></div>' +
+    '</div>';
+  } else {
+    var initial = (next.dish || '?').charAt(0).toUpperCase();
+    media = '<div class="next-meal__media next-meal__media--empty">' +
+      '<span class="next-meal__initial">' + esc(initial) + '</span>' +
+    '</div>';
+  }
+
+  return '<' + tag + ' class="next-meal"' + link + ariaLabel + '>' +
+    media +
+    '<div class="next-meal__info">' +
+      '<span class="next-meal__when">' + esc(when) + '</span>' +
+      '<span class="next-meal__dish">' + esc(next.dish) + '</span>' +
+      (next.isLeftovers ? '<span class="next-meal__tag">restes</span>' : '') +
+    '</div>' +
+    (next.slug ? '<span class="next-meal__arrow">\u203A</span>' : '') +
+  '</' + tag + '>';
+}
+
 function todayISO() {
   var d = new Date();
   var m = String(d.getMonth() + 1);
@@ -278,6 +359,9 @@ async function viewMenu() {
     html += '<div class="banner">' + conflicts + ' conflit' + (conflicts > 1 ? 's' : '') +
       ' alimentaire' + (conflicts > 1 ? 's' : '') + ' sur la semaine — voir les repas signalés.</div>';
   }
+
+  var nextMeal = findNextMeal(menu.meals || []);
+  html += renderNextMeal(nextMeal);
 
   html += '<div class="week">';
   (menu.meals || []).forEach(function (m, mi) { html += renderDay(m, idx, today, mi); });

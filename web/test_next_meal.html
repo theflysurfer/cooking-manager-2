@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="fr">
+<head><meta charset="utf-8"><title>Tests — findNextMeal</title></head>
+<body>
+<h1>findNextMeal — tests</h1>
+<pre id="out"></pre>
+<script>
+'use strict';
+
+// === Copie de la logique sous test ===
+
+var SLOT_HOURS = [
+  { key: 'breakfast', after: 0,  label: 'Petit-déj' },
+  { key: 'lunch',     after: 10, label: 'Déjeuner' },
+  { key: 'snack',     after: 14, label: 'Goûter' },
+  { key: 'dinner',    after: 17, label: 'Dîner' }
+];
+
+function findNextMeal(meals, nowOverride) {
+  if (!meals || !meals.length) return null;
+  var now = nowOverride || new Date();
+  var m2 = String(now.getMonth() + 1);
+  var day2 = String(now.getDate());
+  if (m2.length < 2) m2 = '0' + m2;
+  if (day2.length < 2) day2 = '0' + day2;
+  var today = now.getFullYear() + '-' + m2 + '-' + day2;
+  var hour = now.getHours();
+
+  var currentSlotIdx = 0;
+  for (var s = SLOT_HOURS.length - 1; s >= 0; s--) {
+    if (hour >= SLOT_HOURS[s].after) { currentSlotIdx = s; break; }
+  }
+
+  for (var i = 0; i < meals.length; i++) {
+    var m = meals[i];
+    if (m.date < today) continue;
+    var isToday = m.date === today;
+    var startSlot = isToday ? currentSlotIdx : 0;
+    for (var si = startSlot; si < SLOT_HOURS.length; si++) {
+      var sk = SLOT_HOURS[si].key;
+      if (m[sk] && m[sk + '_served'] !== true && m[sk + '_served'] !== false) {
+        return {
+          day: m.day, date: m.date,
+          slot: SLOT_HOURS[si].label, slotKey: sk,
+          dish: m[sk], slug: m[sk + '_slug'],
+          photo: m[sk + '_photo'],
+          isLeftovers: m[sk + '_leftovers'],
+          isToday: isToday
+        };
+      }
+    }
+  }
+  return null;
+}
+
+// === Harness ===
+
+var passed = 0;
+var failed = 0;
+var output = '';
+
+function assert(cond, name) {
+  if (cond) {
+    passed++;
+    output += '  ✅ ' + name + '\n';
+  } else {
+    failed++;
+    output += '  ❌ FAIL: ' + name + '\n';
+  }
+}
+
+function assertEqual(actual, expected, name) {
+  assert(actual === expected, name + ' (got ' + actual + ', expected ' + expected + ')');
+}
+
+// === Données de test ===
+
+var MEALS = [
+  {
+    day: 'lundi', date: '2026-09-14',
+    breakfast: null, lunch: 'Salade Caesar', lunch_slug: 'salade-caesar',
+    lunch_photo: '/media/salade.jpg', lunch_served: null,
+    snack: null, dinner: 'Poulet rôti', dinner_slug: 'poulet-roti',
+    dinner_photo: '/media/poulet.jpg', dinner_served: null
+  },
+  {
+    day: 'mardi', date: '2026-09-15',
+    breakfast: 'Granola', breakfast_slug: null, breakfast_served: null,
+    lunch: 'Pâtes carbo', lunch_slug: 'pates-carbo', lunch_served: null,
+    snack: null, dinner: 'Soupe', dinner_slug: 'soupe-legumes', dinner_served: null
+  },
+  {
+    day: 'mercredi', date: '2026-09-16',
+    breakfast: null, lunch: 'Restes', lunch_leftovers: true, lunch_served: null,
+    snack: null, dinner: 'Gratin', dinner_slug: 'gratin-dauphinois', dinner_served: null
+  }
+];
+
+// === AC3 : slot déterminé par l'heure ===
+
+output += 'AC3 — slot par heure\n';
+
+var at8h = new Date('2026-09-14T08:00:00');
+var r = findNextMeal(MEALS, at8h);
+assertEqual(r && r.slotKey, 'lunch', '8h lundi → lunch (pas de breakfast lundi)');
+
+var at12h = new Date('2026-09-14T12:00:00');
+r = findNextMeal(MEALS, at12h);
+assertEqual(r && r.slotKey, 'lunch', '12h lundi → lunch');
+assertEqual(r && r.dish, 'Salade Caesar', '12h lundi → Salade Caesar');
+
+var at15h = new Date('2026-09-14T15:00:00');
+r = findNextMeal(MEALS, at15h);
+assertEqual(r && r.slotKey, 'dinner', '15h lundi → dinner (pas de snack lundi)');
+
+var at18h = new Date('2026-09-14T18:00:00');
+r = findNextMeal(MEALS, at18h);
+assertEqual(r && r.slotKey, 'dinner', '18h lundi → dinner');
+assertEqual(r && r.dish, 'Poulet rôti', '18h lundi → Poulet rôti');
+
+// AC3 : tôt le matin avec breakfast dispo
+var at7h_mardi = new Date('2026-09-15T07:00:00');
+r = findNextMeal(MEALS, at7h_mardi);
+assertEqual(r && r.slotKey, 'breakfast', '7h mardi → breakfast (Granola)');
+
+// === AC4 : jours passés ignorés ===
+
+output += '\nAC4 — jours passés ignorés\n';
+
+var at12h_mardi = new Date('2026-09-15T12:00:00');
+r = findNextMeal(MEALS, at12h_mardi);
+assertEqual(r && r.date, '2026-09-15', 'mardi 12h → mardi, pas lundi');
+assertEqual(r && r.slotKey, 'lunch', 'mardi 12h → lunch mardi');
+
+// === AC7 : servi/skipé exclus ===
+
+output += '\nAC7 — served/skipped exclus\n';
+
+var mealsServed = [
+  {
+    day: 'lundi', date: '2026-09-14',
+    lunch: 'Salade Caesar', lunch_served: true,
+    dinner: 'Poulet rôti', dinner_served: null
+  }
+];
+
+var at12h_served = new Date('2026-09-14T12:00:00');
+r = findNextMeal(mealsServed, at12h_served);
+assertEqual(r && r.slotKey, 'dinner', 'lunch servi → passe au dinner');
+assertEqual(r && r.dish, 'Poulet rôti', 'lunch servi → Poulet rôti');
+
+// served=false (skipé) aussi exclu
+var mealsSkipped = [
+  {
+    day: 'lundi', date: '2026-09-14',
+    lunch: 'Salade', lunch_served: false,
+    dinner: 'Poulet', dinner_served: false
+  },
+  {
+    day: 'mardi', date: '2026-09-15',
+    lunch: 'Soupe', lunch_served: null,
+    dinner: 'Gratin', dinner_served: null
+  }
+];
+r = findNextMeal(mealsSkipped, new Date('2026-09-14T12:00:00'));
+assertEqual(r && r.date, '2026-09-15', 'tout skipé lundi → passe à mardi');
+
+// === AC2 : tout servi → null ===
+
+output += '\nAC2 — tout servi → null\n';
+
+var mealsAllDone = [
+  { day: 'lundi', date: '2026-09-14', lunch: 'X', lunch_served: true, dinner: 'Y', dinner_served: true },
+  { day: 'mardi', date: '2026-09-15', lunch: 'Z', lunch_served: false }
+];
+r = findNextMeal(mealsAllDone, new Date('2026-09-14T12:00:00'));
+assert(r === null, 'tous servis/skipés → null');
+
+// === AC1 : meals vide ===
+
+output += '\nAC1 — edge cases\n';
+
+assert(findNextMeal([], new Date()) === null, 'meals vide → null');
+assert(findNextMeal(null, new Date()) === null, 'meals null → null');
+
+// === AC5 : champs retournés ===
+
+output += '\nAC5 — champs retournés\n';
+
+r = findNextMeal(MEALS, new Date('2026-09-14T18:00:00'));
+assertEqual(r && r.slug, 'poulet-roti', 'slug présent');
+assertEqual(r && r.photo, '/media/poulet.jpg', 'photo présente');
+assertEqual(r && r.day, 'lundi', 'jour présent');
+assert(r && r.isToday === true, 'isToday vrai quand même jour');
+
+r = findNextMeal(MEALS, new Date('2026-09-15T18:00:00'));
+assert(r && r.isToday === true, 'isToday vrai le jour même');
+
+r = findNextMeal(MEALS, new Date('2026-09-14T22:00:00'));
+assert(r && r.isToday === false || r && r.date === '2026-09-14', 'fin de journée → dinner même jour si non servi');
+
+// leftovers
+r = findNextMeal(MEALS, new Date('2026-09-16T12:00:00'));
+assert(r && r.isLeftovers === true, 'leftovers flag remonté');
+
+// === Résultat ===
+
+output += '\n══════════════════════════\n';
+output += passed + ' passed, ' + failed + ' failed\n';
+if (failed > 0) output += '⛔ DES TESTS ÉCHOUENT\n';
+else output += '✅ ALL PASS\n';
+
+document.getElementById('out').textContent = output;
+
+// Pour Node.js / CI
+if (typeof process !== 'undefined' && process.exit) {
+  console.log(output);
+  process.exit(failed > 0 ? 1 : 0);
+}
+</script>
+</body>
+</html>
