@@ -46,6 +46,12 @@ tables recette appartiennent à **recipe-manager** (8796), CM2 est colocataire.
 `Convives.md` · `Garde-manger.md`. Le bloc `meals:` du frontmatter fait foi, les tableaux du
 corps ne sont pas lus. Slots, restes, délai du mount : `julien-cooking-donnees` § 1.
 
+⚠️ **Recettes : dual-writer en cours de bascule (ADR 0020).** Un chemin d'écriture DB-natif
+existe (`POST/PUT/DELETE /api/recipes`, MCP `recipe_upsert`/`menu_upsert`) — mais le vault
+reste la SOURCE. Une écriture DB sur un slug qui **a une fiche `.md`** est **écrasée au prochain
+ingest** ; ne s'y fier que pour un slug sans fiche vault, sinon éditer le `.md`. Bascule à finir
+(voie b) : recipe-manager + gel du vault, Phase 2.
+
 | Piège | Geste |
 |---|---|
 | Nouvelle colonne dans un `CREATE TABLE` | L'ajouter **aussi** à `MIGRATIONS_SQL` — le VPS a déjà les tables. Un **index** sur cette colonne ne vit QUE dans la migration : `SCHEMA_SQL` s'exécute avant |
