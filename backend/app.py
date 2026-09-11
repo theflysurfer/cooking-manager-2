@@ -26,7 +26,7 @@ from cooking_manager.substitutions import VOCABULARY_VERSION, load_vocabulary
 
 from .config import DATABASE_DSN, VAULT_ROOT
 from .db import get_pool, init_schema, close_pool
-from .ingest import ingest
+from .ingest import ingest, write_recipe, _link_meals
 
 async def _get_recipe_id(conn, slug: str) -> int:
     row = await conn.fetchrow("SELECT id FROM recipe WHERE slug = $1", slug)
@@ -234,8 +234,10 @@ async def create_menu(menu: MenuCreate):
             json.dumps(menu.meals) if menu.meals else None,
             menu.body,
         )
+        linked, orphan = await _link_meals(conn)
     return {"id": row["id"], "slug": row["slug"], "title": row["title"],
-            "created": row["inserted"]}
+            "created": row["inserted"],
+            "meals_linked": linked, "meals_orphan": orphan}
 
 FOOD_BASE_ROOT = Path(os.environ.get(
     "FOOD_BASE_ROOT",
@@ -279,6 +281,60 @@ async def food_report():
         [dict(r) for r in rows],
         {r["store_ref"]: r["nature"] for r in natures},
     )
+
+class RecipeWrite(BaseModel):
+    model_config = ConfigDict(extra="allow")
+    title: str
+    slug: str | None = None
+    body: str = ""
+
+async def _persist_recipe(payload: dict, slug_override: str | None) -> dict:
+    from cooking_manager.normalizer import normalize_recipe, slugify
+
+    raw = dict(payload)
+    raw["_body"] = raw.pop("body", "") or ""
+    if slug_override:
+        raw["slug"] = slug_override
+    if not raw.get("slug"):
+        raw["slug"] = slugify(raw.get("title", ""))
+    normalized, warns = normalize_recipe(raw)
+    pool = await get_pool(DATABASE_DSN)
+    async with pool.acquire() as conn:
+        w, pi, ur, ps = await write_recipe(conn, normalized)
+    return {
+        "slug": normalized.get("slug"),
+        "warnings": warns + w,
+        "ingredients_parsed": pi,
+        "ingredients_raw_only": ur,
+        "steps_parsed": ps,
+    }
+
+@app.post("/api/recipes", status_code=201)
+async def create_recipe(body: RecipeWrite):
+    """Créer une recette en base (source de vérité, ADR 0010 voie b).
+
+    body = markdown avec « ## Ingrédients » et « ## Étapes » ; les autres champs
+    (family, servings, tags, macros, status, sources, photo_url…) sont acceptés
+    tels quels puis normalisés."""
+    return await _persist_recipe(body.model_dump(), None)
+
+@app.put("/api/recipes/{slug}")
+async def update_recipe(slug: str, body: RecipeWrite):
+    """Remplacer une recette (upsert par slug). Re-parse ingrédients et étapes."""
+    return await _persist_recipe(body.model_dump(), slug)
+
+@app.delete("/api/recipes/{slug}")
+async def delete_recipe(slug: str):
+    pool = await get_pool(DATABASE_DSN)
+    async with pool.acquire() as conn:
+        rid = await conn.fetchval("SELECT id FROM recipe WHERE slug = $1", slug)
+        if rid is None:
+            raise HTTPException(404, f"Recette introuvable : {slug}")
+        await conn.execute("DELETE FROM recipe_ingredient WHERE recipe_id = $1", rid)
+        await conn.execute("DELETE FROM recipe_step WHERE recipe_id = $1", rid)
+        await conn.execute("UPDATE menu_meal SET recipe_id = NULL WHERE recipe_id = $1", rid)
+        await conn.execute("DELETE FROM recipe WHERE id = $1", rid)
+    return {"deleted": slug}
 
 @app.get("/api/recipes/{slug}/macros")
 async def recipe_macros_endpoint(slug: str):

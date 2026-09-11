@@ -164,6 +164,66 @@ def _menu_row(m: dict) -> tuple:
         _parse_date(m.get("updated")),
     )
 
+async def write_recipe(conn, r: dict) -> tuple[list[str], int, int, int]:
+    """Upsert one normalized recipe dict and (re)parse its body into ingredients/steps.
+
+    Reusable core shared by vault ingestion and the DB-native write API (ADR 0010,
+    voie b). Returns (warnings, ingredients_parsed, ingredients_raw_only, steps_parsed).
+    """
+    warnings: list[str] = []
+    if not r.get("photo_url"):
+        slug = r.get("slug", "")
+        media_dir = Path(__file__).resolve().parent.parent / "web" / "media" / "recipes"
+        if slug and (media_dir / f"{slug}.jpg").is_file():
+            r["photo_url"] = f"/media/recipes/{slug}.jpg"
+
+    await conn.execute(UPSERT_RECIPE, *_recipe_row(r))
+
+    content = parse_recipe_body(r.get("_body", ""))
+    recipe_id = await conn.fetchval(
+        "SELECT id FROM recipe WHERE slug = $1", r.get("slug", "")
+    )
+    if recipe_id is None:
+        return warnings, 0, 0, 0
+
+    await conn.execute("DELETE FROM recipe_ingredient WHERE recipe_id = $1", recipe_id)
+    for ing in content.ingredients:
+        await conn.execute(
+            """INSERT INTO recipe_ingredient
+               (recipe_id, position, raw, qty_min, qty_max, unit, name,
+                name_normalized, is_optional, parsed)
+               VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)""",
+            recipe_id, ing.position, ing.raw, ing.qty_min, ing.qty_max,
+            ing.unit, ing.name, ing.name_normalized, ing.is_optional, ing.parsed,
+        )
+
+    await conn.execute("DELETE FROM recipe_step WHERE recipe_id = $1", recipe_id)
+    for step in content.steps:
+        await conn.execute(
+            "INSERT INTO recipe_step (recipe_id, position, text) VALUES ($1,$2,$3)",
+            recipe_id, step.position, step.text,
+        )
+
+    parsed = sum(1 for i in content.ingredients if i.parsed)
+    raw_only = sum(1 for i in content.ingredients if not i.parsed)
+    if not content.ingredients:
+        warnings.append(
+            f"{r.get('slug')}: AUCUN ingrédient parsé — la section "
+            "« ## Ingrédients » est absente, vide ou d'un format inattendu"
+        )
+    elif content.parse_rate < 0.5:
+        warnings.append(
+            f"{r.get('slug')}: seulement {content.parse_rate:.0%} des ingrédients "
+            "structurés — vérifier le format de la section"
+        )
+    return warnings, parsed, raw_only, len(content.steps)
+
+
+async def write_menu(conn, m: dict) -> None:
+    """Upsert one normalized menu dict. Caller runs _link_meals afterwards."""
+    await conn.execute(UPSERT_MENU, *_menu_row(m))
+
+
 async def ingest(vault_root: Path, dsn: str) -> dict:
     await init_schema(dsn)
     pool = await get_pool(dsn)
@@ -214,52 +274,17 @@ async def ingest(vault_root: Path, dsn: str) -> dict:
 
     async with pool.acquire() as conn:
         for r in recipes:
-            await conn.execute(UPSERT_RECIPE, *_recipe_row(r))
-
-            content = parse_recipe_body(r.get("_body", ""))
-            recipe_id = await conn.fetchval(
-                "SELECT id FROM recipe WHERE slug = $1", r.get("slug", "")
-            )
-            if recipe_id is None:
-                continue
-
-            await conn.execute("DELETE FROM recipe_ingredient WHERE recipe_id = $1", recipe_id)
-            for ing in content.ingredients:
-                await conn.execute(
-                    """INSERT INTO recipe_ingredient
-                       (recipe_id, position, raw, qty_min, qty_max, unit, name,
-                        name_normalized, is_optional, parsed)
-                       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)""",
-                    recipe_id, ing.position, ing.raw, ing.qty_min, ing.qty_max,
-                    ing.unit, ing.name, ing.name_normalized, ing.is_optional, ing.parsed,
-                )
-            parsed_ingredients += sum(1 for i in content.ingredients if i.parsed)
-            unparsed_lines += sum(1 for i in content.ingredients if not i.parsed)
-
-            await conn.execute("DELETE FROM recipe_step WHERE recipe_id = $1", recipe_id)
-            for step in content.steps:
-                await conn.execute(
-                    "INSERT INTO recipe_step (recipe_id, position, text) VALUES ($1,$2,$3)",
-                    recipe_id, step.position, step.text,
-                )
-            parsed_steps += len(content.steps)
+            w, pi, ur, ps = await write_recipe(conn, r)
+            warnings.extend(w)
+            parsed_ingredients += pi
+            unparsed_lines += ur
+            parsed_steps += ps
 
             for shadowed in r.get("_duplicate_paths", []):
                 warnings.append(
                     f"{r.get('slug')}: slug en DOUBLE — « {Path(shadowed).name} » est "
                     f"ignoré au profit de « {Path(str(r.get('_source_path', ''))).name} » "
                     "(date déclarée plus récente). Renommer le slug ou supprimer le doublon."
-                )
-
-            if not content.ingredients:
-                warnings.append(
-                    f"{r.get('slug')}: AUCUN ingrédient parsé — la section "
-                    "« ## Ingrédients » est absente, vide ou d'un format inattendu"
-                )
-            elif content.parse_rate < 0.5:
-                warnings.append(
-                    f"{r.get('slug')}: seulement {content.parse_rate:.0%} des ingrédients "
-                    "structurés — vérifier le format de la section"
                 )
 
         for convive in convives:
@@ -290,7 +315,7 @@ async def ingest(vault_root: Path, dsn: str) -> dict:
             )
 
         for m in menus:
-            await conn.execute(UPSERT_MENU, *_menu_row(m))
+            await write_menu(conn, m)
 
         meals_linked, meals_orphan = await _link_meals(conn)
 

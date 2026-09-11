@@ -140,6 +140,65 @@ async def recipe_detail(slug: str) -> str:
     return json.dumps(data, ensure_ascii=False, indent=2)
 
 @mcp.tool()
+async def recipe_upsert(
+    title: str, body: str, slug: str = "", frontmatter_json: str = "{}"
+) -> str:
+    """Create or update a recipe in the DB (sole source of truth, ADR 0010 voie b).
+
+    body = markdown with '## Ingredients' and '## Etapes' sections (ingredients and
+    steps are re-parsed from it). frontmatter_json = JSON object of other fields:
+    family, servings, tags (list), macros ({kcal,protein,carbs,fat}), status,
+    sources (list), photo_url, recipe_type. Pass slug to update an existing recipe;
+    omit it to create (slug derived from the title)."""
+    fm = json.loads(frontmatter_json or "{}")
+    payload = {**fm, "title": title, "body": body}
+    if slug:
+        payload["slug"] = slug
+        data = await _api("PUT", f"/api/recipes/{slug}", payload)
+    else:
+        data = await _api("POST", "/api/recipes", payload)
+    return json.dumps(data, ensure_ascii=False, indent=2)
+
+@mcp.tool()
+async def recipe_delete(slug: str) -> str:
+    """Delete a recipe from the DB by slug (also unlinks it from any menu meal)."""
+    data = await _api("DELETE", f"/api/recipes/{slug}")
+    return json.dumps(data, ensure_ascii=False, indent=2)
+
+@mcp.tool()
+async def menu_upsert(
+    title: str, meals_json: str, slug: str = "", week_start: str = "",
+    week_end: str = "", status: str = "proposed", configuration: str = "",
+    body: str = "",
+) -> str:
+    """Create or update a weekly menu in the DB (sole source of truth).
+
+    meals_json = JSON list of day objects, each with day/date and slot keys
+    (breakfast/lunch/snack/dinner), optional '<slot>_slug', '<slot>_leftovers',
+    and 'covers'. Meals are linked to recipes automatically. Pass slug to update."""
+    payload: dict = {
+        "title": title, "meals": json.loads(meals_json or "[]"), "status": status,
+    }
+    if slug:
+        payload["slug"] = slug
+    if week_start:
+        payload["week_start"] = week_start
+    if week_end:
+        payload["week_end"] = week_end
+    if configuration:
+        payload["configuration"] = configuration
+    if body:
+        payload["body"] = body
+    data = await _api("POST", "/api/menus", payload)
+    return json.dumps(data, ensure_ascii=False, indent=2)
+
+@mcp.tool()
+async def menu_delete(slug: str) -> str:
+    """Delete a menu from the DB by slug."""
+    data = await _api("DELETE", f"/api/menus/{slug}")
+    return json.dumps(data, ensure_ascii=False, indent=2)
+
+@mcp.tool()
 async def menu_current() -> str:
     """Get the most recent menu (current week)."""
     data = await _api("GET", "/api/menus")
