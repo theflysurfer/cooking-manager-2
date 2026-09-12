@@ -239,48 +239,7 @@ async def create_menu(menu: MenuCreate):
             "created": row["inserted"],
             "meals_linked": linked, "meals_orphan": orphan}
 
-FOOD_BASE_ROOT = Path(os.environ.get(
-    "FOOD_BASE_ROOT",
-    str(Path(VAULT_ROOT).parent / "Coaches" / "Coach Nutrition" / "aliments-vérifiés"),
-))
 
-@app.post("/api/food/import")
-async def import_food(dry_run: bool = True):
-    """Vault `aliments-vérifiés/` → tables food, food_unit, product."""
-    from .food_import import build_records, write_records
-
-    pool = await get_pool(DATABASE_DSN)
-    async with pool.acquire() as conn:
-        stored = await conn.fetch(
-            "SELECT store_ref, nature FROM product WHERE nature IS NOT NULL"
-        )
-    plan = build_records(FOOD_BASE_ROOT, {r["store_ref"]: r["nature"] for r in stored})
-    counts = {"foods": len(plan.foods), "units": len(plan.units),
-              "products": len(plan.products), "skipped": len(plan.skipped)}
-    if dry_run:
-        return {"dry_run": True, "counts": counts, "skipped": plan.skipped[:20]}
-
-    async with pool.acquire() as conn:
-        written = await write_records(conn, plan)
-    return {"dry_run": False, "counts": counts, "written": written,
-            "skipped": plan.skipped[:20]}
-
-@app.get("/api/food/report")
-async def food_report():
-    """Le vault et la base disent-ils la même chose ?"""
-    from .food_import import build_report
-
-    pool = await get_pool(DATABASE_DSN)
-    async with pool.acquire() as conn:
-        rows = await conn.fetch("SELECT key, macros_per_100g FROM food")
-        natures = await conn.fetch(
-            "SELECT store_ref, nature FROM product WHERE nature IS NOT NULL"
-        )
-    return build_report(
-        FOOD_BASE_ROOT,
-        [dict(r) for r in rows],
-        {r["store_ref"]: r["nature"] for r in natures},
-    )
 
 class RecipeWrite(BaseModel):
     model_config = ConfigDict(extra="allow")

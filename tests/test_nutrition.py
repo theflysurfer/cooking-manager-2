@@ -17,7 +17,6 @@ title: Pignons de pin
 from cooking_manager.nutrition import (
     FoodEntry,
     Macros,
-    load_food_base,
     match_entry,
     parse_food_sheet,
     recipe_macros,
@@ -305,24 +304,6 @@ class TestRecipeMacros:
     def test_empty_recipe_is_safe(self):
         m = recipe_macros([], self.BASE)
         assert m.coverage == 0.0 and m.kcal == 0.0
-
-class TestLoadFoodBase:
-    def test_brand_sheet_wins_over_generic_on_the_same_key(self, tmp_path):
-        """Hiérarchie du coach : l'étiquette prime sur le générique CIQUAL."""
-        (tmp_path / "generiques").mkdir()
-        (tmp_path / "marques").mkdir()
-        sheet = "---\ntype: {t}\nsource: {s}\n---\n\n| M | /100g |\n|---|---|\n| **Énergie** | {k} kcal |\n"
-        (tmp_path / "generiques" / "feta.md").write_text(
-            sheet.format(t="generique", s="ANSES-Ciqual", k=264), encoding="utf-8")
-        (tmp_path / "marques" / "feta.md").write_text(
-            sheet.format(t="marque", s="Étiquette", k=250), encoding="utf-8")
-        base = load_food_base(tmp_path)
-        assert base["feta"].kind == "marque"
-        assert base["feta"].forms["100g"].kcal == 250
-
-    def test_missing_root_is_safe(self, tmp_path):
-        assert load_food_base(tmp_path / "absent") == {}
-
 
 class TestEnergyUnit:
     """« 2820 kJ (673 kcal) » : la bonne valeur est dans la cellule, il suffit de la lire."""

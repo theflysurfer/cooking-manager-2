@@ -4,8 +4,6 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from pathlib import Path
-
 from .ingredients import _singular, normalize_name
 
 GRAMS_PER_UNIT: dict[str, float] = {
@@ -252,48 +250,7 @@ def parse_food_sheet(text: str) -> tuple[dict, dict[str, Macros]]:
 
     return fm, forms
 
-_BASE_CACHE: dict[str, dict[str, FoodEntry]] = {}
 
-def load_food_base_cached(root: Path) -> dict[str, FoodEntry]:
-    """`load_food_base` mémoïsé."""
-    key = str(root)
-    if key not in _BASE_CACHE:
-        _BASE_CACHE[key] = load_food_base(root)
-    return _BASE_CACHE[key]
-
-def reset_food_cache() -> None:
-    _BASE_CACHE.clear()
-
-def load_food_base(root: Path) -> dict[str, FoodEntry]:
-    """Charge `aliments-vérifiés/` → index par nom normalisé."""
-    index: dict[str, FoodEntry] = {}
-    if not root.is_dir():
-        return index
-
-    for path in sorted(root.rglob("*.md")):
-        if path.name.startswith("_"):
-            continue
-        try:
-            fm, forms = parse_food_sheet(path.read_text(encoding="utf-8"))
-        except OSError:
-            continue
-        if not any(m.kcal is not None or m.protein is not None for m in forms.values()):
-            continue
-
-        title = path.stem.replace("-", " ")
-        entry = FoodEntry(
-            key=match_key(title),
-            title=title,
-            forms=forms,
-            source=fm.get("source", ""),
-            kind=fm.get("type", "generique"),
-            statut=fm.get("statut", ""),
-            path=str(path),
-        )
-        current = index.get(entry.key)
-        if current is None or entry.rank < current.rank:
-            index[entry.key] = entry
-    return index
 
 _DRIVE_KEYS = {
     "valeur énergétique (kcal)": "kcal", "valeur energetique (kcal)": "kcal",
