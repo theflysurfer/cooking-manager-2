@@ -726,6 +726,8 @@ async function viewRecipe(slug, servedOn) {
       }).join('') + '</ul>';
   }
 
+  html += '<div id="recipe-extras"></div>';
+
   html += '<h2 class="section-title">Historique</h2><div id="exec">' +
           emptyState('Chargement…') + '</div>';
 
@@ -768,11 +770,71 @@ async function viewRecipe(slug, servedOn) {
     }).join('');
   } catch (e) { ignoreSecondaryFailure(e); }
 
+  paintRecipeExtras(slug);
+
   await paintFeedback(slug, servedOn || todayISO());
   if (servedOn) {
     var anchor = document.getElementById('retours');
     if (anchor) anchor.scrollIntoView();
   }
+}
+
+function paintRecipeExtras(slug) {
+  var box = document.getElementById('recipe-extras');
+  if (!box) return;
+  var enc = encodeURIComponent(slug);
+  var html = '';
+  var loaded = 0;
+  var total = 3;
+  function flush() {
+    loaded++;
+    if (loaded >= total && box) box.innerHTML = html || '';
+  }
+  api('/recipes/' + enc + '/tips').then(function (data) {
+    var tips = data.tips || [];
+    if (tips.length) {
+      html += '<h2 class="section-title">Astuces</h2><ul class="recipe-extras">';
+      tips.forEach(function (t) {
+        html += '<li class="recipe-extra">' +
+          '<span class="recipe-extra__kind">' + esc(label(t.kind || '')) + '</span>' +
+          (t.step_number ? ' <span class="recipe-extra__step">étape ' + t.step_number + '</span>' : '') +
+          '<div class="recipe-extra__text">' + esc(t.verbatim || '') + '</div></li>';
+      });
+      html += '</ul>';
+    }
+    flush();
+  }).catch(function () { flush(); });
+  api('/recipes/' + enc + '/substitutions').then(function (data) {
+    var subs = data.substitutions || [];
+    if (subs.length) {
+      html += '<h2 class="section-title">Substitutions découvertes</h2><ul class="recipe-extras">';
+      subs.forEach(function (s) {
+        html += '<li class="recipe-extra">' +
+          '<span class="recipe-extra__swap">' + esc(s.original_ingredient || '') +
+          ' → ' + esc(s.substitute_ingredient || '') + '</span>' +
+          ' <span class="recipe-extra__outcome">' + esc(label(s.outcome || '')) + '</span>' +
+          (s.who_preferred ? ' <span class="recipe-extra__who">(' + esc(s.who_preferred) + ')</span>' : '') +
+          (s.verbatim ? '<div class="recipe-extra__text">' + esc(s.verbatim) + '</div>' : '') +
+          '</li>';
+      });
+      html += '</ul>';
+    }
+    flush();
+  }).catch(function () { flush(); });
+  api('/recipes/' + enc + '/service-contexts').then(function (data) {
+    var ctxs = data.contexts || [];
+    if (ctxs.length) {
+      html += '<h2 class="section-title">Contextes de service</h2><ul class="recipe-extras">';
+      ctxs.forEach(function (c) {
+        html += '<li class="recipe-extra">' +
+          '<span class="recipe-extra__kind">' + esc(label(c.context || '')) + '</span>' +
+          (c.verbatim ? '<div class="recipe-extra__text">' + esc(c.verbatim) + '</div>' : '') +
+          '</li>';
+      });
+      html += '</ul>';
+    }
+    flush();
+  }).catch(function () { flush(); });
 }
 
 async function feedbackVocabulary() {
@@ -2190,6 +2252,96 @@ function handleVoiceResult(data) {
     return;
   }
 
+  if (action === 'product_remark') {
+    api('/product-remarks', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        product_ref: intent.product || null,
+        quality: intent.quality || 'correct',
+        channel: intent.channel || null,
+        aspect: intent.aspect || 'general',
+        verbatim: intent.comment || t,
+        person: intent.person || null
+      })
+    }).then(function () {
+      showMicPanel('success', 'Retour produit enregistré', intent);
+    }).catch(function (e) {
+      showMicPanel('error', 'Erreur : ' + apiErrorText(e), null);
+    });
+    return;
+  }
+
+  if (action === 'cooking_tip') {
+    var tipSlug = intent.recipe_slug || currentRecipeSlug();
+    if (!tipSlug) {
+      showMicPanel('error', 'Ouvrez une recette pour ajouter une astuce', null);
+      return;
+    }
+    api('/recipes/' + encodeURIComponent(tipSlug) + '/tips', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        kind: intent.kind || 'general',
+        step_number: intent.step || null,
+        verbatim: intent.tip || t
+      })
+    }).then(function () {
+      showMicPanel('success', 'Astuce enregistrée', intent);
+      paintRecipeExtras(tipSlug);
+    }).catch(function (e) {
+      showMicPanel('error', 'Erreur : ' + apiErrorText(e), null);
+    });
+    return;
+  }
+
+  if (action === 'substitution_discovery') {
+    var subSlug = intent.recipe_slug || currentRecipeSlug();
+    if (!subSlug) {
+      showMicPanel('error', 'Ouvrez une recette pour noter une substitution', null);
+      return;
+    }
+    api('/recipes/' + encodeURIComponent(subSlug) + '/substitutions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        original_ingredient: intent.original || '',
+        substitute_ingredient: intent.substitute || '',
+        outcome: intent.outcome || 'acceptable',
+        who_preferred: intent.who || null,
+        verbatim: intent.comment || null
+      })
+    }).then(function () {
+      showMicPanel('success', 'Substitution notée', intent);
+      paintRecipeExtras(subSlug);
+    }).catch(function (e) {
+      showMicPanel('error', 'Erreur : ' + apiErrorText(e), null);
+    });
+    return;
+  }
+
+  if (action === 'service_context') {
+    var ctxSlug = intent.recipe_slug || currentRecipeSlug();
+    if (!ctxSlug) {
+      showMicPanel('error', 'Ouvrez une recette pour ajouter un contexte', null);
+      return;
+    }
+    api('/recipes/' + encodeURIComponent(ctxSlug) + '/service-contexts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        context: intent.context || 'everyday',
+        verbatim: intent.verbatim || t
+      })
+    }).then(function () {
+      showMicPanel('success', 'Contexte enregistré', intent);
+      paintRecipeExtras(ctxSlug);
+    }).catch(function (e) {
+      showMicPanel('error', 'Erreur : ' + apiErrorText(e), null);
+    });
+    return;
+  }
+
   if (action === 'pantry_leftover') {
     api('/pantry/leftover', {
       method: 'POST',
@@ -2310,6 +2462,10 @@ var ACTION_LABELS = {
   search_recipe: 'Rechercher',
   adjust_servings: 'Portions',
   product_blacklist: 'Exclure produit',
+  product_remark: 'Retour produit',
+  cooking_tip: 'Astuce',
+  substitution_discovery: 'Substitution',
+  service_context: 'Contexte',
   recipe_note: 'Note recette',
   recipe_edit_step: 'Modifier étape',
   meal_feedback: 'Avis repas',

@@ -32,9 +32,15 @@ PARTIAL = "insuffisant"
 MISSING = "absent"
 UNKNOWN = "inconnu"
 
-PERISHABLE_HINTS = ("frais", "légume", "legume", "fruit", "protéine", "proteine")
+PERISHABLE_HINTS = ("frais", "l\u00e9gume", "legume", "fruit", "prot\u00e9ine", "proteine")
 
 STALE_AFTER = timedelta(days=14)
+
+NON_PURCHASE: frozenset[str] = frozenset({
+    "eau", "eau froide", "eau chaude", "eau bouillante", "eau tiede",
+    "gla\u00e7on", "glacon", "sel", "sel fin", "poivre", "poivre noir",
+    "poivre du moulin",
+})
 
 _UNIT_LOOKUP = {
     variant.lower(): canonical
@@ -259,6 +265,23 @@ def check_need(need: Need, pantry: Pantry, today: date | None = None) -> Verdict
     if item.status == STATUS_OUT:
         return Verdict(need, MISSING, item, f"marqué épuisé ({item.xstatus})", need.qty)
 
+    ref = today or date.today()
+    if item.is_perishable and item.entered_at is not None:
+        item_age = (ref - item.entered_at).days
+        if item_age > STALE_AFTER.days:
+            return Verdict(
+                need, UNKNOWN, item,
+                f"produit frais entr\u00e9 il y a {item_age} jours — suppos\u00e9 \u00e9puis\u00e9",
+                need.qty, assumed_empty=True,
+            )
+
+    if item.is_perishable and item.entered_at is None:
+        return Verdict(
+            need, UNKNOWN, item,
+            "produit frais sans date d'entr\u00e9e — fra\u00eecheur inconnue",
+            need.qty, assumed_empty=True,
+        )
+
     if pantry.is_stale(today) and item.is_perishable:
         return Verdict(
             need, UNKNOWN, item,
@@ -299,13 +322,13 @@ def check_need(need: Need, pantry: Pantry, today: date | None = None) -> Verdict
     )
 
 def build_needs(meals_recipes: list[tuple[str, list, float]]) -> list[Need]:
-    """Consolide les ingrédients de plusieurs recettes en besoins uniques."""
+    """Consolide les ingr\u00e9dients de plusieurs recettes en besoins uniques."""
     needs: dict[tuple[str, str], Need] = {}
     for title, ingredients, ratio in meals_recipes:
         for raw_ing in ingredients:
             ing = _as_mapping(raw_ing)
             key = ing.get("name_normalized") or normalize_name(ing.get("name", ""))
-            if not key:
+            if not key or key in NON_PURCHASE:
                 continue
 
             unit = ing.get("unit")

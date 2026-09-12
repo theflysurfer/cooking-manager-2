@@ -154,7 +154,7 @@ class TestStaleness:
         need = need_of("œufs", 4.0, "pièce")
         v = check_need(need, pantry, today=date(2026, 8, 4))
         assert v.outcome in (MISSING, UNKNOWN)
-        assert "inventaire" in v.reason.lower()
+        assert v.assumed_empty
 
     def test_dry_goods_survive_a_stale_inventory(self, pantry):
         """Le sec ne périme pas : la règle d'ancienneté ne s'y applique pas."""
@@ -342,3 +342,72 @@ class TestBulkPayload:
         item = PantryBulkItem(name="Concombre")
         assert item.entered_at is None
         assert item.source == "voice"
+
+
+class TestNonPurchaseExclusion:
+    """#80 — l'eau du robinet et le sel ne sont pas des achats."""
+
+    def test_eau_is_excluded(self):
+        meals = [("Soupe", [{"name": "eau", "name_normalized": "eau",
+                             "qty_min": 1.0, "unit": "l", "parsed": True}], 1.0)]
+        needs = build_needs(meals)
+        assert not any(n.name_normalized == "eau" for n in needs)
+
+    def test_sel_is_excluded(self):
+        meals = [("Riz", [{"name": "Sel", "name_normalized": "sel",
+                           "qty_min": 5.0, "unit": "g", "parsed": True}], 1.0)]
+        needs = build_needs(meals)
+        assert not any(n.name_normalized == "sel" for n in needs)
+
+    def test_normal_ingredient_kept(self):
+        meals = [("Riz", [{"name": "Riz basmati", "name_normalized": "riz basmati",
+                           "qty_min": 300.0, "unit": "g", "parsed": True}], 1.0)]
+        needs = build_needs(meals)
+        assert any(n.name_normalized == "riz basmati" for n in needs)
+
+
+class TestPerItemFreshness:
+    """#84 — un frais vieux de 30 jours est périmé, même si un autre article
+    a été touché aujourd'hui (global is_stale = False)."""
+
+    def test_old_perishable_is_unknown_even_when_global_is_fresh(self):
+        today = date(2026, 9, 10)
+        old_item = PantryItem(
+            rayon="Frais \u2014 L\u00e9gumes", name="Courgette",
+            name_normalized="courgette", qty_text="3", qty_value=3, unit="pi\u00e8ce",
+            status="ok", entered_at=date(2026, 8, 1),
+        )
+        pantry = Pantry(items=[old_item], updated=today)
+        assert not pantry.is_stale(today)
+        need = Need(name="Courgette", name_normalized="courgette",
+                    qty=2.0, unit="pi\u00e8ce")
+        v = check_need(need, pantry, today=today)
+        assert v.outcome == "inconnu"
+        assert v.assumed_empty
+
+    def test_fresh_perishable_is_enough(self):
+        today = date(2026, 9, 10)
+        fresh_item = PantryItem(
+            rayon="Frais \u2014 L\u00e9gumes", name="Courgette",
+            name_normalized="courgette", qty_text="3", qty_value=3, unit="pi\u00e8ce",
+            status="ok", entered_at=date(2026, 9, 8),
+        )
+        pantry = Pantry(items=[fresh_item], updated=today)
+        need = Need(name="Courgette", name_normalized="courgette",
+                    qty=2.0, unit="pi\u00e8ce")
+        v = check_need(need, pantry, today=today)
+        assert v.outcome == "suffisant"
+
+    def test_perishable_without_entered_at_is_unknown(self):
+        today = date(2026, 9, 10)
+        no_date_item = PantryItem(
+            rayon="Frais \u2014 Prot\u00e9ines", name="Poulet",
+            name_normalized="poulet", qty_text="500 g", qty_value=500, unit="g",
+            status="ok", entered_at=None,
+        )
+        pantry = Pantry(items=[no_date_item], updated=today)
+        need = Need(name="Poulet", name_normalized="poulet",
+                    qty=400.0, unit="g")
+        v = check_need(need, pantry, today=today)
+        assert v.outcome == "inconnu"
+        assert v.assumed_empty

@@ -112,6 +112,23 @@ class TestThirdTableShape:
         text = MOZZARELLA.replace("## Macros pour 100g", "## Macros")
         assert parse_food_sheet(text)[1] == {}
 
+class TestFrontmatterNullString:
+    """#85 — `null` en YAML doit devenir None, pas la chaîne `"null"`."""
+
+    def test_null_becomes_none(self):
+        text = """---\ntitle: Pain complet\nciqual_code: null\nmarque: null\nnature: None\n---\n"""
+        fm, _ = parse_food_sheet(text)
+        assert fm["title"] == "Pain complet"
+        assert fm["ciqual_code"] is None
+        assert fm["marque"] is None
+        assert fm["nature"] is None
+
+    def test_empty_value_becomes_none(self):
+        text = """---\ntitle: Test\nfoo:\n---\n"""
+        fm, _ = parse_food_sheet(text)
+        assert fm["foo"] is None
+
+
 class TestReconcile:
     """Règle 2bis (erreur #25) : kcal annoncées vs P×4 + G×4 + L×9."""
 

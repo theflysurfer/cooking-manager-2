@@ -336,6 +336,34 @@ async def delete_recipe(slug: str):
         await conn.execute("DELETE FROM recipe WHERE id = $1", rid)
     return {"deleted": slug}
 
+async def _load_food_base_from_db() -> dict:
+    """Table food → index FoodEntry, même format que load_food_base."""
+    from cooking_manager import nutrition as nut
+
+    pool = await get_pool(DATABASE_DSN)
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT key, name, macros_per_100g, source, kind FROM food"
+        )
+    index: dict[str, nut.FoodEntry] = {}
+    for r in rows:
+        raw = r["macros_per_100g"]
+        if not raw:
+            continue
+        m = json.loads(raw) if isinstance(raw, str) else dict(raw)
+        macros = nut.Macros(
+            kcal=m.get("kcal"), protein=m.get("protein"),
+            carbs=m.get("carbs"), fat=m.get("fat"),
+        )
+        entry = nut.FoodEntry(
+            key=r["key"], title=r["name"],
+            forms={m.get("form", "100g"): macros},
+            source=r["source"] or "", kind=r["kind"] or "generique",
+        )
+        index[r["key"]] = entry
+    return index
+
+
 @app.get("/api/recipes/{slug}/macros")
 async def recipe_macros_endpoint(slug: str):
     """Macros calculées depuis les ingrédients, avec leur provenance."""
@@ -368,7 +396,8 @@ async def recipe_macros_endpoint(slug: str):
         if entry:
             drive[entry.key] = entry
 
-    base = nut.merge_sources(nut.load_food_base_cached(FOOD_BASE_ROOT), drive)
+    db_base = await _load_food_base_from_db()
+    base = nut.merge_sources(db_base, drive)
     result = nut.recipe_macros(ingredients, base)
 
     per_portion = None

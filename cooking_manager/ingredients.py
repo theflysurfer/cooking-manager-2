@@ -49,6 +49,12 @@ _INGREDIENT_RE = re.compile(
 
 _OPTIONAL_RE = re.compile(r"\boptionnel(?:le)?\b|\bfacultatif\b|\bau choix\b", re.IGNORECASE)
 
+_INVERSE_RE = re.compile(
+    rf"^(.+?)\s*[\u2013\u2014]\s*{_QTY}\s*(?:({_UNIT_PATTERN})(?!\w))?"
+    r"(?:\s.*)?$",
+    re.IGNORECASE,
+)
+
 _VULGAR_FRACTIONS = {
     "½": "0.5", "⅓": "0.333", "⅔": "0.667", "¼": "0.25", "¾": "0.75",
     "⅕": "0.2", "⅖": "0.4", "⅗": "0.6", "⅘": "0.8", "⅙": "0.167",
@@ -192,6 +198,18 @@ def parse_ingredient(raw: str, position: int) -> Ingredient:
 
     m = _INGREDIENT_RE.match(clean)
     if not m:
+        inv = _INVERSE_RE.match(clean)
+        if inv:
+            inv_name, qty_min_s, qty_max_s, inv_unit = inv.groups()
+            ing.qty_min = _to_float(qty_min_s)
+            ing.qty_max = _to_float(qty_max_s) if qty_max_s else ing.qty_min
+            ing.unit = _UNIT_LOOKUP.get((inv_unit or "").lower()) if inv_unit else None
+            ing.name = _display_name(inv_name)
+            ing.name_normalized = normalize_name(ing.name)
+            if ing.qty_min is not None and ing.unit is None and ing.name:
+                ing.unit = "pi\u00e8ce"
+            ing.parsed = ing.qty_min is not None and bool(ing.name)
+            return ing
         ing.name = clean
         ing.name_normalized = normalize_name(clean)
         return ing

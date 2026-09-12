@@ -103,8 +103,9 @@ Plus rien ne lit `Garde-manger.md` (ADR 0017) : le stock ne bouge que sur décla
 ⛔ **`normalize_name` retire découpe et pluriel, jamais un ÉTAT** : « sèches », « surgelés »,
 « fraîche », « entier » changent l'identité de l'aliment.
 
-⛔ **`age_days` ne dit rien de l'âge des articles** : l'inventaire est daté par `MAX(updated_at)`,
-donc une seule écriture le rajeunit tout entier. Juger sur `entered_at`, par article (#84).
+La fraîcheur se juge **par article** sur `entered_at` : un périssable entré il y a > 14 jours
+ressort `inconnu` (assumed_empty), un périssable sans `entered_at` aussi. Le `age_days` global
+(sur `MAX(updated_at)`) ne sert plus que d'indicateur d'inventaire — pas de fraîcheur.
 
 ⛔ **`outcome: inconnu` veut dire « présent, quantité incomparable »**, jamais « on ne sait pas
 si tu l'as » : stock en texte libre, besoin en chiffres. Lire le `reason` et trancher à la main.
@@ -134,7 +135,8 @@ erreur. Ajouter = deux dépôts **plus un test**. Régénérer et propager :
 ## Référentiel aliment & produit
 
 `generiques/` → `food` · `marques/` → `product`. **Le dossier tranche**, jamais le champ
-`marque` : le frontmatter est lu ligne à ligne, donc la **chaîne** `"null"` est vraie (#85).
+`marque`. Le parser frontmatter (`parse_food_sheet`) sanitise `null`/`none`/`nan`/`-`/`n/a`/`~`
+en `None` — plus de chaîne `"null"` truthy (#85 fixé).
 
 ⛔ **`product.nature` dit ce qu'un `food_key` vide VEUT DIRE** : `single` (aliment
 conditionné) → c'est une **lacune** du référentiel ; `composite` (plusieurs ingrédients) →
@@ -158,14 +160,14 @@ Collisions, formes, XML ANSES, rattachement : `julien-cooking-donnees` § 2.
 premier nombre est le mauvais. `read_energy()` prend les kcal si écrits, convertit les kJ
 sinon, et **refuse au-delà de 950 kcal/100 g** (l'huile pure plafonne à 900).
 
-Pièges : `load_food_base_cached()` obligatoire ; `qty_min` est un `Decimal`.
+Pièges : `/macros` lit la table `food` en DB (pas le vault .md) ; `qty_min` est un `Decimal`.
+Décommissionnement complet du vault .md aliments : #95.
 
 ## Commande vocale
 
-MediaRecorder → `POST /api/audio` → Deepgram → Groq (intent JSON) → exécution. Les intents
-sont déclarés **dans le prompt** de `backend/stt.py` : un intent ajouté sans être câblé échoue
-en silence. Clés en credstore systemd. MediaRecorder exige Safari 14.5+ : micro masqué sur
-l'iPad mini 2.
+MediaRecorder → `POST /api/audio` → Deepgram → Groq (intent JSON) → exécution.
+Intents déclarés dans le prompt de `backend/stt.py` : un intent non câblé échoue en silence.
+Clés en credstore systemd. MediaRecorder exige Safari 14.5+ : micro masqué sur iPad mini 2.
 
 ## Gate iOS 12
 
@@ -181,20 +183,18 @@ collant. **Seul l'iPad réel valide.**
 
 ## Design
 
-**Appétissant** (la photo mène) · **Sans friction** (quoi manger ce soir en un coup d'œil) ·
-**Maîtrisé** (macros, stock, courses). Hiérarchie par le letter-spacing jamais par la graisse,
-un seul accent, ni rayon ni ombre. Détail : `2026.08 Product Toolkit/research/`.
+**Appétissant** · **Sans friction** · **Maîtrisé**. Letter-spacing, pas graisse.
+Détail : `2026.08 Product Toolkit/research/`.
 
 ## Skills liées
 
-- `julien-cooking-manager-weekly-prep` — **owner** — toute la semaine : tablée, menu, photos, stock, courses, macros, retours de table.
-- `julien-cooking-manager-pantry-update` — **owner** — déclarer un aliment épuisé, bas ou présent, corriger une quantité, reporter un drive.
-- `julien-cooking-donnees` — **owner** — les chaînes de données : ingestion du vault, référentiel aliment/produit, ontologie, photos, calcul des courses.
-- `julien-audit-cooking-vault` — **owner** — auditer les données ingérées, **avant** toute génération de courses.
-- `cooking-manager-auchan-drive` — gros consommateur — pilote le panier depuis ces courses.
+- `julien-cooking-manager-weekly-prep` — semaine : tablée, menu, photos, stock, courses, macros, retours.
+- `julien-cooking-manager-pantry-update` — stock : déclarer épuisé/bas/présent, corriger quantité, drive.
+- `julien-cooking-donnees` — données : ingestion vault, référentiel, ontologie, photos, courses.
+- `julien-audit-cooking-vault` — auditer les données ingérées avant génération de courses.
+- `cooking-manager-auchan-drive` — pilote le panier Auchan depuis les courses.
 
 ## MCP · dépendances
 
-`cooking_mcp.py` importe `from fastmcp import FastMCP` (pas `mcp.server.fastmcp`) : seul
-`fastmcp` v3.4+ expose `host`/`port`/`allowed_hosts` dans `run()`. Derrière nginx avec
-`Host $host`, passer `allowed_hosts=[<domaine>]`, sinon Starlette rend 421.
+`cooking_mcp.py` : `from fastmcp import FastMCP` (pas `mcp.server.fastmcp`), v3.4+.
+Derrière nginx : `allowed_hosts=[<domaine>]`, sinon Starlette rend 421.

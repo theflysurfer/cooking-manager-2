@@ -137,6 +137,7 @@ def reconcile(kcal: float | None, protein: float | None,
     }
 
 _FM_RE = re.compile(r"\A---\n(.*?)\n---", re.DOTALL)
+_FM_ABSENT = frozenset({"null", "none", "nan", "-", "n/a", "", "~"})
 _NUM_RE = re.compile(r"(\d+(?:[.,]\d+)?)")
 _PER_100G_RE = re.compile(r"/\s*100\s*(?:g|ml)", re.IGNORECASE)
 
@@ -197,7 +198,9 @@ def parse_food_sheet(text: str) -> tuple[dict, dict[str, Macros]]:
         for line in m.group(1).splitlines():
             if ":" in line:
                 k, _, v = line.partition(":")
-                fm[k.strip()] = v.strip().strip('"')
+                raw = v.strip().strip('"')
+                fm[k.strip()] = None if raw.lower() in _FM_ABSENT else raw
+
 
     _PER_100G_IN_TEXT = bool(re.search(r"pour\s*100\s*(?:g|ml)", text, re.IGNORECASE))
 

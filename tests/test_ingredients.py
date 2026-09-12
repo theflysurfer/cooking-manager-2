@@ -276,3 +276,36 @@ class TestRecipeBody:
         steps = parse_recipe_body(body).steps
         assert steps[0].text == "Congeler 24h minimum à plat."
         assert steps[1].text == "Cycle Lite Ice Cream."
+
+
+class TestInverseFormat:
+    """#62 — `Courge spaghetti — ~2 kg brute` doit être parsé."""
+
+    def test_name_dash_qty_unit(self):
+        ing = parse_ingredient("Courge spaghetti \u2014 ~2 kg brute", 1)
+        assert ing.parsed
+        assert ing.name == "Courge spaghetti"
+        assert ing.qty_min == 2.0
+        assert ing.unit == "kg"
+
+    def test_name_dash_count(self):
+        ing = parse_ingredient("\u0152ufs \u2014 6", 2)
+        assert ing.parsed
+        assert ing.qty_min == 6.0
+        assert ing.unit == "pi\u00e8ce"
+        assert "oeuf" in ing.name_normalized
+
+    def test_name_dash_qty_with_detail(self):
+        ing = parse_ingredient("Pois chiches en bocal \u2013 480 g \u00e9goutt\u00e9s", 3)
+        assert ing.parsed
+        assert ing.qty_min == 480.0
+        assert ing.unit == "g"
+
+    def test_glose_dash_not_mistaken_for_inverse(self):
+        """Un tiret cadratin suivi de texte sans quantit\u00e9 n'est PAS inverse."""
+        ing = parse_ingredient("\u00c9dulcorant au choix \u2014 qs", 4)
+        assert not ing.parsed or ing.name == "\u00c9dulcorant au choix"
+
+    def test_optional_glose_not_mistaken(self):
+        ing = parse_ingredient("Cr\u00e8me \u2014 optionnel", 5)
+        assert ing.is_optional
