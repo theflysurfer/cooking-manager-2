@@ -240,6 +240,60 @@ class TestBrandInTheName:
         assert strip_brand("Pignons de Pin", None) == "Pignons de Pin"
 
 
+class TestLinkingRatchet:
+    """Ratchet: every single product with a matching food must be linked — refs #69."""
+
+    def _vault_with_pairs(self, tmp_path, pairs):
+        root = tmp_path / "vault"
+        (root / "generiques").mkdir(parents=True)
+        (root / "marques").mkdir(parents=True)
+        for slug, title in pairs:
+            (root / "generiques" / f"{slug}.md").write_text(
+                GENERIC.replace("title: Pain complet", f"title: {title}")
+                       .replace("slug: pain-complet", f"slug: {slug}"),
+                encoding="utf-8",
+            )
+        return root
+
+    def test_all_singles_with_a_matching_food_are_linked(self, tmp_path):
+        root = self._vault_with_pairs(tmp_path, [("oeuf", "Oeufs")])
+        branded = BRANDED.replace(
+            "title: Auchan Bio Plein Air Oeufs x12",
+            "title: Auchan Oeufs x12",
+        )
+        (root / "marques" / "oeufs-a.md").write_text(branded, encoding="utf-8")
+        (root / "marques" / "oeufs-b.md").write_text(
+            branded.replace("slug: auchan-bio-plein-air-oeufs-x12",
+                            "slug: auchan-oeufs-b-x6"),
+            encoding="utf-8",
+        )
+        plan = build_records(root, {"auchan-bio-plein-air-oeufs-x12": "single",
+                                    "auchan-oeufs-b-x6": "single"})
+        unlinked = [p["name"] for p in plan.products if p["food_key"] is None]
+        assert unlinked == [], f"unlinked singles: {unlinked}"
+
+    def test_mixed_natures_only_singles_are_linked(self, tmp_path):
+        root = self._vault_with_pairs(tmp_path, [("oeuf", "Oeufs")])
+        branded = BRANDED.replace(
+            "title: Auchan Bio Plein Air Oeufs x12",
+            "title: Auchan Oeufs x12",
+        )
+        (root / "marques" / "single.md").write_text(branded, encoding="utf-8")
+        (root / "marques" / "composite.md").write_text(
+            branded.replace("slug: auchan-bio-plein-air-oeufs-x12",
+                            "slug: lasagne-aux-oeufs"),
+            encoding="utf-8",
+        )
+        plan = build_records(root, {"auchan-bio-plein-air-oeufs-x12": "single",
+                                    "lasagne-aux-oeufs": "composite"})
+        singles = [p for p in plan.products
+                   if p.get("nature") == "single"]
+        composites = [p for p in plan.products
+                      if p.get("nature") == "composite"]
+        assert all(s["food_key"] is not None for s in singles)
+        assert all(c["food_key"] is None for c in composites)
+
+
 class TestCompositeIsNeverLinked:
     """Un plat rattache a un ingredient donne les macros de l'ingredient au plat — refs #90."""
 

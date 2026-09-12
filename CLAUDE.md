@@ -194,6 +194,17 @@ Détail : `2026.08 Product Toolkit/research/`.
 - `julien-audit-cooking-vault` — auditer les données ingérées avant génération de courses.
 - `cooking-manager-auchan-drive` — pilote le panier Auchan depuis les courses.
 
+## Contraintes mesurées (ratchet)
+
+| Métrique | Valeur | Direction | Vérifié par |
+|---|---|---|---|
+| `single` products sans `food_key` | 0 | must stay 0 | `pytest tests/test_food_import.py::TestLinkingRatchet` |
+| `composite` jamais rattaché | 0 linked | must stay 0 | `pytest tests/test_food_import.py::TestCompositeIsNeverLinked` |
+| `read_energy` plafond | 950 kcal | must not rise | `pytest tests/test_nutrition.py` |
+| `nature` inconnue refusée | ValueError | must stay | `pytest tests/test_food_import.py::TestProductNature` |
+
+Toute régression sur ces métriques casse `python -m pytest` → bloque le ship.
+
 ## MCP · dépendances
 
 `cooking_mcp.py` : `from fastmcp import FastMCP` (pas `mcp.server.fastmcp`), v3.4+.
