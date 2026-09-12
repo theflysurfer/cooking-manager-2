@@ -103,17 +103,10 @@ Plus rien ne lit `Garde-manger.md` (ADR 0017) : le stock ne bouge que sur décla
 ⛔ **`normalize_name` retire découpe et pluriel, jamais un ÉTAT** : « sèches », « surgelés »,
 « fraîche », « entier » changent l'identité de l'aliment.
 
-La fraîcheur se juge **par article** sur `entered_at` : un périssable entré il y a > 14 jours
-ressort `inconnu` (assumed_empty), un périssable sans `entered_at` aussi. Le `age_days` global
-(sur `MAX(updated_at)`) ne sert plus que d'indicateur d'inventaire — pas de fraîcheur.
-
-⛔ **`outcome: inconnu` veut dire « présent, quantité incomparable »**, jamais « on ne sait pas
-si tu l'as » : stock en texte libre, besoin en chiffres. Lire le `reason` et trancher à la main.
-
-⛔ **Une commande drive non retirée n'est ni du stock ni un manque** : absente de
-`pantry_item`, ses lignes ressortent `absent`. Lire `grocery_orders` (un `status` vide = pas
-retirée) avant de racheter. Déclarer un article : `PATCH /api/pantry`, par **nom**, 409 sur un
-homonyme — `julien-cooking-manager-pantry-update` · calcul et drive : `julien-cooking-donnees` § 5.
+Fraîcheur **par article** sur `entered_at` : périssable > 14 j ou sans date → `inconnu`.
+`outcome: inconnu` = présent mais quantité incomparable (lire `reason`). Commande drive non
+retirée → `absent` en courses (lire `grocery_orders` avant de racheter). Déclarer : `PATCH /api/pantry`
+par **nom**, 409 sur homonyme — `julien-cooking-manager-pantry-update` · calcul et drive : `julien-cooking-donnees` § 5.
 
 ## Photos
 
@@ -175,16 +168,12 @@ Cible **Safari 12.5.8** : `gap` en flex, `aspect-ratio`, `<dialog>`,
 `prefers-color-scheme`, `:focus-visible`, `?.`/`??`/`||=` et les champs de classe sont
 hors d'atteinte. Le catalogue interdit → parade vit dans `julien-audit-ios12-compat`.
 
-Vérifier : `audit_ios12.py web` (score ≥ 90, zéro bloquant). `package.json` est en
-devDependencies : **pas de build**.
-
-⚠️ Aucun scanner ne voit le zoom auto sur `input` < 16 px, `100vh` mouvant, `:hover`
-collant. **Seul l'iPad réel valide.**
+Vérifier : `audit_ios12.py web` (score ≥ 90, zéro bloquant). `package.json` = devDependencies
+only, **pas de build**. Aucun scanner ne voit zoom auto < 16 px, `100vh`, `:hover` — **iPad réel seul valide.**
 
 ## Design
 
 **Appétissant** · **Sans friction** · **Maîtrisé**. Letter-spacing, pas graisse.
-Détail : `2026.08 Product Toolkit/research/`.
 
 ## Skills liées
 
