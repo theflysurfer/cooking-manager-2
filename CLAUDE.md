@@ -147,14 +147,10 @@ Collisions, formes, XML ANSES, rattachement : `julien-cooking-donnees` § 2.
 
 1. **Pas d'hypothèse** — non résolu ⇒ `unresolved` avec son motif. Une base sans « pour 100 g » est ignorée ; une fiche « Crues »/« Cuites » sans forme nommée ne tranche pas.
 2. **Réconcilier** — `kcal = P×4 + G×4 + L×9` ; au-delà de 5 % d'écart, montrer les deux chiffres.
-3. **Trois sources** — `marques/` > `shopping_product.nutrition` > `generiques/` (CIQUAL). Jamais de quatrième position implicite. `coverage`/`conclusive` priment sur le total.
+3. **Deux sources** — table `food` en DB (163 aliments) > `shopping_product.nutrition` (drive). Le vault `.md` aliments est **coupé** (session 2026-09-13, import final fait). `coverage`/`conclusive` priment sur le total.
 
-⛔ **Une énergie se lit avec son unité** — les fiches écrivent « 2820 kJ (673 kcal) », et le
-premier nombre est le mauvais. `read_energy()` prend les kcal si écrits, convertit les kJ
-sinon, et **refuse au-delà de 950 kcal/100 g** (l'huile pure plafonne à 900).
-
-Pièges : `/macros` lit la table `food` en DB (pas le vault .md) ; `qty_min` est un `Decimal`.
-Décommissionnement complet du vault .md aliments : #95.
+Pièges : `/macros` lit `_load_food_base_from_db()` (pas de cache, SELECT direct) ; `qty_min` est un `Decimal`.
+Phase 2 en cours : table `food_form` pour les multi-formes + CRUD API (#96→#102).
 
 ## Commande vocale
 
