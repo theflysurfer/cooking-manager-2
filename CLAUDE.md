@@ -1,6 +1,6 @@
 # Cooking Manager 2
 
-App web de cuisine familiale : recettes du vault Obsidian, menus de la semaine,
+App web de cuisine familiale : recettes, menus de la semaine,
 courses différentielles, macros. **Cible : iPad mini 2 / Safari 12.5.8**, en cuisine.
 
 <!-- fast-search-directive -->
@@ -16,7 +16,7 @@ ssh srv759970 'cd /opt/cooking-manager-2 && git pull && .venv/bin/pip install -q
 
 # L'API est derrière une basic auth nginx : toujours passer par le VPS
 ssh srv759970 'curl -s localhost:8795/api/<route>'
-ssh srv759970 'curl -s -X POST localhost:8795/api/ingest'          # après tout rclone copy
+ssh srv759970 'curl -s -X POST localhost:8795/api/ingest'          # re-link menu meals
 ssh srv759970 'docker exec postgresql-shared psql -U cooking -d cooking_manager -c "SELECT ..."'
 ```
 
@@ -33,18 +33,18 @@ python ~/.claude/skills/julien-audit-ios12-compat/scripts/audit_ios12.py web   #
 
 ## Architecture
 
-`cooking_manager/` = domaine pur, sans I/O réseau : `vault` `normalizer` `ingredients`
+`cooking_manager/` = domaine pur, sans I/O réseau : `normalizer` `ingredients`
 `convives` (compatibilité) `presence` (qui est à table) `pantry` (stock, différentiel)
-`nutrition` `substitutions`. `backend/` = FastAPI, schéma, ingestion, `stt.py`, `cooking_mcp.py`.
+`nutrition` `substitutions`. `backend/` = FastAPI, schéma, writers DB, `stt.py`, `cooking_mcp.py`.
 `web/` = 3 fichiers statiques, zéro build. `data/ontology/` = source du vocabulaire.
 Déploiement : systemd `cooking-manager` (8795) + `cooking-mcp` (3868) sur srv759970 ; les
 tables recette appartiennent à **recipe-manager** (8796), CM2 est colocataire.
 
-## Vault → base
+## DB fait foi (ADR 0010/0022)
 
-`Noyau/Cuisine/` (Dropbox, monté sur le VPS via rclone) : `Recettes/*.md` · `Menus/*.md` ·
-`Convives.md` · `Garde-manger.md`. Le bloc `meals:` du frontmatter fait foi, les tableaux du
-corps ne sont pas lus. Slots, restes, délai du mount : `julien-cooking-donnees` § 1.
+Le vault Obsidian est **déconnecté** (ADR 0022). La DB PostgreSQL est la seule source
+de vérité pour recettes, menus, convives et stock. recipe-manager (8796) écrit
+directement en DB, plus de `.md` ni de rclone.
 
 | Piège | Geste |
 |---|---|
@@ -52,11 +52,8 @@ corps ne sont pas lus. Slots, restes, délai du mount : `julien-cooking-donnees`
 | `menu_meal.position` | 1-based en DB : tout JS fait `position - 1` |
 | Marquer un repas mangé | `POST /api/menus/{slug}/served` (day/slot), **jamais** le `PATCH` du repas |
 
-⛔ **Jamais de `DELETE FROM menu` ni `menu_meal`** : l'ingestion upsert, un DELETE global
-efface les menus créés par l'API et la colonne `served`. ⛔ **Jamais départager deux fiches
-au `mtime`** — sur le mount rclone il date la copie ; `read_recipes()` tranche sur la date
-déclarée. Menu de bout en bout : `weekly-prep` § 4-6. ⛔ **Recette écrite via l'API sur un slug
-ayant une fiche `.md` = écrasée au prochain ingest** (dual-writer en cours de bascule, ADR 0020).
+⛔ **Jamais de `DELETE FROM menu` ni `menu_meal`** : l'API upsert, un DELETE global
+efface les menus créés par l'API et la colonne `served`.
 
 ## Qui est à table
 

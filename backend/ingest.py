@@ -1,19 +1,16 @@
-"""Ingest recipes and menus from Obsidian vault into PostgreSQL."""
+"""Write recipes and menus into PostgreSQL.
 
-import asyncio
+Historically this module ingested from the Obsidian vault.  The vault readers
+were removed (ADR 0022); write_recipe / write_menu / _link_meals survive as
+reusable DB writers called by the API and by recipe-manager.
+"""
+
 import json
-import re
 import logging
 from datetime import date
 from pathlib import Path
-from urllib.parse import urlparse
-from urllib.request import urlopen, Request
-from urllib.error import URLError
 
-from cooking_manager.vault import read_recipes, read_menus, read_convives
-from cooking_manager.normalizer import normalize_recipe, normalize_menu
 from cooking_manager.ingredients import parse_recipe_body, normalize_name
-from cooking_manager.convives import parse_convives
 from .db import get_pool, init_schema
 
 log = logging.getLogger(__name__)
@@ -53,66 +50,17 @@ ON CONFLICT (slug) DO UPDATE SET
     ingested_at=NOW()
 """
 
-_IMAGE_META_PATTERNS = [
-    re.compile(r'<meta[^>]+property=["\']og:image["\'][^>]+content=["\']([^"\']+)["\']', re.IGNORECASE),
-    re.compile(r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+property=["\']og:image["\']', re.IGNORECASE),
-    re.compile(r'<meta[^>]+name=["\']twitter:image["\'][^>]+content=["\']([^"\']+)["\']', re.IGNORECASE),
-    re.compile(r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+name=["\']twitter:image["\']', re.IGNORECASE),
-    re.compile(r'"@type"\s*:\s*"Recipe"[^}]*"image"\s*:\s*"([^"]+)"'),
-    re.compile(r'"@type"\s*:\s*"Recipe"[^}]*"image"\s*:\s*\[\s*"([^"]+)"'),
-]
-
-_RE_IMG_TAG = re.compile(r'<img[^>]+src=["\']([^"\']+)["\'][^>]*>', re.IGNORECASE)
-_RE_WIDTH = re.compile(r'width=["\']?(\d+)')
-_RE_HEIGHT = re.compile(r'height=["\']?(\d+)')
-_SKIP_KEYWORDS = ("logo", "icon", "avatar", "sprite", "pixel", "1x1", "data:image/svg", "placeholder")
-_MIN_IMG_SIZE = 200
-
-def _scrape_photo(urls: list[str]) -> str | None:
-    """Try multiple strategies to find a recipe photo from source URLs."""
-    for url in urls[:5]:
-        try:
-            req = Request(url, headers={"User-Agent": "Mozilla/5.0 (compatible; CookingManager/2.0)"})
-            with urlopen(req, timeout=8) as resp:
-                html = resp.read(200_000).decode("utf-8", errors="ignore")
-
-            for pat in _IMAGE_META_PATTERNS:
-                m = pat.search(html)
-                if m:
-                    img_url = m.group(1)
-                    if "placeholder" not in img_url.lower():
-                        return img_url
-
-            for m in _RE_IMG_TAG.finditer(html):
-                tag = m.group(0).lower()
-                src = m.group(1)
-                if any(skip in src.lower() for skip in _SKIP_KEYWORDS):
-                    continue
-                w_match = _RE_WIDTH.search(tag)
-                h_match = _RE_HEIGHT.search(tag)
-                if w_match and int(w_match.group(1)) < _MIN_IMG_SIZE:
-                    continue
-                if h_match and int(h_match.group(1)) < _MIN_IMG_SIZE:
-                    continue
-                if src.startswith("/"):
-                    parsed = urlparse(url)
-                    src = f"{parsed.scheme}://{parsed.netloc}{src}"
-                if src.startswith("http"):
-                    return src
-        except (URLError, OSError, UnicodeDecodeError):
-            continue
-    return None
 
 def _parse_date(val):
     if val is None:
         return None
     if hasattr(val, "isoformat"):
         return val
-    from datetime import date
     try:
         return date.fromisoformat(str(val))
     except (ValueError, TypeError):
         return None
+
 
 def _recipe_row(r: dict) -> tuple:
     macros = r.get("macros") or {}
@@ -147,6 +95,7 @@ def _recipe_row(r: dict) -> tuple:
         _parse_date(r.get("updated")),
     )
 
+
 def _menu_row(m: dict) -> tuple:
     meals = m.get("meals") or m.get("repas")
     return (
@@ -164,11 +113,12 @@ def _menu_row(m: dict) -> tuple:
         _parse_date(m.get("updated")),
     )
 
+
 async def write_recipe(conn, r: dict) -> tuple[list[str], int, int, int]:
     """Upsert one normalized recipe dict and (re)parse its body into ingredients/steps.
 
-    Reusable core shared by vault ingestion and the DB-native write API (ADR 0010,
-    voie b). Returns (warnings, ingredients_parsed, ingredients_raw_only, steps_parsed).
+    Reusable core called by the DB-native write API (ADR 0010/0020).
+    Returns (warnings, ingredients_parsed, ingredients_raw_only, steps_parsed).
     """
     warnings: list[str] = []
     if not r.get("photo_url"):
@@ -224,116 +174,17 @@ async def write_menu(conn, m: dict) -> None:
     await conn.execute(UPSERT_MENU, *_menu_row(m))
 
 
-async def ingest(vault_root: Path, dsn: str) -> dict:
+async def relink_meals(dsn: str) -> dict:
+    """Re-resolve menu_meal → recipe links. Vault-free replacement for ingest()."""
     await init_schema(dsn)
     pool = await get_pool(dsn)
-
-    warnings: list[str] = []
-
-    raw_recipes = read_recipes(vault_root)
-    recipes = []
-    for raw in raw_recipes:
-        normalized, warns = normalize_recipe(raw)
-        warnings.extend(warns)
-        recipes.append(normalized)
-
-    raw_menus = read_menus(vault_root)
-    menus = []
-    for raw in raw_menus:
-        normalized, warns = normalize_menu(raw)
-        warnings.extend(warns)
-        menus.append(normalized)
-
-    convives = parse_convives(read_convives(vault_root).get("_body", ""))
-    if not convives:
-        warnings.append("aucun convive lu depuis Convives.md — le contrôle de "
-                        "compatibilité alimentaire ne pourra rien vérifier")
-
-    media_dir = Path(__file__).resolve().parent.parent / "web" / "media" / "recipes"
-    photos_linked = 0
-    for r in recipes:
-        if r.get("photo_url"):
-            continue
-        slug = r.get("slug", "")
-        if slug and (media_dir / f"{slug}.jpg").is_file():
-            r["photo_url"] = f"/media/recipes/{slug}.jpg"
-            photos_linked += 1
-
-    need_photo = [r for r in recipes if not r.get("photo_url") and r.get("sources")]
-    if need_photo:
-        results = await asyncio.gather(
-            *(asyncio.to_thread(_scrape_photo, r["sources"]) for r in need_photo)
-        )
-        for r, photo in zip(need_photo, results, strict=True):
-            if photo:
-                r["photo_url"] = photo
-                log.info("Scraped photo for %s: %s", r.get("slug"), photo)
-
-    parsed_ingredients = parsed_steps = 0
-    unparsed_lines = 0
-
     async with pool.acquire() as conn:
-        for r in recipes:
-            w, pi, ur, ps = await write_recipe(conn, r)
-            warnings.extend(w)
-            parsed_ingredients += pi
-            unparsed_lines += ur
-            parsed_steps += ps
+        linked, orphan = await _link_meals(conn)
+    return {"meals_linked": linked, "meals_orphan": orphan}
 
-            for shadowed in r.get("_duplicate_paths", []):
-                warnings.append(
-                    f"{r.get('slug')}: slug en DOUBLE — « {Path(shadowed).name} » est "
-                    f"ignoré au profit de « {Path(str(r.get('_source_path', ''))).name} » "
-                    "(date déclarée plus récente). Renommer le slug ou supprimer le doublon."
-                )
-
-        for convive in convives:
-            await conn.execute(
-                """INSERT INTO convive (name, constraints, notes)
-                   VALUES ($1, $2, $3)
-                   ON CONFLICT (name) DO UPDATE SET
-                       constraints = $2, notes = $3, ingested_at = NOW()""",
-                convive.name,
-                [f"diet:{convive.diet}"]
-                + [f"avoid:{t}" for t in convive.forbidden]
-                + [f"dislike:{t}" for t in convive.dislikes],
-                "invité récurrent" if convive.is_guest else "foyer",
-            )
-            circle = "extended_family" if convive.is_guest else "household"
-            attendance = "never" if convive.is_guest else "always"
-            await conn.execute(
-                """INSERT INTO person (name, circle, diet, dislikes, forbidden,
-                                      notes, default_attendance)
-                   VALUES ($1, $2, $3, $4, $5, $6, $7)
-                   ON CONFLICT (name, circle) DO UPDATE SET
-                       diet = EXCLUDED.diet, dislikes = EXCLUDED.dislikes,
-                       forbidden = EXCLUDED.forbidden, notes = EXCLUDED.notes,
-                       updated_at = NOW()""",
-                convive.name, circle, convive.diet,
-                convive.dislikes, convive.forbidden,
-                convive.notes or None, attendance,
-            )
-
-        for m in menus:
-            await write_menu(conn, m)
-
-        meals_linked, meals_orphan = await _link_meals(conn)
-
-    return {
-        "recipes_ingested": len(recipes),
-        "menus_ingested": len(menus),
-        "meals_linked": meals_linked,
-        "meals_orphan": meals_orphan,
-        "convives_ingested": len(convives),
-        "persons_ingested": len(convives),
-        "photos_linked": photos_linked,
-        "ingredients_parsed": parsed_ingredients,
-        "ingredients_raw_only": unparsed_lines,
-        "steps_parsed": parsed_steps,
-        "warnings": warnings,
-    }
 
 SLOTS = ("breakfast", "lunch", "snack", "dinner")
+
 
 async def _link_meals(conn) -> tuple[int, int]:
     """Éclate `menu.meals` (JSONB) en lignes `menu_meal`, recettes résolues."""
@@ -409,6 +260,7 @@ async def _link_meals(conn) -> tuple[int, int]:
         )
     return linked, orphan
 
+
 def _resolve_dish(dish: str, by_norm: dict) -> tuple[int | None, str | None]:
     """Intitulé de repas → recette, avec le motif d'appariement retenu."""
     norm = normalize_name(dish or "")
@@ -423,6 +275,7 @@ def _resolve_dish(dish: str, by_norm: dict) -> tuple[int | None, str | None]:
             return recipe["id"], "contained_by"
     return None, None
 
+
 def _as_date(value):
     if isinstance(value, date):
         return value
@@ -432,6 +285,3 @@ def _as_date(value):
         except ValueError:
             return None
     return None
-
-async def run_ingest(vault_root: str, dsn: str) -> dict:
-    return await ingest(Path(vault_root), dsn)

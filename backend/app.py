@@ -24,9 +24,9 @@ from cooking_manager.feedback import (
 )
 from cooking_manager.substitutions import VOCABULARY_VERSION, load_vocabulary
 
-from .config import DATABASE_DSN, VAULT_ROOT
+from .config import DATABASE_DSN
 from .db import get_pool, init_schema, close_pool
-from .ingest import ingest, write_recipe, _link_meals
+from .ingest import relink_meals, write_recipe, _link_meals
 
 async def _get_recipe_id(conn, slug: str) -> int:
     row = await conn.fetchrow("SELECT id FROM recipe WHERE slug = $1", slug)
@@ -1176,8 +1176,8 @@ async def delete_menu(slug: str):
 
 @app.post("/api/ingest")
 async def trigger_ingest():
-    result = await ingest(Path(VAULT_ROOT), DATABASE_DSN)
-    return result
+    """Re-link menu meals to recipes. Vault ingestion removed (ADR 0022)."""
+    return await relink_meals(DATABASE_DSN)
 
 @app.get("/api/stats")
 async def stats():
@@ -2857,22 +2857,16 @@ async def discard_import_draft(draft_id: int):
 
 @app.post("/api/recipes/import/drafts/{draft_id}/commit")
 async def commit_import_draft(draft_id: int, overwrite: bool = False):
-    """Écrit la fiche dans le vault, puis tente de la rendre visible."""
+    """Commit un brouillon via recipe-manager (qui écrit en DB directement depuis ADR 0022)."""
     result = await _rm_request(
         "POST", f"/recipes/import/drafts/{draft_id}/commit",
         params={"overwrite": str(overwrite).lower()},
     )
     slug = result.get("slug")
-    try:
-        await ingest(Path(VAULT_ROOT), DATABASE_DSN)
-        pool = await get_pool(DATABASE_DSN)
-        result["visible"] = bool(
-            await pool.fetchval("SELECT 1 FROM recipe WHERE slug = $1", slug)
-        )
-    except Exception as exc:  # noqa: BLE001 — la fiche EST écrite, ne pas la perdre
-        logger.warning("commit ok but re-ingest failed: %s", exc)
-        result["visible"] = False
-        result["ingest_error"] = str(exc)
+    pool = await get_pool(DATABASE_DSN)
+    result["visible"] = bool(
+        await pool.fetchval("SELECT 1 FROM recipe WHERE slug = $1", slug)
+    )
     return result
 
 WEB_DIR = Path(__file__).parent.parent / "web"

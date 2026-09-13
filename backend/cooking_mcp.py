@@ -208,8 +208,8 @@ async def menu_current() -> str:
     return json.dumps(menus[0], ensure_ascii=False, indent=2)
 
 @mcp.tool()
-async def vault_ingest() -> str:
-    """Re-ingest recipes, menus and people from the vault. Never touches the pantry."""
+async def relink_meals() -> str:
+    """Re-resolve menu-meal → recipe links. Vault ingestion removed (ADR 0022)."""
     data = await _api("POST", "/api/ingest")
     return json.dumps(data, ensure_ascii=False, indent=2)
 
