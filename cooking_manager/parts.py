@@ -97,3 +97,25 @@ def shares_for(convives: Sequence, covers: int) -> dict[str, Share]:
         diet: Share(diet=diet, convives=tuple(names), covers=covers)
         for diet, names in by_diet.items()
     }
+
+def declared_diets(
+    ingredients: Sequence[dict],
+    convives: Sequence,
+) -> set[str]:
+    """Les régimes dont la part est DÉJÀ écrite dans la recette par le cuisinier.
+
+    Convention du corpus, issue de `mafe-poulet` : « crevettes (part Clémence) ».
+    Le moteur de substitutions ne comble que les trous — sans ce garde, il
+    proposerait une deuxième part et la liste de courses achèterait les deux.
+    """
+    from cooking_manager.convives import part_for
+
+    texts = [str(i.get("raw") or i.get("name") or "") for i in ingredients]
+    covered: set[str] = set()
+    for convive in convives:
+        diet = getattr(convive, "diet", "") or ""
+        if diet in ("", "standard", "omnivore"):
+            continue
+        if part_for(convive.name, texts) is not None:
+            covered.add(diet)
+    return covered

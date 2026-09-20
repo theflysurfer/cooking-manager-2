@@ -66,3 +66,22 @@ class TestApplyRepairs:
 
     def test_no_repair_changes_nothing(self):
         assert apply_repairs(INGREDIENTS, [], self.SHARES) == [dict(i) for i in INGREDIENTS]
+
+class TestDeclaredDiets:
+    TABLE = [Convive(name="Julien", diet="standard"),
+             Convive(name="Clémence", diet="pescetarian")]
+
+    def test_a_declared_part_covers_its_diet(self):
+        from cooking_manager.parts import declared_diets
+        lines = [{"raw": "240 g pois chiches cuits (part de Clémence)"},
+                 {"raw": "8 pilons de poulet"}]
+        assert declared_diets(lines, self.TABLE) == {"pescetarian"}
+
+    def test_no_declared_part_leaves_the_engine_its_job(self):
+        from cooking_manager.parts import declared_diets
+        assert declared_diets([{"raw": "8 pilons de poulet"}], self.TABLE) == set()
+
+    def test_a_part_for_someone_else_does_not_cover_a_diet(self):
+        from cooking_manager.parts import declared_diets
+        lines = [{"raw": "concombre (servi à part pour Léa)"}]
+        assert declared_diets(lines, self.TABLE) == set()

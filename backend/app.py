@@ -467,7 +467,7 @@ async def menu_compatibility(slug: str):
     from datetime import date as _date
 
     from cooking_manager.convives import check_ingredients, check_meal
-    from cooking_manager.parts import shares_for
+    from cooking_manager.parts import declared_diets, shares_for
     from cooking_manager.substitutions import (
         DIET_REASON_PREFIX,
         Discovery,
@@ -568,7 +568,7 @@ async def menu_compatibility(slug: str):
         conflict_count += len(conflicts)
 
         at_table = [convives[n] for n in present if n in convives]
-        repairs, unrepaired = [], []
+        repairs, unrepaired, declared_parts = [], [], []
         if lines and at_table:
             ingredient_conflicts = check_ingredients(lines, at_table)
             context = detect_context(
@@ -582,6 +582,9 @@ async def menu_compatibility(slug: str):
             repairs = repair_ingredients(
                 texts, diets_at_table(ingredient_conflicts), context)
             repairs += fallback_repairs(ingredient_conflicts, repairs, context)
+            already = declared_diets(lines, at_table)
+            declared_parts = sorted(already)
+            repairs = [r for r in repairs if r.diet not in already]
             repairs, refused = prefer_discovered(
                 repairs, found_by_meal.get(meal["meal_id"], []))
             unrepaired = unrepaired_conflicts(ingredient_conflicts, repairs) + refused
@@ -591,7 +594,7 @@ async def menu_compatibility(slug: str):
         rendered = []
         for c in conflicts:
             diet = c.reason[len(DIET_REASON_PREFIX):].strip()                 if c.reason.startswith(DIET_REASON_PREFIX) else ""
-            covered = bool(diet) and diet in repaired_diets
+            covered = bool(diet) and (diet in repaired_diets or diet in declared_parts)
             if not covered:
                 uncovered_count += 1
             rendered.append({"convive": c.convive, "reason": c.reason,
@@ -604,6 +607,7 @@ async def menu_compatibility(slug: str):
             "slot": slot, "dish": dish, "attendees": present,
             "at_home": bool(present),
             "conflicts": rendered,
+            "declared_parts": declared_parts,
             "repairs": [
                 {"ingredient": r.ingredient, "diet": r.diet,
                  "convives": list(shares[r.diet].convives) if r.diet in shares else [],
@@ -743,7 +747,7 @@ async def menu_shopping_list(
 ):
     """Menu → liste de courses différentielle, groupée par recette."""
     from cooking_manager.pantry import build_needs, check_need
-    from cooking_manager.parts import apply_repairs, shares_for
+    from cooking_manager.parts import apply_repairs, declared_diets, shares_for
     from cooking_manager.purchase import purchase_for
     from cooking_manager.substitutions import (
         Discovery,
@@ -842,6 +846,8 @@ async def menu_shopping_list(
                          FROM substitution_discovery WHERE recipe_id = $1""",
                     recipe["id"],
                 )
+                already = declared_diets(lines, at_table)
+                repairs = [r for r in repairs if r.diet not in already]
                 repairs, _refused = prefer_discovered(repairs, [
                     Discovery(original=f["original_ingredient"],
                               substitute=f["substitute_ingredient"],
