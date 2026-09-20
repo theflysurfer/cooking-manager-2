@@ -157,3 +157,10 @@ class TestProteinFamilies:
     def test_parmesan_alone_is_not_a_protein_family(self):
         from cooking_manager.preferences import families_in
         assert families_in({"dish": "Risotto", "ingredients": ["parmesan"]}) == []
+
+class TestLeftoversAreNotAHole:
+    def test_a_leftovers_meal_is_not_counted_as_protein_less(self):
+        from cooking_manager.preferences import meals_without_protein
+        meals = [{"day": "vendredi", "slot": "lunch", "dish": "Restes de la poêlée",
+                  "match_kind": "leftovers", "ingredients": []}]
+        assert meals_without_protein(meals) == []

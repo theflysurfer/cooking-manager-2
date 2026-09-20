@@ -490,13 +490,13 @@ async def menu_compatibility(slug: str):
             "SELECT DISTINCT name FROM recipe_ingredient WHERE name IS NOT NULL"
         )]
         meal_rows = await conn.fetch(
-            """SELECT mm.day_label, mm.slot, mm.dish, mm.position,
+            """SELECT mm.day_label, mm.slot, mm.dish, mm.position, mm.match_kind,
                       COALESCE(array_agg(ri.name)
                                FILTER (WHERE ri.name IS NOT NULL), '{}') AS ingredients
                  FROM menu_meal mm
                  LEFT JOIN recipe_ingredient ri ON ri.recipe_id = mm.recipe_id
                 WHERE mm.menu_id = (SELECT id FROM menu WHERE slug = $1)
-                GROUP BY mm.day_label, mm.slot, mm.dish, mm.position
+                GROUP BY mm.day_label, mm.slot, mm.dish, mm.position, mm.match_kind
                 ORDER BY mm.position""",
             slug,
         )
@@ -537,6 +537,7 @@ async def menu_compatibility(slug: str):
 
     counted_meals = [
         {"day": m["day_label"], "slot": m["slot"], "dish": m["dish"],
+         "match_kind": m["match_kind"],
          "ingredients": list(m["ingredients"] or [])} for m in meal_rows
     ]
     prefs = check_preferences(counted_meals, load_rules(pref_rows), vocabulary)

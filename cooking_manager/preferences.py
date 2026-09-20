@@ -167,6 +167,11 @@ def check_preferences(
     return checks
 
 def meals_without_protein(meals: list[dict]) -> list[dict]:
-    """Les repas qu'aucune famille de protéine ne touche — un dîner ici est un trou."""
+    """Les repas qu'aucune famille de protéine ne touche — un dîner ici est un trou.
+
+    Un repas `leftovers` n'a **pas de fiche**, donc pas d'ingrédient à confronter
+    (#76) : son silence n'est pas une absence de protéine, il est exclu.
+    """
     return [{"day": m.get("day"), "slot": m.get("slot"), "dish": m.get("dish")}
-            for m in meals if not families_in(m)]
+            for m in meals
+            if m.get("match_kind") != "leftovers" and not families_in(m)]
