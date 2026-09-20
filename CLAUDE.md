@@ -87,6 +87,13 @@ Une **part séparée** se déclare dans les ingrédients (`150 g pois chiches (p
 jamais en `## Notes` : les notes ne sont ni parsées ni achetées. Un conflit ainsi couvert porte
 `covered_by` — **lire `conflicts_uncovered`, pas `conflicts`**.
 
+⛔ **Un interdit se lit À UNE TABLÉE, jamais dans l'absolu.** `/recipes/{slug}/compatibility`
+résout la tablée dans cet ordre : `?convives=` nommés → `?day=&slot=` (présence réelle) →
+**les résidents** (`household_member.membership='resident'`, 4 personnes). Chaque conflit porte
+son `membership` : `guest` = contrainte d'invité, pas une règle du foyer. Mesuré le 2026-09-20 :
+tester les 14 lignes de `person` rendait 42 « interdits » sur 37 recettes, dont 25 pour une
+personne absente — contre 0 à la tablée réelle.
+
 Un terme alimentaire s'écrit **au singulier**, toujours : la flexion va du singulier vers le
 pluriel, jamais l'inverse. Un terme ambigu (`roti`, `blanc`, `filet`) se déclare avec son motif
 dans `CONTEXT_REQUIRED` (ADR 0007). Lire, jamais recopier : `/api/preferences` ·
