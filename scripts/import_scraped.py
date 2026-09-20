@@ -1,12 +1,4 @@
-"""Verse la moisson de `scrape_weeknight.py` en base, via l'API — jamais en SQL direct.
-
-Les fiches entrent en `a-tester` : une recette moissonnée n'est pas une recette
-du foyer tant qu'elle n'a pas été servie. Elle porte sa source, sa bande d'effort
-et le tag `moisson-semaine` pour qu'on puisse la retirer en bloc.
-
-    python scripts/import_scraped.py --dry-run
-    python scripts/import_scraped.py
-"""
+"""Verse la moisson en base via l'API, en `a-tester` — ADR 0024."""
 
 from __future__ import annotations
 

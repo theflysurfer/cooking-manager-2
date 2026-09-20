@@ -270,11 +270,7 @@ async def _persist_recipe(payload: dict, slug_override: str | None) -> dict:
 
 @app.post("/api/recipes", status_code=201)
 async def create_recipe(body: RecipeWrite):
-    """Créer une recette en base (source de vérité, ADR 0010 voie b).
-
-    body = markdown avec « ## Ingrédients » et « ## Étapes » ; les autres champs
-    (family, servings, tags, macros, status, sources, photo_url…) sont acceptés
-    tels quels puis normalisés."""
+    """Créer une recette en base — ADR 0010 voie b."""
     return await _persist_recipe(body.model_dump(), None)
 
 @app.put("/api/recipes/{slug}")
@@ -386,13 +382,7 @@ async def recipe_macros_endpoint(slug: str):
     }
 
 async def _memberships(conn) -> dict[str, str]:
-    """Le rang de chacun : `resident`, `regular_guest`, ou `guest` s'il n'est pas du foyer.
-
-    Un interdit n'existe pas en soi, il existe à une tablée : sans ce rang, le
-    poivre que refuse une invitée se lit comme une règle de la maison. Mesuré le
-    2026-09-20 : 42 « interdits » sur 37 recettes, dont 25 pour une personne qui
-    ne mangeait pas là cette semaine.
-    """
+    """Le rang de chacun : `resident`, `regular_guest`, `guest` — ADR 0025."""
     rows = await conn.fetch(
         """SELECT p.name, COALESCE(hm.membership, 'guest') AS membership
              FROM person p
@@ -407,13 +397,7 @@ async def recipe_compatibility(
     slot: str = "dinner",
     convives: str | None = None,
 ):
-    """Compatibilité d'une recette, contrôlée sur ses INGRÉDIENTS, À UNE TABLÉE.
-
-    La tablée se résout dans cet ordre : `convives=` nommés, puis `day=`+`slot=`
-    (la présence réelle — gcal, cantine, garde alternée), puis **les résidents**.
-    Jamais les 14 personnes de `person` : un invité occasionnel n'est pas une
-    contrainte permanente.
-    """
+    """Compatibilité d'une recette sur ses INGRÉDIENTS, à une tablée — ADR 0025."""
     from cooking_manager.convives import check_ingredients
     from cooking_manager.presence import attendees
     from cooking_manager.substitutions import (
@@ -2030,9 +2014,6 @@ async def get_feedback_vocabulary():
         },
     }
 
-# ═══════════════════════════════════════════════════════════════════════
-# Retours utilisateur v0.7.0
-# ═══════════════════════════════════════════════════════════════════════
 
 class ProductRemarkBody(BaseModel):
     shopping_product_id: int | None = None

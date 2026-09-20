@@ -154,12 +154,7 @@ def _parse_diet(value: str) -> str:
 _PART = re.compile(r"\(([^)]*\bpart\b[^)]*)\)")
 
 def part_for(convive: str, ingredients: list[str]) -> str | None:
-    """L'ingrédient qui porte la part séparée de ce convive, ou None.
-
-    Convention du corpus : « pois chiches cuits (part de Clémence) »,
-    « crevettes décortiquées (part Clémence) », « concombre (servi à part pour
-    Léa) ». Sans elle, un conflit couvert se lit comme un conflit oublié.
-    """
+    """L'ingrédient portant la part séparée de ce convive, ou None — ADR 0025."""
     wanted = _fold(convive).split()[0] if convive else ""
     if not wanted:
         return None

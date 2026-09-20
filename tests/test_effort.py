@@ -30,8 +30,6 @@ class TestReadEffort:
         assert read_effort(BOULETTES).band == PROJECT
 
     def test_resting_overnight_is_not_effort(self):
-        """Mesuré sur le corpus : compter le repos comme façonnage classait
-        overnight-oats (5 min) en `project`."""
         assert read_effort(OATS).band == HANDS_OFF
 
     def test_a_plain_assembly_is_light(self):

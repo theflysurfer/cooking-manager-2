@@ -1,10 +1,4 @@
-"""La part d'un convive dont le régime refuse un ingrédient du plat.
-
-Le moteur de `substitutions` dit PAR QUOI remplacer. Ce module dit POUR COMBIEN
-DE PERSONNES — sans lui, une réparation se lit comme un remplacement total et
-la liste de courses achète le plat carné pour toute la tablée, plus rien pour
-la personne concernée.
-"""
+"""La part d'un convive dont le régime refuse un ingrédient du plat — ADR 0025."""
 
 from __future__ import annotations
 
@@ -36,11 +30,7 @@ def apply_repairs(
     repairs: Sequence[IngredientRepair],
     shares: dict[str, Share],
 ) -> list[dict]:
-    """Découpe chaque ligne réparée en deux : la part d'origine, et la part substituée.
-
-    Une réparation sans part connue (`shares` muet sur ce régime) est **ignorée** :
-    substituer pour une tablée inconnue achèterait n'importe quoi.
-    """
+    """Découpe une ligne réparée : part d'origine et part substituée — ADR 0025."""
     by_raw: dict[str, list[IngredientRepair]] = {}
     for repair in repairs:
         share = shares.get(repair.diet)
@@ -102,12 +92,7 @@ def declared_diets(
     ingredients: Sequence[dict],
     convives: Sequence,
 ) -> set[str]:
-    """Les régimes dont la part est DÉJÀ écrite dans la recette par le cuisinier.
-
-    Convention du corpus, issue de `mafe-poulet` : « crevettes (part Clémence) ».
-    Le moteur de substitutions ne comble que les trous — sans ce garde, il
-    proposerait une deuxième part et la liste de courses achèterait les deux.
-    """
+    """Les régimes dont la part est DÉJÀ écrite dans la recette — ADR 0025."""
     from cooking_manager.convives import part_for
 
     texts = [str(i.get("raw") or i.get("name") or "") for i in ingredients]

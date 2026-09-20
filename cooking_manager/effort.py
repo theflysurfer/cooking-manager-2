@@ -1,12 +1,4 @@
-"""La charge de travail d'un plat, DÉRIVÉE de ses étapes — facette `effort_bands`.
-
-L'horloge ment : un mijoté de 50 min laisse les mains libres, un risotto de
-35 min les occupe sans interruption. La bande se lit donc dans les gestes, pas
-dans `total_time_min`.
-
-Dérivée = `probation`. Elle ne devient un fait qu'une fois le plat réellement
-tenu un soir de semaine, et ce verdict-là vit dans `service_context`.
-"""
+"""La charge d'un plat, dérivée de ses étapes — facette `effort_bands`, ADR 0024."""
 
 from __future__ import annotations
 
@@ -97,12 +89,7 @@ WEEKNIGHT_CLOCK_MAX = 45
 WEEKNIGHT_HANDS_ON_MAX = 20
 
 def fits_weeknight(reading: EffortReading, total_time_min: int | None = None) -> bool | None:
-    """Tient un soir de semaine ? `None` quand rien ne permet de trancher.
-
-    Les deux axes comptent, et ni l'un ni l'autre ne suffit : le mafé est
-    `light_hands_on` mais tient 50 min à table (refus de Julien, 2026-09-20),
-    les œufs brouillés sont `hands_on` mais expédiés en 15 min.
-    """
+    """Tient un soir de semaine ? `None` quand rien ne permet de trancher — ADR 0024."""
     if not reading.derivable:
         return None
     if reading.band == PROJECT:

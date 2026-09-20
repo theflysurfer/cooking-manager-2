@@ -59,8 +59,6 @@ class TestPreferDiscovered:
 
 
 class TestBouillonIsNotAFish:
-    """« 30 cl de bouillon de bœuf » rendait « lotte, 75 ml » — mesuré le 2026-09-20
-    sur le chili con carne moissonné : la règle volaille existait, pas la bœuf."""
 
     def test_a_beef_stock_becomes_a_vegetable_stock(self):
         from cooking_manager.substitutions import RecipeContext, find_substitution
@@ -76,8 +74,6 @@ class TestBouillonIsNotAFish:
 
 
 class TestGapsFoundInTheHarvest:
-    """Mesuré le 2026-09-20 sur les 38 recettes moissonnées : trois plats restaient
-    `unrepaired` pour Clémence faute de règle — le jambon et la viande hachée."""
 
     def _sub(self, line):
         from cooking_manager.substitutions import RecipeContext, find_substitution

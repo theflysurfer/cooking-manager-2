@@ -1,12 +1,4 @@
-"""Moissonne des dîners de semaine depuis des pages recette en JSON-LD (schema.org/Recipe).
-
-Le répertoire du foyer n'a que des plats construits : mesuré le 2026-09-20, ses
-37 recettes « rapides » sont des assiettes froides de midi. Ce script comble ce
-trou, et ne garde que ce que `cooking_manager.effort` juge tenable un soir de
-semaine — le filtre est le nôtre, pas la promesse du site.
-
-    python scripts/scrape_weeknight.py --target 50 --out data/scraped_weeknight.json
-"""
+"""Moissonne des dîners de semaine en JSON-LD, filtrés par `effort` — ADR 0024."""
 
 from __future__ import annotations
 

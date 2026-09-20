@@ -1,8 +1,4 @@
-"""Les préférences alimentaires pesantes — `cap`, `rotate`, `minimize`, `maximize`.
-
-Elles ne bloquent pas un repas comme `forbidden` : elles se comptent sur une
-portée (repas, jour, semaine) et se rendent avec leur compte, franchi ou non.
-"""
+"""Préférences pesantes — `cap`, `rotate`, `minimize`, `maximize` : ADR 0023."""
 
 from __future__ import annotations
 
@@ -114,13 +110,7 @@ def families_in(meal: dict) -> list[str]:
 def check_preferences(
     meals: list[dict], rules: list[Rule], vocabulary: list[str] | None = None,
 ) -> list[Check]:
-    """Un `Check` par règle. Le compte est TOUJOURS rendu, franchi ou non.
-
-    `vocabulary` = tous les ingrédients connus. Une cible qui n'y apparaît nulle
-    part ne peut pas être comptée : son zéro n'est pas un constat, et
-    `measurable` le dit — sans lui, une règle visée sur une catégorie
-    (« famille de protéine ») se lit comme respectée à chaque menu.
-    """
+    """Un `Check` par règle, compte toujours rendu ; `measurable` dit ADR 0023."""
     folded_vocabulary = [_fold(v) for v in vocabulary] if vocabulary else None
     checks = []
     for rule in rules:
@@ -167,11 +157,7 @@ def check_preferences(
     return checks
 
 def meals_without_protein(meals: list[dict]) -> list[dict]:
-    """Les repas qu'aucune famille de protéine ne touche — un dîner ici est un trou.
-
-    Un repas `leftovers` n'a **pas de fiche**, donc pas d'ingrédient à confronter
-    (#76) : son silence n'est pas une absence de protéine, il est exclu.
-    """
+    """Les repas sans aucune famille de protéine ; `leftovers` exclus (#76)."""
     return [{"day": m.get("day"), "slot": m.get("slot"), "dish": m.get("dish")}
             for m in meals
             if m.get("match_kind") != "leftovers" and not families_in(m)]

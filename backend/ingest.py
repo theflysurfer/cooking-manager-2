@@ -1,9 +1,4 @@
-"""Write recipes and menus into PostgreSQL.
-
-Historically this module ingested from the Obsidian vault.  The vault readers
-were removed (ADR 0022); write_recipe / write_menu / _link_meals survive as
-reusable DB writers called by the API and by recipe-manager.
-"""
+"""Écrit recettes et menus en PostgreSQL — ADR 0022."""
 
 import json
 import logging
@@ -117,11 +112,7 @@ def _menu_row(m: dict) -> tuple:
 
 
 async def write_recipe(conn, r: dict) -> tuple[list[str], int, int, int]:
-    """Upsert one normalized recipe dict and (re)parse its body into ingredients/steps.
-
-    Reusable core called by the DB-native write API (ADR 0010/0020).
-    Returns (warnings, ingredients_parsed, ingredients_raw_only, steps_parsed).
-    """
+    """Upsert a recipe and (re)parse its body — ADR 0010/0020."""
     warnings: list[str] = []
     if not r.get("photo_url"):
         slug = r.get("slug", "")

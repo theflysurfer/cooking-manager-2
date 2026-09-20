@@ -11,8 +11,6 @@ import os
 ROOT = Path(os.environ["FOOD"])
 
 FICHES = [
-    # dossier, slug, titre, kcal, P, G, L, source
-    # --- matières grasses / oléagineux ---
     ("matieres-grasses", "beurre", "Beurre doux", 753, 0.7, 0.6, 83, "ANSES Ciqual — Beurre doux, 82% MG."),
     ("matieres-grasses", "huile-coco", "Huile de coco", 900, 0, 0, 100, "Étiquette — huile de coco vierge."),
     ("matieres-grasses", "huile-sesame", "Huile de sésame", 900, 0, 0, 100, "Étiquette — huile de sésame."),
@@ -30,7 +28,6 @@ FICHES = [
     ("matieres-grasses", "olive-noire", "Olive noire", 294, 1.5, 1, 29, "ANSES Ciqual — Olive noire."),
     ("matieres-grasses", "olive-grecque", "Olive grecque (kalamata)", 270, 1.4, 1, 27, "Étiquette — olive kalamata."),
     ("matieres-grasses", "pignon-pin", "Pignon de pin", 673, 13.7, 4, 68.4, "ANSES Ciqual — Pignon de pin."),
-    # --- œufs & laitages ---
     ("oeufs-laitages", "lait-entier", "Lait entier", 64, 3.2, 4.8, 3.6, "ANSES Ciqual — Lait entier UHT."),
     ("oeufs-laitages", "lait-demi-ecreme", "Lait demi-écrémé", 46, 3.3, 4.8, 1.5, "ANSES Ciqual — Lait demi-écrémé UHT."),
     ("oeufs-laitages", "creme-fraiche-epaisse", "Crème fraîche épaisse", 300, 2.4, 3, 30, "ANSES Ciqual — Crème fraîche 30% MG."),
@@ -44,7 +41,6 @@ FICHES = [
     ("oeufs-laitages", "fromage-brebis", "Fromage de brebis", 400, 19.0, 0.5, 29.0, "ANSES Ciqual — Fromage à pâte molle au lait de brebis."),
     ("oeufs-laitages", "skyr", "Skyr nature", 59, 10.0, 4.0, 0.2, "ANSES Ciqual — Skyr, nature."),
     ("oeufs-laitages", "yaourt-grec", "Yaourt à la grecque nature", 108, 5.0, 4.4, 8.8, "ANSES Ciqual — Yaourt à la grecque, nature."),
-    # --- sucres, desserts, pâtisserie ---
     ("desserts-patisseries", "sucre-blanc", "Sucre blanc", 400, 0, 100, 0, "Étiquette — saccharose."),
     ("desserts-patisseries", "sucre-roux", "Sucre roux", 380, 0, 95, 0, "Étiquette — sucre roux/cassonade."),
     ("desserts-patisseries", "sucre-coco", "Sucre de coco", 380, 1, 92, 0, "Étiquette — sucre de fleur de coco."),
@@ -56,7 +52,6 @@ FICHES = [
     ("desserts-patisseries", "confiture", "Confiture", 250, 0.5, 60, 0, "Étiquette — confiture 60% fruits."),
     ("desserts-patisseries", "compote-sans-sucre", "Compote sans sucre ajouté", 50, 0.3, 12, 0.1, "Étiquette — compote pomme sans sucre ajouté."),
     ("desserts-patisseries", "chapelure", "Chapelure", 350, 12, 70, 3, "Étiquette — chapelure."),
-    # --- féculents / légumineuses ---
     ("feculents-legumineuses", "farine", "Farine de blé", 364, 10, 74, 1, "ANSES Ciqual — Farine de blé T55."),
     ("feculents-legumineuses", "riz-basmati", "Riz basmati (cru)", 350, 7.5, 78, 0.6, "ANSES Ciqual — Riz basmati, cru."),
     ("feculents-legumineuses", "riz-sushi", "Riz à sushi (cru)", 355, 6.5, 79, 0.6, "Étiquette — riz rond à sushi, cru."),
@@ -72,15 +67,12 @@ FICHES = [
     ("feculents-legumineuses", "orzo", "Orzo (pâte sèche)", 350, 12.0, 71.0, 1.5, "ANSES Ciqual — Pâte alimentaire, sèche."),
     ("feculents-legumineuses", "galette-riz", "Galette de riz", 387, 7.1, 83.5, 2.8, "ANSES Ciqual — Galette de riz soufflé."),
     ("feculents-legumineuses", "pain-khorasan", "Pain de khorasan (kamut)", 265, 11.0, 50.0, 2.5, "Étiquette — pain de blé khorasan."),
-    # --- poissons ---
     ("poissons", "thon-naturel", "Thon au naturel (égoutté)", 116, 26, 0, 1, "Étiquette — thon listao au naturel, égoutté."),
     ("poissons", "cabillaud", "Cabillaud (filet cru)", 76, 18, 0, 0.7, "ANSES Ciqual — Cabillaud, cru."),
     ("poissons", "dorade-royale", "Dorade royale (crue)", 133, 20, 0, 6, "ANSES Ciqual — Dorade royale, crue."),
     ("poissons", "sole", "Sole", 83, 17.5, 0, 1.4, "ANSES Ciqual — Sole, crue."),
-    # --- volailles / viandes ---
     ("volailles-viandes", "pilon-poulet", "Pilon de poulet (sans peau, cru)", 121, 19.7, 0, 4.7, "ANSES Ciqual — Cuisse/pilon de poulet, chair, cru."),
     ("volailles-viandes", "lardon-vegetarien", "Lardons végétariens", 130, 15, 5, 6, "Étiquette — lardons végétaux (soja)."),
-    # --- légumes ---
     ("legumes", "champignon", "Champignon de Paris (cru)", 22, 3, 1, 0.3, "ANSES Ciqual — Champignon de Paris, cru."),
     ("legumes", "edamame", "Edamame (fèves de soja, cuites)", 120, 11, 9, 5, "ANSES Ciqual — Fèves de soja edamame."),
     ("legumes", "chou-rouge", "Chou rouge (cru)", 31, 1.4, 5, 0.2, "ANSES Ciqual — Chou rouge, cru."),
@@ -89,7 +81,6 @@ FICHES = [
     ("legumes", "artichaut", "Artichaut", 40, 2.9, 4.3, 0.2, "ANSES Ciqual — Artichaut, cuit."),
     ("legumes", "salsifis", "Salsifis", 30, 1.1, 5.0, 0.2, "ANSES Ciqual — Salsifis, appertisé, égoutté."),
     ("legumes", "algue-nori", "Algue nori (séchée)", 200, 35.0, 5.0, 1.5, "Étiquette — algue nori séchée."),
-    # --- fruits ---
     ("fruits", "pomme", "Pomme (crue)", 54, 0.3, 12, 0.2, "ANSES Ciqual — Pomme, crue, pulpe et peau."),
     ("fruits", "mangue", "Mangue (crue)", 62, 0.7, 14, 0.4, "ANSES Ciqual — Mangue, crue."),
     ("fruits", "nectarine", "Nectarine (crue)", 44, 1.1, 8.9, 0.3, "ANSES Ciqual — Nectarine, crue."),
@@ -97,13 +88,11 @@ FICHES = [
     ("fruits", "fruit-rouge", "Fruits rouges", 45, 1, 8, 0.4, "ANSES Ciqual — Fruits rouges mélangés."),
     ("fruits", "figue", "Figue", 67, 0.8, 14.0, 0.3, "ANSES Ciqual — Figue, fraîche."),
     ("fruits", "mirabelle", "Mirabelle", 67, 0.6, 14.0, 0.2, "ANSES Ciqual — Mirabelle, fraîche."),
-    # --- sauces & condiments ---
     ("sauces-condiments", "sauce-soja", "Sauce soja", 60, 8, 5, 0, "Étiquette — sauce soja salée."),
     ("sauces-condiments", "moutarde", "Moutarde", 150, 6, 6, 10, "ANSES Ciqual — Moutarde de Dijon."),
     ("sauces-condiments", "capre", "Câpres", 25, 2, 1, 0.9, "ANSES Ciqual — Câpres au vinaigre."),
     ("sauces-condiments", "cornichon", "Cornichon", 12, 0.7, 1.5, 0.2, "ANSES Ciqual — Cornichon au vinaigre."),
     ("sauces-condiments", "bouillon-legume", "Bouillon de légumes (reconstitué)", 4, 0.2, 0.5, 0.1, "Étiquette — bouillon cube dilué."),
-    # --- suppléments ---
     ("supplements", "whey", "Whey (protéine en poudre)", 373, 80, 8, 6, "Étiquette — whey concentrée."),
     ("supplements", "whey-isolate", "Whey isolate", 373, 90, 1, 1.5, "Étiquette — whey isolate."),
 ]

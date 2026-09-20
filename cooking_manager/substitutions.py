@@ -760,12 +760,7 @@ def prefer_discovered(
     repairs: Sequence[IngredientRepair],
     discoveries: Sequence[Discovery],
 ) -> tuple[list[IngredientRepair], list[UnrepairedConflict]]:
-    """L'expérience prime sur la règle — ADR 0002, `substitution_outcomes`.
-
-    Un `success` déjà servi remplace ce que la règle propose. Un `failure` sur la
-    cible proposée retire la réparation : elle repart en `unrepaired` avec son
-    motif, jamais en silence.
-    """
+    """L'expérience prime sur la règle — ADR 0025, `substitution_outcomes`."""
     if not discoveries:
         return list(repairs), []
 
