@@ -842,6 +842,8 @@ async def menu_shopping_list(
         )
         household = await load_household_config(conn)
         referential = await load_referential_from_db(conn)
+        meal_days = [r["day"] for r in rows if r["day"]]
+        composed = {(r["day"].isoformat(), r["slot"]) for r in rows if r["day"]}
 
         matched, unmatched, leftovers = [], [], []
         for row in rows:
@@ -964,9 +966,24 @@ async def menu_shopping_list(
         "counts": counts,
         "purchase_counts": purchase_counts,
         "bans": [ban.as_dict() for ban in await _load_bans()],
+        "slots_uncomposed": _slot_coverage(meal_days, composed, referential, household),
         "lines": lines,
         "recurrent": await _recurrent_lines({ln["name_normalized"] for ln in lines}),
     }
+
+def _slot_coverage(meal_days, composed, referential, household) -> dict:
+    """Créneaux avec tablée et sans repas (#89). `measured: False` = rien n'a pu être mesuré."""
+    from cooking_manager.presence import uncomposed_slots, week_grid
+
+    if not meal_days:
+        return {"measured": False, "slots": [],
+                "reason": "aucun repas daté : la tablée n'a pas pu être confrontée"}
+    lo, hi = min(meal_days), max(meal_days)
+    monday = lo - datetime.timedelta(days=lo.weekday())
+    grid = week_grid(monday, referential, household)
+    slots = [s for s in uncomposed_slots(grid, composed)
+             if lo.isoformat() <= s["date"] <= hi.isoformat()]
+    return {"measured": True, "reason": "", "slots": slots}
 
 async def _recurrent_lines(covered: set[str]) -> list[dict]:
     """Les achats d'habitude qu'aucun repas ne nomme (#89) — marqués `source: recurrent`."""

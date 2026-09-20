@@ -198,6 +198,16 @@ def week_grid(
         out.append(row)
     return out
 
+def uncomposed_slots(grid: list[dict], composed: set[tuple[str, str]]) -> list[dict]:
+    """Les créneaux où quelqu'un est à table et où le menu ne pose rien."""
+    return [
+        {"date": row["date"], "day": row["day"], "slot": slot,
+         "covers": len(row[slot])}
+        for row in grid
+        for slot in SLOTS
+        if row.get(slot) and (row["date"], slot) not in composed
+    ]
+
 _PERIOD_ROW = re.compile(
     r"^\|\s*([^|]+?)\s*\|\s*(\d{4}-\d{2}-\d{2})\s*\|\s*(\d{4}-\d{2}-\d{2})\s*\|",
     re.MULTILINE,

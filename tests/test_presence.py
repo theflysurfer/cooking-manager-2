@@ -15,6 +15,7 @@ from cooking_manager.presence import (
     attendees,
     children_present_this_week,
     parse_referential,
+    uncomposed_slots,
     week_grid,
 )
 
@@ -222,3 +223,30 @@ class TestWeekGrid:
     def test_grid_marks_holidays(self):
         ref = Referential(school_holidays=[SUMMER])
         assert week_grid(date(2026, 8, 3), ref)[0]["school_holiday"] == "Vacances d'été 2026"
+
+
+class TestUncomposedSlots:
+    """Le cas qui a laissé 18 fiches dormir : une tablée sans repas, en silence (#89)."""
+
+    def grid(self):
+        return week_grid(date(2026, 9, 21), Referential(), HouseholdConfig())
+
+    def test_a_slot_with_people_and_no_meal_is_reported(self):
+        out = uncomposed_slots(self.grid(), set())
+        assert out, "une semaine entière sans aucun repas doit tout remonter"
+        assert {"breakfast", "lunch", "snack", "dinner"} >= {s["slot"] for s in out}
+
+    def test_a_composed_slot_disappears(self):
+        grid = self.grid()
+        composed = {(row["date"], slot) for row in grid
+                    for slot in ("breakfast", "lunch", "snack", "dinner")}
+        assert uncomposed_slots(grid, composed) == []
+
+    def test_an_empty_table_is_never_reported(self):
+        grid = [{"date": "2026-09-21", "day": "Lundi", "breakfast": [], "lunch": [],
+                 "snack": [], "dinner": []}]
+        assert uncomposed_slots(grid, set()) == []
+
+    def test_breakfast_survives_the_canteen(self):
+        out = uncomposed_slots(self.grid(), set())
+        assert any(s["slot"] == "breakfast" for s in out)
