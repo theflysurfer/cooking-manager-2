@@ -99,3 +99,27 @@ class TestMeasurable:
     def test_a_hit_is_proof_enough_without_vocabulary(self):
         check = check_preferences(MEALS, load_rules(ROWS), self.VOCAB)[0]
         assert check.count == 1 and check.measurable is True
+
+class TestWhatCannotBeCounted:
+    def test_a_cap_in_grams_is_not_a_meal_count(self):
+        rules = load_rules([{"kind": "cap", "target": "sucres ajoutes", "value": 25,
+                             "unit": "g", "scope": "day", "reason": "", "person": ""}])
+        check = check_preferences(MEALS, rules, ["sucre roux"])[0]
+        assert check.measurable is False and check.breached is False
+
+    def test_sans_x_is_not_a_mention_of_x(self):
+        rules = load_rules([{"kind": "cap", "target": "sucres ajoutes", "value": 1,
+                             "unit": "repas", "scope": "week", "reason": "",
+                             "person": ""}])
+        meals = [{"day": "lundi", "slot": "snack", "dish": "Compote",
+                  "ingredients": ["compote sans sucres ajoutés (100 g)"]}]
+        check = check_preferences(meals, rules, ["compote sans sucres ajoutés"])[0]
+        assert check.count == 0
+
+    def test_a_real_sugar_still_counts(self):
+        rules = load_rules([{"kind": "cap", "target": "sucre", "value": 1,
+                             "unit": "repas", "scope": "week", "reason": "",
+                             "person": ""}])
+        meals = [{"day": "lundi", "slot": "snack", "dish": "Gâteau",
+                  "ingredients": ["sucre roux"]}]
+        assert check_preferences(meals, rules, ["sucre roux"])[0].count == 1

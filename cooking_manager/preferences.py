@@ -6,12 +6,15 @@ portée (repas, jour, semaine) et se rendent avec leur compte, franchi ou non.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 
 from cooking_manager.convives import _contains_term, _fold
 
 COUNTED = ("cap", "rotate")
 WEEK, DAY, MEAL = "week", "day", "meal"
+COUNTABLE_UNITS = frozenset({"", "repas", "meal", "plat", "fois"})
+_NEGATION = re.compile(r"\bsans\s+(?:\w+\s+){0,3}\w+")
 
 @dataclass(frozen=True)
 class Rule:
@@ -63,11 +66,12 @@ def load_rules(rows) -> list[Rule]:
     return rules
 
 def _mentions(meal: dict, target: str) -> bool:
+    """« compote sans sucres ajoutés » ne compte pas comme du sucre ajouté."""
     haystack = " ".join([
         str(meal.get("dish") or ""),
         " ".join(str(i) for i in meal.get("ingredients") or []),
     ])
-    return _contains_term(_fold(haystack), target)
+    return _contains_term(_NEGATION.sub(" ", _fold(haystack)), target)
 
 def check_preferences(
     meals: list[dict], rules: list[Rule], vocabulary: list[str] | None = None,
@@ -101,7 +105,10 @@ def check_preferences(
             breached = count < rule.value
 
         measurable = True
-        if folded_vocabulary is not None and not hits:
+        if rule.kind in COUNTED and rule.unit.lower() not in COUNTABLE_UNITS:
+            measurable = False
+            breached = False
+        elif folded_vocabulary is not None and not hits:
             measurable = any(
                 _contains_term(entry, rule.target) for entry in folded_vocabulary
             )
