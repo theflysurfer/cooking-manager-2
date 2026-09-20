@@ -75,3 +75,27 @@ class TestCheckPreferences:
                              "person": ""}])
         check = check_preferences(MEALS, rules)[0]
         assert check.count == 0 and check.breached is True
+
+class TestMeasurable:
+    """Un zéro sur une cible qu'aucun ingrédient ne porte n'est pas un constat."""
+
+    VOCAB = ["filet de saumon", "pilons de poulet", "cabillaud", "courgettes"]
+
+    def test_category_target_is_flagged_unmeasurable(self):
+        rules = load_rules([{"kind": "rotate", "target": "famille de proteine",
+                             "value": 2, "unit": "repas", "scope": "week",
+                             "reason": "", "person": ""}])
+        check = check_preferences(MEALS, rules, self.VOCAB)[0]
+        assert check.count == 0 and check.breached is False
+        assert check.measurable is False
+
+    def test_real_target_absent_from_the_menu_stays_measurable(self):
+        rules = load_rules([{"kind": "cap", "target": "courgette", "value": 1,
+                             "unit": "repas", "scope": "week", "reason": "",
+                             "person": ""}])
+        check = check_preferences(MEALS, rules, self.VOCAB)[0]
+        assert check.count == 0 and check.measurable is True
+
+    def test_a_hit_is_proof_enough_without_vocabulary(self):
+        check = check_preferences(MEALS, load_rules(ROWS), self.VOCAB)[0]
+        assert check.count == 1 and check.measurable is True

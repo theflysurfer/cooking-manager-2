@@ -486,6 +486,9 @@ async def menu_compatibility(slug: str):
                 WHERE dp.until IS NULL OR dp.until >= CURRENT_DATE
                 ORDER BY dp.kind, dp.target"""
         )
+        vocabulary = [r["name"] for r in await conn.fetch(
+            "SELECT DISTINCT name FROM recipe_ingredient WHERE name IS NOT NULL"
+        )]
         meal_rows = await conn.fetch(
             """SELECT mm.day_label, mm.slot, mm.dish, mm.position,
                       COALESCE(array_agg(ri.name)
@@ -532,6 +535,7 @@ async def menu_compatibility(slug: str):
         [{"day": m["day_label"], "slot": m["slot"], "dish": m["dish"],
           "ingredients": list(m["ingredients"] or [])} for m in meal_rows],
         load_rules(pref_rows),
+        vocabulary,
     )
 
     return {
@@ -540,6 +544,7 @@ async def menu_compatibility(slug: str):
         "convives_known": len(convives),
         "preferences": [p.as_dict() for p in prefs],
         "preferences_breached": sum(1 for p in prefs if p.breached),
+        "preferences_unmeasurable": sum(1 for p in prefs if not p.measurable),
         "results": checked,
     }
 

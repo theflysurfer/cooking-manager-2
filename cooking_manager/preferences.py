@@ -30,6 +30,7 @@ class Check:
     limit: float | None
     scope: str
     breached: bool
+    measurable: bool = True
     hits: list[dict] = field(default_factory=list)
 
     def as_dict(self) -> dict:
@@ -37,7 +38,8 @@ class Check:
             "kind": self.rule.kind, "target": self.rule.target,
             "person": self.rule.person, "reason": self.rule.reason,
             "limit": self.limit, "unit": self.rule.unit, "scope": self.scope,
-            "count": self.count, "breached": self.breached, "hits": self.hits,
+            "count": self.count, "breached": self.breached,
+            "measurable": self.measurable, "hits": self.hits,
         }
 
 def load_rules(rows) -> list[Rule]:
@@ -67,8 +69,17 @@ def _mentions(meal: dict, target: str) -> bool:
     ])
     return _contains_term(_fold(haystack), target)
 
-def check_preferences(meals: list[dict], rules: list[Rule]) -> list[Check]:
-    """Un `Check` par règle. Le compte est TOUJOURS rendu, franchi ou non."""
+def check_preferences(
+    meals: list[dict], rules: list[Rule], vocabulary: list[str] | None = None,
+) -> list[Check]:
+    """Un `Check` par règle. Le compte est TOUJOURS rendu, franchi ou non.
+
+    `vocabulary` = tous les ingrédients connus. Une cible qui n'y apparaît nulle
+    part ne peut pas être comptée : son zéro n'est pas un constat, et
+    `measurable` le dit — sans lui, une règle visée sur une catégorie
+    (« famille de protéine ») se lit comme respectée à chaque menu.
+    """
+    folded_vocabulary = [_fold(v) for v in vocabulary] if vocabulary else None
     checks = []
     for rule in rules:
         hits = [
@@ -89,6 +100,13 @@ def check_preferences(meals: list[dict], rules: list[Rule]) -> list[Check]:
         elif rule.kind == "maximize" and rule.value is not None:
             breached = count < rule.value
 
+        measurable = True
+        if folded_vocabulary is not None and not hits:
+            measurable = any(
+                _contains_term(entry, rule.target) for entry in folded_vocabulary
+            )
+
         checks.append(Check(rule=rule, count=count, limit=rule.value,
-                            scope=rule.scope, breached=breached, hits=hits))
+                            scope=rule.scope, breached=breached,
+                            measurable=measurable, hits=hits))
     return checks
