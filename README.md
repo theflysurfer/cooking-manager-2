@@ -1,6 +1,6 @@
 # Cooking Manager 2
 
-Web app to browse and filter family recipes from an Obsidian vault, plan weekly menus, and generate shopping lists.
+Web app to browse and filter family recipes, plan weekly menus, and generate shopping lists. PostgreSQL is the single source of truth (ADR 0022) — the Obsidian vault is disconnected.
 
 Designed for kitchen use on iPad mini 2 (Safari 12.5.8).
 
@@ -9,7 +9,7 @@ Live: `https://cooking.srv759970.hstgr.cloud`
 ## Features
 
 - **Recipe browser** — filter by type, family, tags, dietary constraints; view photos, macros, ingredients, steps
-- **Weekly menus** — ingested from Obsidian vault, with per-meal recipe linking, photos and covers adjustment
+- **Weekly menus** — written straight to the database (`POST /api/menus`), with per-meal recipe linking, photos and covers adjustment
 - **Shopping list** — auto-generated from menu recipes × covers, with "remaining items" toggle (filters past days)
 - **Dietary compatibility** — checks who's at the table (custody schedule × school holidays × absences) against each person's constraints
 - **Voice commands** — speech-to-text (Deepgram) + LLM intent classification (Groq) for hands-free recipe search, servings adjustment, recipe swap, product blacklisting, recipe notes, step editing, meal feedback, and pantry leftovers (Safari 14.5+ only)
@@ -17,12 +17,17 @@ Live: `https://cooking.srv759970.hstgr.cloud`
   what to fix; a menu is a *plan*, so each meal also carries a **tri-state** `served` (unknown /
   eaten / never cooked). Entered from the iPad, no `curl` required
 - **Dietary preferences** — a third tier between hard bans and dislikes: minimize, maximize, cap
-  (with value, unit and scope), rotate, no-restriction. They **weigh on menu composition and
-  produce no conflict**; the compatibility endpoint does not read them
+  (with value, unit and scope), rotate, no-restriction. They **weigh without blocking**: the menu
+  compatibility endpoint counts them and reports `preferences_breached` — plus
+  `preferences_unmeasurable`, because a rule whose target no ingredient carries, or a `cap` in
+  grams counted in meals, reports a zero that measures nothing (ADR 0023)
+- **Effort bands** — every dish is read from its *steps*, not its clock: `hands_off`,
+  `light_hands_on`, `hands_on`, `project`. A 50-minute stew leaves your hands free; a 35-minute
+  risotto does not. Weeknight dinners that do not fit are listed (ADR 0024)
 - **Pantry management** — track what's in stock, mark leftovers
 - **Cookbook import** — photograph a printed recipe page; a vision model transcribes it, the
   house parser structures the ingredients, and the draft is **reviewed before** it is written to
-  the vault. Nothing is written until you validate it.
+  the database. Nothing is written until you validate it.
 - **Computed macros** — totals derived from the parsed ingredients, combining three sources by
   precedence (verified brand sheet › drive product label › ANSES CIQUAL generic). Reports its
   own **coverage**: a partial sum is never presented as a recipe total.
@@ -48,7 +53,7 @@ pip install .
 # Run
 python -m cooking_manager serve --port 8795
 
-# Ingest recipes from vault
+# Re-link menu meals to recipes (reads nothing from disk since ADR 0022)
 curl -X POST http://localhost:8795/api/ingest
 ```
 
@@ -57,25 +62,24 @@ Environment variables:
 | Variable | Required | Purpose |
 |---|---|---|
 | `DATABASE_URL` | Yes | PostgreSQL DSN (`postgresql://cooking:...@localhost/cooking_manager`) |
-| `VAULT_PATH` | Yes | Path to Obsidian vault `Noyau/Cuisine/` directory |
+| `VAULT_ROOT` | No | Legacy — still set in the systemd unit, read by nothing since ADR 0022 |
 | `DEEPGRAM_API_KEY` | For voice | Deepgram STT API key |
 | `GROQ_API_KEY` | For voice | Groq LLM API key |
 
 ## Data Source
 
-Recipes and menus are Markdown files with YAML frontmatter in the Obsidian vault:
+**PostgreSQL only** (ADR 0022). Recipes, menus, people, pantry and shopping all live in the
+database; nothing is read from the Obsidian vault.
 
-| File | Content |
+| Table | Content |
 |---|---|
-| `Recettes/*.md` | Recipes with ingredients, steps, macros, tags |
-| `Menus/*.md` | Weekly menus — the `meals:` frontmatter block is authoritative |
-| `Convives.md` | Dietary profiles — constraints, allergies, aversions |
-| `Garde-manger.md` | Pantry stock (one ingestion source among several — the database is authoritative) |
+| `recipe` / `recipe_ingredient` / `recipe_step` | Recipes, written by `POST /api/recipes` |
+| `menu` / `menu_meal` | Weekly menus, written by `POST /api/menus` |
+| `person` / `household_member` | Dietary profiles, and who is a resident of the household |
+| `pantry_item` / `pantry_alias` | Pantry stock |
+| `shopping_preference` | Products and brands refused at purchase |
 
-Attendance (custody schedule, school holidays, absences, holiday stays) is **database-only** since
-2026-08-12. `Presences.md` is kept in the vault as a human note and is no longer read by the app.
-
-The vault is mounted read-only on the VPS via rclone. Ingestion: `POST /api/ingest`.
+`POST /api/ingest` no longer reads the filesystem: it re-links `menu_meal` rows to their recipes.
 
 ## API
 
@@ -84,6 +88,7 @@ The vault is mounted read-only on the VPS via rclone. Ingestion: `POST /api/inge
 |---|---|---|
 | GET | `/api/recipes` | List recipes (with filters) |
 | GET | `/api/recipes/{slug}` | Recipe detail |
+| GET | `/api/recipes/{slug}/compatibility` | Dietary check **at a table**: `?convives=A,B` · `?day=YYYY-MM-DD&slot=dinner` · default = household residents (ADR 0025) |
 | GET | `/api/filters` | Available filter values |
 | GET | `/api/recipes/{slug}/executions` | Cooking history |
 | POST | `/api/recipes/{slug}/executions` | Log a cooking execution |
@@ -100,12 +105,13 @@ The vault is mounted read-only on the VPS via rclone. Ingestion: `POST /api/inge
 | DELETE | `/api/menus/{slug}` | Delete a menu |
 | GET | `/api/menus/{slug}/meals` | Meals for a menu |
 | PATCH | `/api/menus/{slug}/meals/{id}` | Update a meal (recipe, covers) |
-| GET | `/api/menus/{slug}/compatibility` | Dietary compatibility check |
+| GET | `/api/menus/{slug}/compatibility` | Dietary check on **ingredients**, per meal — conflicts (each with `membership` and `repaired`), engine `repairs`, `unrepaired`, `preferences`, `meals_without_protein`, `weeknight_too_heavy` |
 | GET | `/api/menus/{slug}/shopping-list` | Generate shopping list (`?covers=N&from_date=YYYY-MM-DD`) — each line carries `outcome`, `merged_from` and `purchase` (measured / countable / dose / unresolved) |
 
 ### Shopping
 | Method | Endpoint | Description |
 |---|---|---|
+| POST | `/api/shopping/validate-cart` | Confront a cart with refused products — `ok:false` blocks checkout |
 | POST | `/api/shopping/import` | Import a shopping session |
 | POST | `/api/shopping/persist-cart` | Persist + enrich cart items (nutrition, nutriscore, allergens) |
 | GET | `/api/shopping/sessions` | List shopping sessions |
@@ -134,7 +140,7 @@ The vault is mounted read-only on the VPS via rclone. Ingestion: `POST /api/inge
 ### Other
 | Method | Endpoint | Description |
 |---|---|---|
-| POST | `/api/ingest` | Ingest vault into database |
+| POST | `/api/ingest` | Re-link `menu_meal` rows to their recipes (reads no file since ADR 0022) |
 | GET | `/api/stats` | Dashboard stats |
 | GET | `/health` | Health check |
 
@@ -160,11 +166,15 @@ ssh srv759970 'cd /opt/cooking-manager-2 && git pull && .venv/bin/pip install -q
 
 ```
 cooking_manager/       # Pure domain — no network I/O
-  vault.py             # Read .md files from vault
   normalizer.py        # FR frontmatter → canonical EN, slugs, dates
   ingredients.py       # Markdown body → structured ingredients + steps
   convives.py          # Dietary profiles + compatibility checks
   presence.py          # Who's at the table (custody × holidays × absences)
+  substitutions.py     # 47 context-aware swap rules; experience beats the rule
+  parts.py             # Splits a conflicting line into household share + substitute share
+  preferences.py       # cap/rotate/minimize/maximize, and what cannot be measured
+  effort.py            # Effort band read from the steps; weeknight verdict
+  bans.py              # Products and brands refused at purchase
 backend/               # FastAPI + DB schema + ingestion
   stt.py               # Voice pipeline: Deepgram STT + Groq LLM intent
   cooking_mcp.py       # FastMCP server (stdio) — pantry, recipes, menus
