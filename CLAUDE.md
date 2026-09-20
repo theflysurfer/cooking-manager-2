@@ -80,9 +80,12 @@ efface les menus créés par l'API et la colonne `served`.
 compter (grammes)** : ce zéro-là n'est pas un constat. Mesuré le 2026-09-20 : **8 règles sur 10
 sont aveugles**, elles se lisaient « respectées » depuis toujours. Lire `preferences_unmeasurable`
 avant `preferences_breached`, et appliquer ces règles-là à la main (#77 #78). Trois autres angles
-morts : les repas `leftovers` (sans fiche, donc sans ingrédients à confronter, #76), les parts
-séparées (« pois chiches pour Clémence » reste un conflit poulet), et `repairs` vide qui ne veut
-pas dire « rien à réparer » — **lire `unrepaired`**.
+morts : les repas `leftovers` (sans fiche, donc sans ingrédients à confronter, #76) et `repairs`
+vide qui ne veut pas dire « rien à réparer » — **lire `unrepaired`**.
+
+Une **part séparée** se déclare dans les ingrédients (`150 g pois chiches (part de Clémence)`),
+jamais en `## Notes` : les notes ne sont ni parsées ni achetées. Un conflit ainsi couvert porte
+`covered_by` — **lire `conflicts_uncovered`, pas `conflicts`**.
 
 Un terme alimentaire s'écrit **au singulier**, toujours : la flexion va du singulier vers le
 pluriel, jamais l'inverse. Un terme ambigu (`roti`, `blanc`, `filet`) se déclare avec son motif
