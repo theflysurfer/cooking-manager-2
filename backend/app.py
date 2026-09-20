@@ -8,11 +8,17 @@ import datetime
 from pathlib import Path
 
 from fastapi import FastAPI, Query, HTTPException, UploadFile
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict
 
-from cooking_manager.presence import HouseholdConfig, CustodyInfo, CanteenEntry, Referential
+from cooking_manager.presence import (
+    CanteenEntry,
+    ChildWeekUnknown,
+    CustodyInfo,
+    HouseholdConfig,
+    Referential,
+)
 from cooking_manager.feedback import (
     APPRECIATION_FACET,
     ISSUE_FACET,
@@ -65,6 +71,10 @@ async def lifespan(app: FastAPI):
     await close_pool()
 
 app = FastAPI(title="Cooking Manager", version="2.0.0", lifespan=lifespan)
+
+@app.exception_handler(ChildWeekUnknown)
+async def _child_week_unknown(request, exc: ChildWeekUnknown):
+    return JSONResponse(status_code=409, content={"detail": str(exc)})
 
 @app.get("/api/recipes")
 async def list_recipes(
@@ -2800,7 +2810,7 @@ async def resolve_attendance(day: str, slot: str = ""):
     """Qui est à table le `day` (YYYY-MM-DD), pour un `slot` ou tous les créneaux."""
     from datetime import date as _date
 
-    from cooking_manager.presence import SLOTS, ChildWeekUnknown, attendees
+    from cooking_manager.presence import SLOTS, attendees
 
     try:
         d = _date.fromisoformat(day)
@@ -2814,16 +2824,12 @@ async def resolve_attendance(day: str, slot: str = ""):
 
     stay = ref.stay_covering(d)
     slots = [slot] if slot else list(SLOTS)
-    try:
-        result = {
-            "date": day,
-            "school_holiday": ref.holiday_label(d),
-            "stay": {"label": stay.label, "cooking": stay.cooking} if stay else None,
-            "slots": {s: attendees(d, s, ref, household) for s in slots},
-        }
-    except ChildWeekUnknown as e:
-        raise HTTPException(409, str(e)) from e
-    return result
+    return {
+        "date": day,
+        "school_holiday": ref.holiday_label(d),
+        "stay": {"label": stay.label, "cooking": stay.cooking} if stay else None,
+        "slots": {s: attendees(d, s, ref, household) for s in slots},
+    }
 
 @app.post("/api/child-week/sync")
 async def sync_child_week(day: str | None = None):
