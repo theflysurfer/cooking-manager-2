@@ -466,7 +466,18 @@ async def menu_compatibility(slug: str):
     """Contrôle de compatibilité alimentaire du menu, repas par repas."""
     from datetime import date as _date
 
-    from cooking_manager.convives import check_meal, part_for
+    from cooking_manager.convives import check_ingredients, check_meal
+    from cooking_manager.parts import shares_for
+    from cooking_manager.substitutions import (
+        DIET_REASON_PREFIX,
+        Discovery,
+        detect_context,
+        diets_at_table,
+        fallback_repairs,
+        prefer_discovered,
+        repair_ingredients,
+        unrepaired_conflicts,
+    )
 
     from cooking_manager.presence import attendees
 
@@ -489,25 +500,64 @@ async def menu_compatibility(slug: str):
         vocabulary = [r["name"] for r in await conn.fetch(
             "SELECT DISTINCT name FROM recipe_ingredient WHERE name IS NOT NULL"
         )]
+        detail_rows = await conn.fetch(
+            """SELECT mm.id AS meal_id, mm.recipe_id, ri.name, ri.name_normalized, ri.raw
+                 FROM menu_meal mm
+                 JOIN recipe_ingredient ri ON ri.recipe_id = mm.recipe_id
+                WHERE mm.menu_id = (SELECT id FROM menu WHERE slug = $1)
+                ORDER BY mm.position, ri.position""",
+            slug,
+        )
+        step_rows = await conn.fetch(
+            """SELECT mm.id AS meal_id, rs.text
+                 FROM menu_meal mm
+                 JOIN recipe_step rs ON rs.recipe_id = mm.recipe_id
+                WHERE mm.menu_id = (SELECT id FROM menu WHERE slug = $1)
+                ORDER BY mm.position, rs.position""",
+            slug,
+        )
+        discovery_rows = await conn.fetch(
+            """SELECT mm.id AS meal_id, sd.original_ingredient, sd.substitute_ingredient,
+                      sd.outcome, COALESCE(sd.who_preferred, '') AS who_preferred
+                 FROM menu_meal mm
+                 JOIN substitution_discovery sd ON sd.recipe_id = mm.recipe_id
+                WHERE mm.menu_id = (SELECT id FROM menu WHERE slug = $1)""",
+            slug,
+        )
         meal_rows = await conn.fetch(
-            """SELECT mm.day_label, mm.day, mm.slot, mm.dish, mm.position, mm.match_kind,
+            """SELECT mm.id AS meal_id, mm.day_label, mm.day, mm.slot, mm.dish,
+                      mm.position, mm.match_kind,
                       COALESCE(array_agg(ri.name)
                                FILTER (WHERE ri.name IS NOT NULL), '{}') AS ingredients
                  FROM menu_meal mm
                  LEFT JOIN recipe_ingredient ri ON ri.recipe_id = mm.recipe_id
                 WHERE mm.menu_id = (SELECT id FROM menu WHERE slug = $1)
-                GROUP BY mm.day_label, mm.day, mm.slot, mm.dish, mm.position,
+                GROUP BY mm.id, mm.day_label, mm.day, mm.slot, mm.dish, mm.position,
                          mm.match_kind
                 ORDER BY mm.position""",
             slug,
         )
 
-    checked, conflict_count, uncovered_count = [], 0, 0
+    lines_by_meal: dict[int, list[dict]] = {}
+    for row in detail_rows:
+        lines_by_meal.setdefault(row["meal_id"], []).append(dict(row))
+    steps_by_meal: dict[int, list[str]] = {}
+    for row in step_rows:
+        steps_by_meal.setdefault(row["meal_id"], []).append(str(row["text"] or ""))
+    found_by_meal: dict[int, list[Discovery]] = {}
+    for row in discovery_rows:
+        found_by_meal.setdefault(row["meal_id"], []).append(Discovery(
+            original=row["original_ingredient"],
+            substitute=row["substitute_ingredient"],
+            outcome=row["outcome"], who_preferred=row["who_preferred"],
+        ))
+
+    checked, conflict_count, uncovered_count, repair_count = [], 0, 0, 0
     for meal in meal_rows:
         dish = meal["dish"]
         if not dish:
             continue
-        ingredients = list(meal["ingredients"] or [])
+        lines = lines_by_meal.get(meal["meal_id"], [])
         day = meal["day"] if isinstance(meal["day"], _date) else None
         slot = meal["slot"]
 
@@ -515,13 +565,36 @@ async def menu_compatibility(slug: str):
         conflicts = check_meal(dish, [convives[n] for n in present if n in convives])
         conflict_count += len(conflicts)
 
+        at_table = [convives[n] for n in present if n in convives]
+        repairs, unrepaired = [], []
+        if lines and at_table:
+            ingredient_conflicts = check_ingredients(lines, at_table)
+            context = detect_context(
+                dish,
+                ingredients=tuple(str(line.get("name") or line.get("raw") or "")
+                                  for line in lines),
+                steps=tuple(steps_by_meal.get(meal["meal_id"], [])),
+                convives=tuple(c.name for c in at_table),
+            )
+            texts = [str(line.get("raw") or line.get("name") or "") for line in lines]
+            repairs = repair_ingredients(
+                texts, diets_at_table(ingredient_conflicts), context)
+            repairs += fallback_repairs(ingredient_conflicts, repairs, context)
+            repairs, refused = prefer_discovered(
+                repairs, found_by_meal.get(meal["meal_id"], []))
+            unrepaired = unrepaired_conflicts(ingredient_conflicts, repairs) + refused
+
+        repaired_diets = {r.diet for r in repairs}
+        shares = shares_for(at_table, len(present) or 4)
         rendered = []
         for c in conflicts:
-            part = part_for(c.convive, ingredients)
-            if part is None:
+            diet = c.reason[len(DIET_REASON_PREFIX):].strip()                 if c.reason.startswith(DIET_REASON_PREFIX) else ""
+            covered = bool(diet) and diet in repaired_diets
+            if not covered:
                 uncovered_count += 1
             rendered.append({"convive": c.convive, "reason": c.reason,
-                             "matched": c.matched, "covered_by": part})
+                             "matched": c.matched, "repaired": covered})
+        repair_count += len(repairs)
 
         checked.append({
             "day": meal["day_label"],
@@ -529,6 +602,20 @@ async def menu_compatibility(slug: str):
             "slot": slot, "dish": dish, "attendees": present,
             "at_home": bool(present),
             "conflicts": rendered,
+            "repairs": [
+                {"ingredient": r.ingredient, "diet": r.diet,
+                 "convives": list(shares[r.diet].convives) if r.diet in shares else [],
+                 "replace": r.substitution.source, "with": r.substitution.target,
+                 "reason": r.substitution.reason,
+                 "confidence": round(r.substitution.confidence, 2),
+                 "fallback": r.substitution.is_fallback}
+                for r in repairs
+            ],
+            "unrepaired": [
+                {"ingredient": u.ingredient, "diet": u.diet,
+                 "convive": u.convive, "reason": u.reason}
+                for u in unrepaired
+            ],
         })
 
     from cooking_manager.preferences import (
@@ -548,7 +635,7 @@ async def menu_compatibility(slug: str):
     return {
         "slug": row["slug"], "title": row["title"],
         "meals_checked": len(checked), "conflicts": conflict_count,
-        "conflicts_uncovered": uncovered_count,
+        "conflicts_uncovered": uncovered_count, "repairs": repair_count,
         "convives_known": len(convives),
         "preferences": [p.as_dict() for p in prefs],
         "preferences_breached": sum(1 for p in prefs if p.breached),
@@ -654,7 +741,16 @@ async def menu_shopping_list(
 ):
     """Menu → liste de courses différentielle, groupée par recette."""
     from cooking_manager.pantry import build_needs, check_need
+    from cooking_manager.parts import apply_repairs, shares_for
     from cooking_manager.purchase import purchase_for
+    from cooking_manager.substitutions import (
+        Discovery,
+        detect_context,
+        diets_at_table,
+        fallback_repairs,
+        prefer_discovered,
+        repair_ingredients,
+    )
 
     pool = await get_pool(DATABASE_DSN)
     async with pool.acquire() as conn:
@@ -693,6 +789,9 @@ async def menu_shopping_list(
             else:
                 matched.append((row, row["dish"]))
 
+        convives = await load_convives_from_db(conn)
+
+        from cooking_manager.convives import check_ingredients
         from cooking_manager.presence import attendees
 
         default_covers = covers or 4
@@ -704,16 +803,52 @@ async def menu_shopping_list(
                      FROM recipe_ingredient WHERE recipe_id = $1 ORDER BY position""",
                 recipe["id"],
             )
+            present: list[str] = []
             meal_covers = recipe["covers"]
-            if not meal_covers and not covers and recipe["day"]:
+            if recipe["day"]:
                 present = attendees(recipe["day"], recipe["slot"],
                                     referential, household)
+            if not meal_covers and not covers and present:
                 meal_covers = len(present) or None
             if not meal_covers:
                 meal_covers = default_covers
             base = recipe["servings"] or meal_covers
             ratio = meal_covers / base if base else 1.0
-            payload.append((recipe["title"], [dict(r) for r in rows], ratio))
+
+            lines = [dict(r) for r in rows]
+            at_table = [convives[n] for n in present if n in convives]
+            shares = shares_for(at_table, meal_covers)
+            if shares and at_table:
+                step_rows = await conn.fetch(
+                    "SELECT text FROM recipe_step WHERE recipe_id = $1 ORDER BY position",
+                    recipe["id"],
+                )
+                conflicts = check_ingredients(lines, at_table)
+                context = detect_context(
+                    recipe["title"] or "",
+                    ingredients=tuple(str(r.get("name") or r.get("raw") or "")
+                                      for r in lines),
+                    steps=tuple(str(s["text"] or "") for s in step_rows),
+                    convives=tuple(c.name for c in at_table),
+                )
+                texts = [str(r.get("raw") or r.get("name") or "") for r in lines]
+                repairs = repair_ingredients(texts, diets_at_table(conflicts), context)
+                repairs += fallback_repairs(conflicts, repairs, context)
+                found = await conn.fetch(
+                    """SELECT original_ingredient, substitute_ingredient, outcome,
+                              COALESCE(who_preferred, '') AS who_preferred
+                         FROM substitution_discovery WHERE recipe_id = $1""",
+                    recipe["id"],
+                )
+                repairs, _refused = prefer_discovered(repairs, [
+                    Discovery(original=f["original_ingredient"],
+                              substitute=f["substitute_ingredient"],
+                              outcome=f["outcome"], who_preferred=f["who_preferred"])
+                    for f in found
+                ])
+                lines = apply_repairs(lines, repairs, shares)
+
+            payload.append((recipe["title"], lines, ratio))
 
     needs = build_needs(payload)
     pantry = await _pantry_from_db()

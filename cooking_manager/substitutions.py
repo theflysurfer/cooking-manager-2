@@ -711,3 +711,75 @@ def repair_ingredients(
                 IngredientRepair(ingredient=line, diet=diet, substitution=substitution)
             )
     return repairs
+
+
+@dataclass(frozen=True)
+class Discovery:
+    """Ce que le foyer a RÉELLEMENT fait sur cette recette, et ce que ça a donné."""
+
+    original: str
+    substitute: str
+    outcome: str
+    who_preferred: str = ""
+
+
+SUCCESS, ACCEPTABLE, FAILURE = "success", "acceptable", "failure"
+
+
+def prefer_discovered(
+    repairs: Sequence[IngredientRepair],
+    discoveries: Sequence[Discovery],
+) -> tuple[list[IngredientRepair], list[UnrepairedConflict]]:
+    """L'expérience prime sur la règle — ADR 0002, `substitution_outcomes`.
+
+    Un `success` déjà servi remplace ce que la règle propose. Un `failure` sur la
+    cible proposée retire la réparation : elle repart en `unrepaired` avec son
+    motif, jamais en silence.
+    """
+    if not discoveries:
+        return list(repairs), []
+
+    kept: list[IngredientRepair] = []
+    dropped: list[UnrepairedConflict] = []
+    for repair in repairs:
+        source = fold(repair.substitution.source)
+        winner = None
+        refused = None
+        for found in discoveries:
+            if fold(found.original) != source and source not in fold(found.original):
+                continue
+            if found.outcome == FAILURE and fold(found.substitute) == fold(
+                repair.substitution.target
+            ):
+                refused = found
+            elif found.outcome == SUCCESS and winner is None:
+                winner = found
+
+        if refused is not None and winner is None:
+            dropped.append(UnrepairedConflict(
+                ingredient=repair.ingredient, diet=repair.diet,
+                convive=refused.who_preferred,
+                reason=(f"« {refused.substitute} » a déjà été essayé sur cette recette "
+                        f"et noté `failure` — ne pas le reproposer"),
+            ))
+            continue
+
+        if winner is None or fold(winner.substitute) == fold(repair.substitution.target):
+            kept.append(repair)
+            continue
+
+        kept.append(IngredientRepair(
+            ingredient=repair.ingredient,
+            diet=repair.diet,
+            substitution=Substitution(
+                source=repair.substitution.source,
+                target=winner.substitute,
+                reason=(f"déjà servi sur cette recette et noté `{winner.outcome}`"
+                        + (f", préféré par {winner.who_preferred}"
+                           if winner.who_preferred else "")),
+                confidence=1.0,
+                rule=repair.substitution.rule,
+                is_fallback=False,
+            ),
+        ))
+    return kept, dropped
