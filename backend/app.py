@@ -385,10 +385,37 @@ async def recipe_macros_endpoint(slug: str):
         "unresolved": [{"name": u.name, "reason": u.reason} for u in result.unresolved],
     }
 
+async def _memberships(conn) -> dict[str, str]:
+    """Le rang de chacun : `resident`, `regular_guest`, ou `guest` s'il n'est pas du foyer.
+
+    Un interdit n'existe pas en soi, il existe à une tablée : sans ce rang, le
+    poivre que refuse une invitée se lit comme une règle de la maison. Mesuré le
+    2026-09-20 : 42 « interdits » sur 37 recettes, dont 25 pour une personne qui
+    ne mangeait pas là cette semaine.
+    """
+    rows = await conn.fetch(
+        """SELECT p.name, COALESCE(hm.membership, 'guest') AS membership
+             FROM person p
+             LEFT JOIN household_member hm ON hm.person_id = p.id"""
+    )
+    return {r["name"]: r["membership"] for r in rows}
+
 @app.get("/api/recipes/{slug}/compatibility")
-async def recipe_compatibility(slug: str, present_only: bool = False):
-    """Compatibilité d'une recette, contrôlée sur ses INGRÉDIENTS."""
+async def recipe_compatibility(
+    slug: str,
+    day: str | None = None,
+    slot: str = "dinner",
+    convives: str | None = None,
+):
+    """Compatibilité d'une recette, contrôlée sur ses INGRÉDIENTS, À UNE TABLÉE.
+
+    La tablée se résout dans cet ordre : `convives=` nommés, puis `day=`+`slot=`
+    (la présence réelle — gcal, cantine, garde alternée), puis **les résidents**.
+    Jamais les 14 personnes de `person` : un invité occasionnel n'est pas une
+    contrainte permanente.
+    """
     from cooking_manager.convives import check_ingredients
+    from cooking_manager.presence import attendees
     from cooking_manager.substitutions import (
         detect_context,
         diets_at_table,
@@ -412,15 +439,29 @@ async def recipe_compatibility(slug: str, present_only: bool = False):
             "SELECT text FROM recipe_step WHERE recipe_id = $1 ORDER BY position",
             recipe_id,
         )
-        convives = list((await load_convives_from_db(conn)).values())
+        known = await load_convives_from_db(conn)
+        memberships = await _memberships(conn)
+        if convives:
+            wanted = [n.strip() for n in convives.split(",") if n.strip()]
+            table_source = "convives nommés"
+        elif day:
+            household = await load_household_config(conn)
+            referential = await load_referential_from_db(conn)
+            wanted = attendees(
+                datetime.date.fromisoformat(day), slot, referential, household)
+            table_source = f"présence réelle du {day} {slot}"
+        else:
+            wanted = [n for n, m in memberships.items() if m == "resident"]
+            table_source = "résidents du foyer"
+        at_table = [known[n] for n in wanted if n in known]
 
     ingredients = [dict(r) for r in rows]
-    conflicts = check_ingredients(ingredients, convives)
+    conflicts = check_ingredients(ingredients, at_table)
     context = detect_context(
         recipe["title"] or slug,
         ingredients=tuple(str(r["name"] or r["raw"] or "") for r in rows),
         steps=tuple(str(s["text"] or "") for s in step_rows),
-        convives=tuple(c.name for c in convives),
+        convives=tuple(c.name for c in at_table),
     )
     ingredient_texts = [str(r["raw"] or r["name"] or "") for r in rows]
     repairs = repair_ingredients(ingredient_texts, diets_at_table(conflicts), context)
@@ -429,8 +470,11 @@ async def recipe_compatibility(slug: str, present_only: bool = False):
         "slug": slug,
         "ingredients_checked": len(ingredients),
         "conclusive": bool(ingredients),
+        "table": {"source": table_source,
+                  "convives": [c.name for c in at_table]},
         "conflicts": [
-            {"convive": c.convive, "reason": c.reason, "matched": c.matched}
+            {"convive": c.convive, "reason": c.reason, "matched": c.matched,
+             "membership": memberships.get(c.convive, "guest")}
             for c in conflicts
         ],
         "context": {
@@ -441,7 +485,7 @@ async def recipe_compatibility(slug: str, present_only: bool = False):
             {
                 "ingredient": r.ingredient,
                 "diet": r.diet,
-                "convives": [c.name for c in convives if c.diet == r.diet],
+                "convives": [c.name for c in at_table if c.diet == r.diet],
                 "replace": r.substitution.source,
                 "with": r.substitution.target,
                 "reason": r.substitution.reason,
@@ -492,6 +536,7 @@ async def menu_compatibility(slug: str):
         household = await load_household_config(conn)
         referential = await load_referential_from_db(conn)
         convives = await load_convives_from_db(conn)
+        memberships = await _memberships(conn)
         pref_rows = await conn.fetch(
             """SELECT dp.kind, dp.target, dp.value, dp.unit, dp.scope, dp.reason,
                       COALESCE(p.name, '') AS person
@@ -624,7 +669,8 @@ async def menu_compatibility(slug: str):
             if not covered:
                 uncovered_count += 1
             rendered.append({"convive": c.convive, "reason": c.reason,
-                             "matched": c.matched, "repaired": covered})
+                             "matched": c.matched, "repaired": covered,
+                             "membership": memberships.get(c.convive, "guest")})
         repair_count += len(repairs)
 
         checked.append({
