@@ -25,7 +25,8 @@ INSERT INTO recipe (
     macros_kcal, macros_protein, macros_carbs, macros_fat,
     protein_density, photo_url, sub_recipes, body, created, updated
 ) VALUES (
-    $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28
+    $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,
+    COALESCE($27, CURRENT_DATE), COALESCE($28, CURRENT_DATE)
 )
 ON CONFLICT (slug) DO UPDATE SET
     title=$2, status=$3, recipe_type=$4, family=$5, servings=$6,
@@ -36,7 +37,8 @@ ON CONFLICT (slug) DO UPDATE SET
     macros_kcal=$19, macros_protein=$20, macros_carbs=$21, macros_fat=$22,
     protein_density=$23, photo_url=COALESCE($24, recipe.photo_url),
     sub_recipes=$25, body=$26,
-    created=$27, updated=$28,
+    created=COALESCE(recipe.created, $27, CURRENT_DATE),
+    updated=COALESCE($28, CURRENT_DATE),
     ingested_at=NOW()
 """
 
