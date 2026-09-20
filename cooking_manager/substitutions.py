@@ -346,6 +346,24 @@ PESCETARIAN_RULES: tuple[SubstitutionRule, ...] = (
         priority=95,
     ),
     SubstitutionRule(
+        source="bouillon de boeuf", target="bouillon de légumes",
+        cooking_methods=("stew", "slow-cooked"), texture="firm", budget="low",
+        reason="Même rôle de fond de cuisson, sans le boeuf",
+        priority=96,
+    ),
+    SubstitutionRule(
+        source="bouillon de veau", target="bouillon de légumes",
+        cooking_methods=("stew", "slow-cooked"), texture="firm", budget="low",
+        reason="Même rôle de fond de cuisson, sans le veau",
+        priority=96,
+    ),
+    SubstitutionRule(
+        source="fond de veau", target="fond de légumes",
+        cooking_methods=("stew", "slow-cooked"), texture="firm", budget="low",
+        reason="Même rôle de liaison, sans le veau",
+        priority=96,
+    ),
+    SubstitutionRule(
         source="veau", target="sole",
         cooking_methods=("pan-fried", "breaded"), texture="tender", budget="high",
         reason="Chair délicate et tendre, cuisson rapide",

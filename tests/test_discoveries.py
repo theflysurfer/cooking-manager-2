@@ -56,3 +56,20 @@ class TestPreferDiscovered:
         found = Discovery(original="poulet", substitute="dorade", outcome="success")
         kept, _ = prefer_discovered([REPAIR], [found])
         assert kept[0] is REPAIR
+
+
+class TestBouillonIsNotAFish:
+    """« 30 cl de bouillon de bœuf » rendait « lotte, 75 ml » — mesuré le 2026-09-20
+    sur le chili con carne moissonné : la règle volaille existait, pas la bœuf."""
+
+    def test_a_beef_stock_becomes_a_vegetable_stock(self):
+        from cooking_manager.substitutions import RecipeContext, find_substitution
+        context = RecipeContext(cooking_methods=("stew",))
+        found = find_substitution("30 cl de bouillon de boeuf", context, "pescetarian")
+        assert found is not None and "bouillon" in found.target
+
+    def test_real_beef_still_becomes_a_fish(self):
+        from cooking_manager.substitutions import RecipeContext, find_substitution
+        context = RecipeContext(cooking_methods=("stew",))
+        found = find_substitution("500 g de boeuf haché", context, "pescetarian")
+        assert found is not None and "bouillon" not in found.target
