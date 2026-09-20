@@ -490,44 +490,39 @@ async def menu_compatibility(slug: str):
             "SELECT DISTINCT name FROM recipe_ingredient WHERE name IS NOT NULL"
         )]
         meal_rows = await conn.fetch(
-            """SELECT mm.day_label, mm.slot, mm.dish, mm.position, mm.match_kind,
+            """SELECT mm.day_label, mm.day, mm.slot, mm.dish, mm.position, mm.match_kind,
                       COALESCE(array_agg(ri.name)
                                FILTER (WHERE ri.name IS NOT NULL), '{}') AS ingredients
                  FROM menu_meal mm
                  LEFT JOIN recipe_ingredient ri ON ri.recipe_id = mm.recipe_id
                 WHERE mm.menu_id = (SELECT id FROM menu WHERE slug = $1)
-                GROUP BY mm.day_label, mm.slot, mm.dish, mm.position, mm.match_kind
+                GROUP BY mm.day_label, mm.day, mm.slot, mm.dish, mm.position,
+                         mm.match_kind
                 ORDER BY mm.position""",
             slug,
         )
 
-    meals = row["meals"]
-    if isinstance(meals, str):
-        meals = json.loads(meals)
-
     checked, conflict_count = [], 0
-    for meal in meals or []:
-        for slot in ("breakfast", "lunch", "snack", "dinner"):
-            dish = meal.get(slot)
-            if not dish:
-                continue
-            try:
-                day = _date.fromisoformat(meal["date"]) if meal.get("date") else None
-            except (ValueError, TypeError):
-                day = None
+    for meal in meal_rows:
+        dish = meal["dish"]
+        if not dish:
+            continue
+        day = meal["day"] if isinstance(meal["day"], _date) else None
+        slot = meal["slot"]
 
-            present = attendees(day, slot, referential, household) if day else list(convives)
-            conflicts = check_meal(dish, [convives[n] for n in present if n in convives])
-            conflict_count += len(conflicts)
-            checked.append({
-                "day": meal.get("day"), "date": meal.get("date"), "slot": slot,
-                "dish": dish, "attendees": present,
-                "at_home": bool(present),
-                "conflicts": [
-                    {"convive": c.convive, "reason": c.reason, "matched": c.matched}
-                    for c in conflicts
-                ],
-            })
+        present = attendees(day, slot, referential, household) if day else list(convives)
+        conflicts = check_meal(dish, [convives[n] for n in present if n in convives])
+        conflict_count += len(conflicts)
+        checked.append({
+            "day": meal["day_label"],
+            "date": day.isoformat() if day else None,
+            "slot": slot, "dish": dish, "attendees": present,
+            "at_home": bool(present),
+            "conflicts": [
+                {"convive": c.convive, "reason": c.reason, "matched": c.matched}
+                for c in conflicts
+            ],
+        })
 
     from cooking_manager.preferences import (
         check_preferences,
