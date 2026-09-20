@@ -4,41 +4,194 @@
   "cart_id": "79e90b58-f2db-4314-a2d1-d396f5004bd8",
   "menu_slug": "2026-09-21_semaine-aubagne-enfants",
   "window": "lun 21 -> dim 27 sept",
-  "total_eur": 88.14,
+  "total_eur": 91.07,
   "item_count": 18,
   "covers": 4,
   "verified_in_browser": false,
   "items": [
-    {"requested": "carottes", "product": "Carottes france 1kg (SANS MARQUE)", "auchan_id": "C1351964", "qty": 1, "unit_price": 1.25, "rationale": "Curry de pois chiches tomate-coco, courgettes, carottes et chou-fleur (samedi dîner)"},
-    {"requested": "champignons de Paris, émincés", "product": "Champignons de Paris pieds et morceaux 800g (AUCHAN)", "auchan_id": "C1160788", "qty": 1, "unit_price": 2.51, "rationale": "Frittata aux champignons et feta (mercredi déjeuner) + Risotto aux champignons et poivrons (dimanche dîner)"},
-    {"requested": "chou-fleur", "product": "Chou-fleur france 1 pièce (SANS MARQUE)", "auchan_id": "C1349028", "qty": 1, "unit_price": 3.99, "rationale": "Curry de pois chiches tomate-coco, courgettes, carottes et chou-fleur (samedi dîner)"},
-    {"requested": "citron vert (zeste + jus)", "product": "Citron vert brésil 1 pièce (SANS MARQUE)", "auchan_id": "C1348705", "qty": 2, "unit_price": 0.59, "rationale": "Salade de lentilles froides, oignon rouge & graines de courge (lundi déjeuner) — qté portée à 2 par Julien"},
-    {"requested": "courgettes, en rondelles épaisses", "product": "Courgettes prix bas espagne 1kg (SANS MARQUE)", "auchan_id": "C1350169", "qty": 2, "unit_price": 2.99, "rationale": "Mafé au poisson et légumes (lundi dîner) + Curry de pois chiches (samedi dîner) — qté portée à 2 par Julien"},
-    {"requested": "feta", "product": "Feta grecque AOP 200g (AUCHAN)", "auchan_id": "C1198054", "qty": 2, "unit_price": 2.83, "rationale": "Frittata aux champignons et feta (mercredi déjeuner) + Taboulé de quinoa aux poivrons grillés et feta (samedi déjeuner)"},
-    {"requested": "filet de saumon", "product": "Pavés de saumon écosse 750g/6pc (AUCHAN LE POISSONNIER)", "auchan_id": "C1396467", "qty": 1, "unit_price": 18.99, "rationale": "Saumon teriyaki-sésame, écrasé de patate douce, asperges vertes (mercredi dîner)"},
-    {"requested": "gingembre frais râpé", "product": "Gingembre bio pérou 150g (SANS MARQUE)", "auchan_id": "C1348893", "qty": 1, "unit_price": 1.99, "rationale": "Salade de lentilles froides, oignon rouge & graines de courge (lundi déjeuner)"},
-    {"requested": "mozzarella râpée", "product": "Mozzarella râpée 150g (GALBANI)", "auchan_id": "C1198911", "qty": 1, "unit_price": 3.07, "rationale": "Frittata aux poivrons, mozzarella et parmesan (dimanche déjeuner)"},
-    {"requested": "mélange de légumes verts surgelés", "product": "Mélange de légumes verts vapeur 600g (AUCHAN)", "auchan_id": "C1176864", "qty": 1, "unit_price": 4.03, "rationale": "Poêlée de légumes verts, pois chiches rôtis et comté (jeudi dîner)"},
-    {"requested": "parmesan râpé", "product": "Parmigiano reggiano râpé AOP 60g (PARMAREGGIO)", "auchan_id": "C1198567", "qty": 3, "unit_price": 1.45, "note": "quantité en cart instable côté Auchan (total_price a fluctué entre 1,45€ et 2,03€ selon les appels) — VÉRIFIER avant paiement", "rationale": "Frittata aux champignons et feta (mer) + Risotto aux champignons et poivrons (dim) + Frittata aux poivrons, mozzarella et parmesan (dim), besoin cumulé ~147g"},
-    {"requested": "pilons de poulet", "product": "Pilons de poulet blanc france 1kg (PRIX BAS)", "auchan_id": "C1195603", "qty": 1, "unit_price": 5.05, "rationale": "Pilons de poulet paprika-citron, patates douces (mardi dîner)"},
-    {"requested": "poivrons en lanières (rouge et jaune)", "product": "Trio de poivrons en lanières 600g (AUCHAN)", "auchan_id": "C1389318", "qty": 2, "unit_price": 2.36, "rationale": "Risotto aux champignons et poivrons (dim) + Taboulé de quinoa aux poivrons grillés et feta (sam) + Frittata aux poivrons, mozzarella et parmesan (dim)"},
-    {"requested": "tomates cerises, coupées en deux", "product": "Tomates cerises rouges 250g (SANS MARQUE)", "auchan_id": "C1348834", "qty": 2, "unit_price": 1.29, "rationale": "Salade de lentilles vertes, tomates cerises et comté (vendredi dîner)"},
-    {"requested": "aubergines, en gros cubes", "product": "Aubergines espagne 1kg (SANS MARQUE)", "auchan_id": "C1349058", "qty": 1, "unit_price": 3.69, "rationale": "Mafé au poisson et légumes (lundi dîner)"},
-    {"requested": "huile d'arachide", "product": "Huile d'arachide 1l (AUCHAN)", "auchan_id": "C1224770", "qty": 1, "unit_price": 3.70, "rationale": "Mafé au poisson et légumes (lundi dîner)"},
-    {"requested": "tomates concassées (1 boîte)", "product": "Pulpe de tomates concassées 400g (AUCHAN)", "auchan_id": "C1239117", "qty": 1, "unit_price": 1.31, "rationale": "Mafé au poisson et légumes (lundi dîner)"},
-    {"requested": "filet de cabillaud (ou lieu noir)", "product": "Filet de cabillaud 800g/4pc (AUCHAN)", "auchan_id": "C1178329", "qty": 1, "unit_price": 16.99, "rationale": "Mafé au poisson et légumes (lundi dîner) — remplace dorade royale, rupture drive sur les 2 réf"}
+    {
+      "requested": "carottes",
+      "product": "Carottes france 1kg (SANS MARQUE)",
+      "auchan_id": "C1351964",
+      "qty": 1,
+      "unit_price": 1.25,
+      "rationale": "Curry de pois chiches tomate-coco, courgettes, carottes et chou-fleur (samedi dîner)"
+    },
+    {
+      "requested": "champignons de Paris, émincés",
+      "product": "Champignons de Paris pieds et morceaux 800g (AUCHAN)",
+      "auchan_id": "C1160788",
+      "qty": 1,
+      "unit_price": 2.51,
+      "rationale": "Frittata aux champignons et feta (mercredi déjeuner) + Risotto aux champignons et poivrons (dimanche dîner)"
+    },
+    {
+      "requested": "chou-fleur",
+      "product": "Chou-fleur france 1 pièce (SANS MARQUE)",
+      "auchan_id": "C1349028",
+      "qty": 1,
+      "unit_price": 3.99,
+      "rationale": "Curry de pois chiches tomate-coco, courgettes, carottes et chou-fleur (samedi dîner)"
+    },
+    {
+      "requested": "citron vert (zeste + jus)",
+      "product": "Citron vert brésil 1 pièce (SANS MARQUE)",
+      "auchan_id": "C1348705",
+      "qty": 2,
+      "unit_price": 0.59,
+      "rationale": "Salade de lentilles froides, oignon rouge & graines de courge (lundi déjeuner) — qté portée à 2 par Julien"
+    },
+    {
+      "requested": "courgettes, en rondelles épaisses",
+      "product": "Courgettes prix bas espagne 1kg (SANS MARQUE)",
+      "auchan_id": "C1350169",
+      "qty": 2,
+      "unit_price": 2.99,
+      "rationale": "Mafé au poisson et légumes (lundi dîner) + Curry de pois chiches (samedi dîner) — qté portée à 2 par Julien"
+    },
+    {
+      "requested": "feta",
+      "product": "Feta grecque AOP 200g (AUCHAN)",
+      "auchan_id": "C1198054",
+      "qty": 2,
+      "unit_price": 2.83,
+      "rationale": "Frittata aux champignons et feta (mercredi déjeuner) + Taboulé de quinoa aux poivrons grillés et feta (samedi déjeuner)"
+    },
+    {
+      "requested": "filet de saumon",
+      "product": "Pavés de saumon écosse 750g/6pc (AUCHAN LE POISSONNIER)",
+      "auchan_id": "C1396467",
+      "qty": 1,
+      "unit_price": 18.99,
+      "rationale": "Saumon teriyaki-sésame, écrasé de patate douce, asperges vertes (mercredi dîner)"
+    },
+    {
+      "requested": "gingembre frais râpé",
+      "product": "Gingembre bio pérou 150g (SANS MARQUE)",
+      "auchan_id": "C1348893",
+      "qty": 1,
+      "unit_price": 1.99,
+      "rationale": "Salade de lentilles froides, oignon rouge & graines de courge (lundi déjeuner)"
+    },
+    {
+      "requested": "mozzarella râpée",
+      "product": "Mozzarella râpée 150g (GALBANI)",
+      "auchan_id": "C1198911",
+      "qty": 1,
+      "unit_price": 3.07,
+      "rationale": "Frittata aux poivrons, mozzarella et parmesan (dimanche déjeuner)"
+    },
+    {
+      "requested": "mélange de légumes verts surgelés",
+      "product": "Mélange de légumes verts vapeur 600g (AUCHAN)",
+      "auchan_id": "C1176864",
+      "qty": 1,
+      "unit_price": 4.03,
+      "rationale": "Poêlée de légumes verts, pois chiches rôtis et comté (jeudi dîner)"
+    },
+    {
+      "requested": "parmesan râpé",
+      "product": "Parmigiano reggiano râpé AOP 60g (PARMAREGGIO)",
+      "auchan_id": "C1198567",
+      "qty": 3,
+      "unit_price": 1.45,
+      "note": "quantité en cart instable côté Auchan (total_price a fluctué entre 1,45€ et 2,03€ selon les appels) — VÉRIFIER avant paiement",
+      "rationale": "Frittata aux champignons et feta (mer) + Risotto aux champignons et poivrons (dim) + Frittata aux poivrons, mozzarella et parmesan (dim), besoin cumulé ~147g"
+    },
+    {
+      "requested": "pilons de poulet",
+      "product": "Pilons de poulet blanc fermier 600g (AUCHAN)",
+      "auchan_id": "C1345128",
+      "qty": 2,
+      "unit_price": 3.99,
+      "rationale": "Pilons de poulet paprika-citron, patates douces (mardi dîner)",
+      "note": "remplace C1195603 (PRIX BAS) — banni : Julien refuse le poulet bas de gamme. 1,2 kg fermier a 6,65 EUR/kg au lieu de 1 kg a 5,05 EUR/kg, +2,93 EUR."
+    },
+    {
+      "requested": "poivrons en lanières (rouge et jaune)",
+      "product": "Trio de poivrons en lanières 600g (AUCHAN)",
+      "auchan_id": "C1389318",
+      "qty": 2,
+      "unit_price": 2.36,
+      "rationale": "Risotto aux champignons et poivrons (dim) + Taboulé de quinoa aux poivrons grillés et feta (sam) + Frittata aux poivrons, mozzarella et parmesan (dim)"
+    },
+    {
+      "requested": "tomates cerises, coupées en deux",
+      "product": "Tomates cerises rouges 250g (SANS MARQUE)",
+      "auchan_id": "C1348834",
+      "qty": 2,
+      "unit_price": 1.29,
+      "rationale": "Salade de lentilles vertes, tomates cerises et comté (vendredi dîner)"
+    },
+    {
+      "requested": "aubergines, en gros cubes",
+      "product": "Aubergines espagne 1kg (SANS MARQUE)",
+      "auchan_id": "C1349058",
+      "qty": 1,
+      "unit_price": 3.69,
+      "rationale": "Mafé au poisson et légumes (lundi dîner)"
+    },
+    {
+      "requested": "huile d'arachide",
+      "product": "Huile d'arachide 1l (AUCHAN)",
+      "auchan_id": "C1224770",
+      "qty": 1,
+      "unit_price": 3.7,
+      "rationale": "Mafé au poisson et légumes (lundi dîner)"
+    },
+    {
+      "requested": "tomates concassées (1 boîte)",
+      "product": "Pulpe de tomates concassées 400g (AUCHAN)",
+      "auchan_id": "C1239117",
+      "qty": 1,
+      "unit_price": 1.31,
+      "rationale": "Mafé au poisson et légumes (lundi dîner)"
+    },
+    {
+      "requested": "filet de cabillaud (ou lieu noir)",
+      "product": "Filet de cabillaud 800g/4pc (AUCHAN)",
+      "auchan_id": "C1178329",
+      "qty": 1,
+      "unit_price": 16.99,
+      "rationale": "Mafé au poisson et légumes (lundi dîner) — remplace dorade royale, rupture drive sur les 2 réf"
+    }
   ],
   "not_bought_already_home": [
-    {"item": "lentilles cuites froides", "recipe": "Salade de lentilles froides, oignon rouge & graines de courge (lundi déjeuner)", "reason": "retiré par Julien — déjà à la maison"},
-    {"item": "moutarde", "recipe": "Salade de lentilles vertes, tomates cerises et comté (vendredi dîner)", "reason": "retiré par Julien — déjà à la maison"},
-    {"item": "patate douce (top-up 40g)", "recipe": "partagé sur 3 plats (lun/mar/mer)", "reason": "retiré par Julien — marge jugée suffisante sur le 2 kg déjà en stock"},
-    {"item": "vinaigre de vin", "recipe": "Salade de lentilles vertes, tomates cerises et comté (vendredi dîner)", "reason": "retiré par Julien — condiment déjà présent (aurait dû être exempté d'office, cf. règle condiments)"},
-    {"item": "cube de bouillon de légumes", "recipe": "Mafé au poisson et légumes (lundi dîner)", "reason": "retiré par Julien — DOUBLON avec 'Bouillon goût légumes déshydraté' déjà ok en pantry (Bouillons & Fonds, entré 08/07). Cause racine : alias manquant, corrigé (alias_id 23, 2026-09-20)"},
-    {"item": "beurre de cacahuètes crunchy", "recipe": "Mafé au poisson et légumes (lundi dîner, pâte d'arachide)", "reason": "retiré par Julien — ~100g restants en pantry ('Pâtes', low) jugés suffisants"}
+    {
+      "item": "lentilles cuites froides",
+      "recipe": "Salade de lentilles froides, oignon rouge & graines de courge (lundi déjeuner)",
+      "reason": "retiré par Julien — déjà à la maison"
+    },
+    {
+      "item": "moutarde",
+      "recipe": "Salade de lentilles vertes, tomates cerises et comté (vendredi dîner)",
+      "reason": "retiré par Julien — déjà à la maison"
+    },
+    {
+      "item": "patate douce (top-up 40g)",
+      "recipe": "partagé sur 3 plats (lun/mar/mer)",
+      "reason": "retiré par Julien — marge jugée suffisante sur le 2 kg déjà en stock"
+    },
+    {
+      "item": "vinaigre de vin",
+      "recipe": "Salade de lentilles vertes, tomates cerises et comté (vendredi dîner)",
+      "reason": "retiré par Julien — condiment déjà présent (aurait dû être exempté d'office, cf. règle condiments)"
+    },
+    {
+      "item": "cube de bouillon de légumes",
+      "recipe": "Mafé au poisson et légumes (lundi dîner)",
+      "reason": "retiré par Julien — DOUBLON avec 'Bouillon goût légumes déshydraté' déjà ok en pantry (Bouillons & Fonds, entré 08/07). Cause racine : alias manquant, corrigé (alias_id 23, 2026-09-20)"
+    },
+    {
+      "item": "beurre de cacahuètes crunchy",
+      "recipe": "Mafé au poisson et légumes (lundi dîner, pâte d'arachide)",
+      "reason": "retiré par Julien — ~100g restants en pantry ('Pâtes', low) jugés suffisants"
+    }
   ],
   "root_causes": [
     "Doublon bouillon : l'API shopping-list a rendu 'absent du garde-manger' pour 'cube de bouillon de legume' alors qu'un article équivalent existait déjà en pantry sous un nom différent — alias manquant, jamais recherché avant l'ajout au panier. Corrigé par POST /api/pantry/aliases (ingredient='cube de bouillon de legume', pantry_item='Bouillon goût légumes déshydraté').",
-    "Vinaigre de vin acheté à tort : la règle d'exemption condiments (sel/poivre/épices/huiles/vinaigres/farines) de julien-cooking-manager-weekly-prep §3.1bis n'a pas été appliquée côté achat — seulement côté confirmation de composition."
+    "Vinaigre de vin acheté à tort : la règle d'exemption condiments (sel/poivre/épices/huiles/vinaigres/farines) de julien-cooking-manager-weekly-prep §3.1bis n'a pas été appliquée côté achat — seulement côté confirmation de composition.",
+    "Poulet PRIX BAS achete alors que Julien l'avait refuse en avril 2026 (conversation claude.ai, jamais versee dans le systeme). Cause racine : la table shopping_preference existait, s'ecrivait, et n'etait lue par PERSONNE avant l'ajout au panier. Corrige : POST /api/shopping/validate-cart + bans injectes dans /shopping-list (commit e441106), 2 lignes posees en base (produit C1195603, gamme PRIX BAS sur animal_protein)."
   ],
-  "next": "panier prêt (18 lignes, 88,14€) ; vérifier la quantité parmesan avant paiement ; checkout (créneau + 3DS) reste humain ; reporter au garde-manger UNE FOIS la commande validée"
+  "next": "panier 18 lignes 91,07 EUR ; verifier la quantite parmesan avant paiement ; checkout (creneau + 3DS) reste humain ; reporter au garde-manger UNE FOIS la commande validee"
 }

@@ -91,6 +91,14 @@ dans `CONTEXT_REQUIRED` (ADR 0007). Lire, jamais recopier : `/api/preferences` �
 La liste **n'est pas stockée, c'est un calcul** : `GET /api/menus/{slug}/shopping-list` la
 recalcule à chaque appel (menu × tablée × stock). **La DB fait foi du stock.**
 
+⛔ **Un panier se confronte aux produits refusés avant de partir** :
+`POST /api/shopping/validate-cart` (`{items:[{product, auchan_id, brand}]}`), `ok:false`
+bloque. Les bans viennent de `shopping_preference` — `blacklist` par produit,
+`blacklist_brand` par gamme (`value` = portée, `animal_protein` couvre viande, volaille,
+poisson, fruits de mer, œufs). Une préférence énoncée par Julien s'écrit en base **tout de
+suite**, sinon elle n'existe pas : celle sur le poulet bas de gamme est restée 5 mois dans
+une conversation claude.ai pendant que la table était écrite et jamais lue.
+
 ⛔ **`pantry_item` est un JOURNAL D'ENTRÉES, pas un inventaire** : rien ne le décrémente, aucun
 repas servi ne retire rien. `ok` répond « quelqu'un l'a acheté un jour », jamais « il y en a » —
 et un `out` n'est pas plus fiable. **Faire confirmer avant de composer dessus** (#94). Corollaire :
