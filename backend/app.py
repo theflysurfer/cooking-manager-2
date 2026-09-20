@@ -965,7 +965,20 @@ async def menu_shopping_list(
         "purchase_counts": purchase_counts,
         "bans": [ban.as_dict() for ban in await _load_bans()],
         "lines": lines,
+        "recurrent": await _recurrent_lines({ln["name_normalized"] for ln in lines}),
     }
+
+async def _recurrent_lines(covered: set[str]) -> list[dict]:
+    """Les achats d'habitude qu'aucun repas ne nomme (#89) — marqués `source: recurrent`."""
+    from cooking_manager.bans import recurrent_products
+
+    pool = await get_pool(DATABASE_DSN)
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """SELECT pref_type, key, value, reason, active FROM shopping_preference
+                WHERE active = TRUE AND pref_type = 'recurrent' ORDER BY key"""
+        )
+    return recurrent_products(rows, covered)
 
 class PantryUpdate(BaseModel):
     """Un des 4 gestes du différentiel garde-manger."""
@@ -1781,20 +1794,28 @@ async def list_shopping_sessions():
 class BlacklistBody(BaseModel):
     product: str
     reason: str | None = None
+    pref_type: str = "blacklist"
+    value: str | None = None
 
 @app.post("/api/shopping/preferences")
 async def add_shopping_preference(body: BlacklistBody):
+    from cooking_manager.bans import PREF_TYPES
+
+    if body.pref_type not in PREF_TYPES:
+        raise HTTPException(
+            400, f"pref_type inconnu : {body.pref_type} (attendu {sorted(PREF_TYPES)})")
     pool = await get_pool(DATABASE_DSN)
     async with pool.acquire() as conn:
         await conn.execute(
             """INSERT INTO shopping_preference (pref_type, key, value, reason)
-               VALUES ('blacklist', $1, $2, $3)
+               VALUES ($1, $2, $3, $4)
                ON CONFLICT (pref_type, key) DO UPDATE
                SET value = EXCLUDED.value, reason = EXCLUDED.reason,
                    active = TRUE, updated_at = NOW()""",
-            body.product, body.reason or "vocal", body.reason,
+            body.pref_type, body.product, body.value or body.reason or "vocal",
+            body.reason,
         )
-    return {"ok": True, "product": body.product}
+    return {"ok": True, "product": body.product, "pref_type": body.pref_type}
 
 class RecipeNoteBody(BaseModel):
     note: str

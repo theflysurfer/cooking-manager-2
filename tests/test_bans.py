@@ -1,4 +1,4 @@
-from cooking_manager.bans import find_ban, load_bans
+from cooking_manager.bans import find_ban, load_bans, recurrent_products
 
 ROWS = [
     {"pref_type": "blacklist", "key": "C1195603",
@@ -60,3 +60,32 @@ class TestFindBan:
 
     def test_no_bans_means_no_violation(self):
         assert find_ban("Pilons de poulet (PRIX BAS)", [], auchan_id="C1195603") is None
+
+RECURRENT_ROWS = [
+    {"pref_type": "recurrent", "key": "fromage blanc",
+     "value": "CALIN Extra - Fromage blanc nature 3,2% MG 850g",
+     "reason": "5/7 commandes, dernière 2026-09-08", "active": True},
+    {"pref_type": "recurrent", "key": "lait",
+     "value": "Lait entier UHT 6x1L", "reason": "3/7 commandes", "active": True},
+    {"pref_type": "blacklist", "key": "x", "value": "y", "reason": "", "active": True},
+]
+
+class TestRecurrentProducts:
+    def test_ignores_other_pref_types(self):
+        assert len(recurrent_products(RECURRENT_ROWS, set())) == 2
+
+    def test_inactive_row_is_dropped(self):
+        rows = [dict(RECURRENT_ROWS[0], active=False)]
+        assert recurrent_products(rows, set()) == []
+
+    def test_a_product_the_menu_already_buys_is_hidden(self):
+        out = recurrent_products(RECURRENT_ROWS, {"fromage blanc"})
+        assert [r["name"] for r in out] == ["lait"]
+
+    def test_a_longer_recipe_line_still_covers_it(self):
+        out = recurrent_products(RECURRENT_ROWS, {"fromage blanc de campagne"})
+        assert [r["name"] for r in out] == ["lait"]
+
+    def test_a_substring_is_not_a_cover(self):
+        out = recurrent_products(RECURRENT_ROWS, {"laitue"})
+        assert "lait" in [r["name"] for r in out]

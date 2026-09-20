@@ -1,4 +1,4 @@
-"""Produits et gammes refusés à l'achat — lecture de `shopping_preference`."""
+"""Produits refusés, et produits d'habitude — lecture de `shopping_preference`."""
 
 from __future__ import annotations
 
@@ -16,6 +16,8 @@ from cooking_manager.convives import (
 
 PRODUCT = "blacklist"
 BRAND = "blacklist_brand"
+RECURRENT = "recurrent"
+PREF_TYPES = frozenset({PRODUCT, BRAND, RECURRENT})
 
 ANIMAL_PROTEIN = "animal_protein"
 ANIMAL_TERMS = MEAT + POULTRY + FISH + SEAFOOD + EGG
@@ -51,6 +53,30 @@ def load_bans(rows) -> list[Ban]:
         else:
             bans.append(Ban(kind="product", key=key, label=value or key, reason=reason))
     return bans
+
+def recurrent_products(rows, covered: set[str]) -> list[dict]:
+    """Achats d'habitude, moins ceux que `covered` (name_normalized) réclame déjà."""
+    from cooking_manager.ingredients import normalize_name
+
+    covered_tokens = [frozenset(name.split()) for name in covered if name]
+    out = []
+    for row in rows:
+        data = dict(row)
+        if not data.get("active", True) or data.get("pref_type") != RECURRENT:
+            continue
+        label = str(data.get("key") or "").strip()
+        tokens = frozenset(normalize_name(label).split())
+        if not tokens:
+            continue
+        if any(tokens <= other or other <= tokens for other in covered_tokens):
+            continue
+        out.append({
+            "name": label,
+            "product": str(data.get("value") or ""),
+            "reason": str(data.get("reason") or ""),
+            "source": RECURRENT,
+        })
+    return out
 
 def is_animal_protein(product_name: str) -> bool:
     folded = _fold(product_name)
