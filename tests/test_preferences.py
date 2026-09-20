@@ -164,3 +164,23 @@ class TestLeftoversAreNotAHole:
         meals = [{"day": "vendredi", "slot": "lunch", "dish": "Restes de la poêlée",
                   "match_kind": "leftovers", "ingredients": []}]
         assert meals_without_protein(meals) == []
+
+class TestMinimizeClasses:
+    def test_gluten_is_a_class_so_minimize_can_be_counted(self):
+        rules = load_rules([{"kind": "minimize", "target": "gluten", "value": None,
+                             "unit": "", "scope": "week", "reason": "", "person": "Julien"}])
+        meals = [
+            {"day": "lundi", "slot": "dinner", "dish": "Lasagnes au saumon",
+             "ingredients": ["lasagnes", "saumon"]},
+            {"day": "mardi", "slot": "dinner", "dish": "Dahl de lentilles",
+             "ingredients": ["lentilles corail", "riz complet"]},
+        ]
+        check = check_preferences(meals, rules, ["lasagnes", "riz complet"])[0]
+        assert check.measurable is True and check.count == 1
+
+    def test_red_meat_is_a_class_too(self):
+        rules = load_rules([{"kind": "minimize", "target": "viande rouge", "value": None,
+                             "unit": "", "scope": "week", "reason": "", "person": ""}])
+        meals = [{"day": "vendredi", "slot": "dinner", "dish": "Chili con carne",
+                  "ingredients": ["boeuf haché"]}]
+        assert check_preferences(meals, rules, ["boeuf haché"])[0].count == 1

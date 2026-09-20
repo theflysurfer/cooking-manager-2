@@ -26,10 +26,18 @@ FAMILIES: dict[str, tuple[str, ...]] = {
     "fruits de mer": SEAFOOD, "oeuf": EGG, "legumineuse": LEGUME,
 }
 ANIMAL = MEAT + POULTRY + FISH + SEAFOOD + EGG
+GLUTEN = ("ble", "farine", "pain", "pate", "pates", "semoule", "couscous", "boulgour",
+          "epeautre", "orge", "seigle", "chapelure", "biscotte", "tortilla", "wrap",
+          "lasagne", "spaghetti", "macaroni", "tagliatelle", "nouille", "pizza", "brioche")
+RED_MEAT = ("boeuf", "steak", "agneau", "mouton", "veau", "porc", "charcuterie", "lardon",
+            "saucisse", "jambon", "chorizo", "bacon")
 CLASSES: dict[str, tuple[str, ...]] = {
     "proteine animale": ANIMAL,
     "proteine": ANIMAL + LEGUME,
     "famille de proteine": ANIMAL + LEGUME,
+    "gluten": GLUTEN,
+    "viande rouge": RED_MEAT,
+    "legumineuse": LEGUME,
 }
 COUNTABLE_UNITS = frozenset({"", "repas", "meal", "plat", "fois"})
 _NEGATION = re.compile(r"\bsans\s+(?:\w+\s+){0,3}\w+")
