@@ -73,3 +73,20 @@ class TestBouillonIsNotAFish:
         context = RecipeContext(cooking_methods=("stew",))
         found = find_substitution("500 g de boeuf haché", context, "pescetarian")
         assert found is not None and "bouillon" not in found.target
+
+
+class TestGapsFoundInTheHarvest:
+    """Mesuré le 2026-09-20 sur les 38 recettes moissonnées : trois plats restaient
+    `unrepaired` pour Clémence faute de règle — le jambon et la viande hachée."""
+
+    def _sub(self, line):
+        from cooking_manager.substitutions import RecipeContext, find_substitution
+        return find_substitution(line, RecipeContext(cooking_methods=("oven",)), "pescetarian")
+
+    def test_ham_has_a_substitute(self):
+        found = self._sub("4 tranches de jambon cuit")
+        assert found is not None and found.target
+
+    def test_minced_meat_has_a_substitute(self):
+        found = self._sub("400 g de viande hachée")
+        assert found is not None and found.target

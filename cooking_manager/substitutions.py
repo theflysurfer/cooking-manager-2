@@ -340,6 +340,18 @@ PESCETARIAN_RULES: tuple[SubstitutionRule, ...] = (
         priority=88,
     ),
     SubstitutionRule(
+        source="jambon", target="saumon fumé",
+        cooking_methods=("oven", "raw"), texture="tender", budget="medium",
+        reason="Même usage en lamelles — croque, quiche, gratin de pâtes",
+        priority=90,
+    ),
+    SubstitutionRule(
+        source="viande hachée", target="cabillaud émietté",
+        cooking_methods=("oven", "stew"), texture="firm", budget="medium",
+        reason="Le parmentier de poisson est la version pescétarienne du hachis",
+        priority=90,
+    ),
+    SubstitutionRule(
         source="bouillon de volaille", target="bouillon de légumes",
         cooking_methods=("stew", "slow-cooked"), texture="firm", budget="low",
         reason="Même rôle de fond de cuisson, sans la volaille",
