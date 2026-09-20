@@ -606,7 +606,10 @@ async def menu_compatibility(slug: str):
             repairs = [r for r in repairs if r.diet not in already]
             repairs, refused = prefer_discovered(
                 repairs, found_by_meal.get(meal["meal_id"], []))
-            unrepaired = unrepaired_conflicts(ingredient_conflicts, repairs) + refused
+            unrepaired = [
+                u for u in unrepaired_conflicts(ingredient_conflicts, repairs)
+                if u.diet not in already
+            ] + refused
 
         repaired_diets = {r.diet for r in repairs}
         shares = shares_for(at_table, len(present) or 4)
