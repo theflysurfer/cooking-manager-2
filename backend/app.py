@@ -483,9 +483,11 @@ async def menu_compatibility(slug: str):
 
     pool = await get_pool(DATABASE_DSN)
     async with pool.acquire() as conn:
-        row = await conn.fetchrow("SELECT slug, title, meals FROM menu WHERE slug = $1", slug)
-        if not row:
+        menu_row = await conn.fetchrow(
+            "SELECT slug, title FROM menu WHERE slug = $1", slug)
+        if not menu_row:
             raise HTTPException(404, f"Menu introuvable : {slug}")
+        menu_slug, menu_title = menu_row["slug"], menu_row["title"]
         household = await load_household_config(conn)
         referential = await load_referential_from_db(conn)
         convives = await load_convives_from_db(conn)
@@ -633,7 +635,7 @@ async def menu_compatibility(slug: str):
     no_protein = meals_without_protein(counted_meals)
 
     return {
-        "slug": row["slug"], "title": row["title"],
+        "slug": menu_slug, "title": menu_title,
         "meals_checked": len(checked), "conflicts": conflict_count,
         "conflicts_uncovered": uncovered_count, "repairs": repair_count,
         "convives_known": len(convives),
