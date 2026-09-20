@@ -75,24 +75,17 @@ efface les menus créés par l'API et la colonne `served`.
 | `person.diet_exceptions` | ce que le régime interdit mais que la personne mange | ✅ |
 | `dietary_preference` | ce qui **pèse sans bloquer** (`minimize`/`maximize`/`cap`/`rotate`/`no_restriction`) | ⚠️ compté quand la cible est un **ingrédient nommé** |
 
-⛔ **`preferences` rend `measurable: false` quand la cible n'existe dans aucun ingrédient
-(« famille de protéine », « gluten ») ou quand le `cap` est dans une unité qu'on ne sait pas
-compter (grammes)** : ce zéro-là n'est pas un constat. Mesuré le 2026-09-20 : **8 règles sur 10
-sont aveugles**, elles se lisaient « respectées » depuis toujours. Lire `preferences_unmeasurable`
-avant `preferences_breached`, et appliquer ces règles-là à la main (#77 #78). Trois autres angles
-morts : les repas `leftovers` (sans fiche, donc sans ingrédients à confronter, #76) et `repairs`
-vide qui ne veut pas dire « rien à réparer » — **lire `unrepaired`**.
+⛔ **Trois compteurs se lisent AVANT leur voisin rassurant** (ADR 0023, 0025) :
+`preferences_unmeasurable` avant `preferences_breached` (une cible qu'aucun ingrédient ne porte,
+ou un `cap` en grammes, rend `measurable: false` — son zéro ne mesure rien) ·
+`conflicts_uncovered` avant `conflicts` (un conflit `repaired: true` est traité) ·
+`unrepaired` avant `repairs`. Angle mort : un repas `leftovers` n'a pas de fiche, donc rien à
+confronter (#76).
 
-Une **part séparée** se déclare dans les ingrédients (`150 g pois chiches (part de Clémence)`),
-jamais en `## Notes` : les notes ne sont ni parsées ni achetées. Un conflit ainsi couvert porte
-`covered_by` — **lire `conflicts_uncovered`, pas `conflicts`**.
-
-⛔ **Un interdit se lit À UNE TABLÉE, jamais dans l'absolu.** `/recipes/{slug}/compatibility`
-résout la tablée dans cet ordre : `?convives=` nommés → `?day=&slot=` (présence réelle) →
-**les résidents** (`household_member.membership='resident'`, 4 personnes). Chaque conflit porte
-son `membership` : `guest` = contrainte d'invité, pas une règle du foyer. Mesuré le 2026-09-20 :
-tester les 14 lignes de `person` rendait 42 « interdits » sur 37 recettes, dont 25 pour une
-personne absente — contre 0 à la tablée réelle.
+⛔ **Un interdit se lit À UNE TABLÉE** : `/recipes/{slug}/compatibility` résout `?convives=` →
+`?day=&slot=` → **les résidents** (`household_member`). `membership: guest` = contrainte
+d'invité. Une **part séparée** se déclare dans les ingrédients (`150 g pois chiches (part de
+Clémence)`), jamais en `## Notes` — elles ne sont ni parsées ni achetées.
 
 Un terme alimentaire s'écrit **au singulier**, toujours : la flexion va du singulier vers le
 pluriel, jamais l'inverse. Un terme ambigu (`roti`, `blanc`, `filet`) se déclare avec son motif
@@ -199,14 +192,10 @@ only, **pas de build**. Aucun scanner ne voit zoom auto < 16 px, `100vh`, `:hove
 
 ## Contraintes mesurées (ratchet)
 
-| Métrique | Valeur | Direction | Vérifié par |
-|---|---|---|---|
-| `single` products sans `food_key` | 0 | must stay 0 | `pytest tests/test_food_import.py::TestLinkingRatchet` |
-| `composite` jamais rattaché | 0 linked | must stay 0 | `pytest tests/test_food_import.py::TestCompositeIsNeverLinked` |
-| `read_energy` plafond | 950 kcal | must not rise | `pytest tests/test_nutrition.py` |
-| `nature` inconnue refusée | ValueError | must stay | `pytest tests/test_food_import.py::TestProductNature` |
-
-Toute régression sur ces métriques casse `python -m pytest` → bloque le ship.
+Quatre métriques ne doivent **jamais** régresser (rattachement `single`/`composite`, plafond
+`read_energy`, refus d'une `nature` inconnue). Elles ne se recopient pas ici : elles vivent dans
+les tests, qui sont leur seule vérité — `python -m pytest -k "Ratchet or CompositeIsNever or
+ProductNature or nutrition"`. Une régression casse `pytest` et bloque le ship.
 
 ## MCP · dépendances
 
