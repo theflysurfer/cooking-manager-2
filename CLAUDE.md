@@ -73,10 +73,13 @@ efface les menus créés par l'API et la colonne `served`.
 | `person.forbidden` | ne se discute pas | ✅ |
 | `person.dislikes` | aversion pour un aliment nommé | ✅ |
 | `person.diet_exceptions` | ce que le régime interdit mais que la personne mange | ✅ |
-| `dietary_preference` | ce qui **pèse sans bloquer** (`minimize`/`maximize`/`cap`/`rotate`/`no_restriction`) | ❌ **rien ne le lit** |
+| `dietary_preference` | ce qui **pèse sans bloquer** (`minimize`/`maximize`/`cap`/`rotate`/`no_restriction`) | ⚠️ compté quand la cible est un **ingrédient nommé** |
 
-⛔ **Un menu « sans conflit » ne dit rien du gluten, des sucres ajoutés ni de la rotation des
-protéines** : ces règles s'appliquent à la main en composant (#77 #78). Trois autres angles
+⛔ **`preferences` rend `measurable: false` quand la cible n'existe dans aucun ingrédient
+(« famille de protéine », « gluten ») ou quand le `cap` est dans une unité qu'on ne sait pas
+compter (grammes)** : ce zéro-là n'est pas un constat. Mesuré le 2026-09-20 : **8 règles sur 10
+sont aveugles**, elles se lisaient « respectées » depuis toujours. Lire `preferences_unmeasurable`
+avant `preferences_breached`, et appliquer ces règles-là à la main (#77 #78). Trois autres angles
 morts : les repas `leftovers` (sans fiche, donc sans ingrédients à confronter, #76), les parts
 séparées (« pois chiches pour Clémence » reste un conflit poulet), et `repairs` vide qui ne veut
 pas dire « rien à réparer » — **lire `unrepaired`**.
