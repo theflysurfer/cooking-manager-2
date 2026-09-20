@@ -670,7 +670,7 @@ async def menu_shopping_list(
             params.append(datetime.date.fromisoformat(from_date))
 
         rows = await conn.fetch(
-            """SELECT mm.slot, mm.dish, mm.day_label, mm.match_kind, mm.covers,
+            """SELECT mm.slot, mm.dish, mm.day_label, mm.day, mm.match_kind, mm.covers,
                       r.id, r.slug, r.title, r.servings
                  FROM menu_meal mm
                  LEFT JOIN recipe r ON r.id = mm.recipe_id
@@ -679,6 +679,8 @@ async def menu_shopping_list(
             + " ORDER BY mm.position, mm.slot",
             *params,
         )
+        household = await load_household_config(conn)
+        referential = await load_referential_from_db(conn)
 
         matched, unmatched, leftovers = [], [], []
         for row in rows:
@@ -691,6 +693,8 @@ async def menu_shopping_list(
             else:
                 matched.append((row, row["dish"]))
 
+        from cooking_manager.presence import attendees
+
         default_covers = covers or 4
         payload = []
         for recipe, _dish in matched:
@@ -700,7 +704,13 @@ async def menu_shopping_list(
                      FROM recipe_ingredient WHERE recipe_id = $1 ORDER BY position""",
                 recipe["id"],
             )
-            meal_covers = recipe["covers"] if recipe["covers"] else default_covers
+            meal_covers = recipe["covers"]
+            if not meal_covers and not covers and recipe["day"]:
+                present = attendees(recipe["day"], recipe["slot"],
+                                    referential, household)
+                meal_covers = len(present) or None
+            if not meal_covers:
+                meal_covers = default_covers
             base = recipe["servings"] or meal_covers
             ratio = meal_covers / base if base else 1.0
             payload.append((recipe["title"], [dict(r) for r in rows], ratio))
