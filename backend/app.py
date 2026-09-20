@@ -478,6 +478,25 @@ async def menu_compatibility(slug: str):
         household = await load_household_config(conn)
         referential = await load_referential_from_db(conn)
         convives = await load_convives_from_db(conn)
+        pref_rows = await conn.fetch(
+            """SELECT dp.kind, dp.target, dp.value, dp.unit, dp.scope, dp.reason,
+                      COALESCE(p.name, '') AS person
+                 FROM dietary_preference dp
+                 LEFT JOIN person p ON p.id = dp.person_id
+                WHERE dp.until IS NULL OR dp.until >= CURRENT_DATE
+                ORDER BY dp.kind, dp.target"""
+        )
+        meal_rows = await conn.fetch(
+            """SELECT mm.day_label, mm.slot, mm.dish, mm.position,
+                      COALESCE(array_agg(ri.name)
+                               FILTER (WHERE ri.name IS NOT NULL), '{}') AS ingredients
+                 FROM menu_meal mm
+                 LEFT JOIN recipe_ingredient ri ON ri.recipe_id = mm.recipe_id
+                WHERE mm.menu_id = (SELECT id FROM menu WHERE slug = $1)
+                GROUP BY mm.day_label, mm.slot, mm.dish, mm.position
+                ORDER BY mm.position""",
+            slug,
+        )
 
     meals = row["meals"]
     if isinstance(meals, str):
@@ -507,10 +526,20 @@ async def menu_compatibility(slug: str):
                 ],
             })
 
+    from cooking_manager.preferences import check_preferences, load_rules
+
+    prefs = check_preferences(
+        [{"day": m["day_label"], "slot": m["slot"], "dish": m["dish"],
+          "ingredients": list(m["ingredients"] or [])} for m in meal_rows],
+        load_rules(pref_rows),
+    )
+
     return {
         "slug": row["slug"], "title": row["title"],
         "meals_checked": len(checked), "conflicts": conflict_count,
         "convives_known": len(convives),
+        "preferences": [p.as_dict() for p in prefs],
+        "preferences_breached": sum(1 for p in prefs if p.breached),
         "results": checked,
     }
 
