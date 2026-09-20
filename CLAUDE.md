@@ -42,14 +42,14 @@ tables recette appartiennent à **recipe-manager** (8796), CM2 est colocataire.
 
 ## DB fait foi (ADR 0010/0022)
 
-Le vault Obsidian est **déconnecté** (ADR 0022). La DB PostgreSQL est la seule source
-de vérité pour recettes, menus, convives et stock. recipe-manager (8796) écrit
-directement en DB, plus de `.md` ni de rclone.
+Le vault Obsidian est **déconnecté** (ADR 0022) : la DB PostgreSQL est seule source de vérité
+pour recettes, menus, convives et stock — recipe-manager y écrit directement, plus de `.md` ni rclone.
 
 | Piège | Geste |
 |---|---|
 | Nouvelle colonne dans un `CREATE TABLE` | L'ajouter **aussi** à `MIGRATIONS_SQL` — le VPS a déjà les tables. Un **index** sur cette colonne ne vit QUE dans la migration : `SCHEMA_SQL` s'exécute avant |
 | `menu_meal.position` | 1-based en DB : tout JS fait `position - 1` |
+| Modifier un repas | `POST /api/menus` **reconstruit** `menu_meal` depuis `menu.meals` et supprime le reste ; `PATCH .../meals/{id}` n'écrit QUE `menu_meal`. Les deux divergent en silence, et le POST suivant écrase le PATCH |
 | Marquer un repas mangé | `POST /api/menus/{slug}/served` (day/slot), **jamais** le `PATCH` du repas |
 
 ⛔ **Jamais de `DELETE FROM menu` ni `menu_meal`** : l'API upsert, un DELETE global

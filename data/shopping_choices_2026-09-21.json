@@ -1,0 +1,149 @@
+{
+  "date": "2026-09-21",
+  "store": "Auchan Drive Aubagne-En-Provence",
+  "cart_id": "79e90b58-f2db-4314-a2d1-d396f5004bd8",
+  "menu_slug": "2026-09-21_semaine-aubagne-enfants",
+  "window": "lun 21 -> dim 27 sept",
+  "supersedes": "data/shopping_choices_2026-09-20.json",
+  "note": "Complement de session : les 21 lignes du 20/09 restent en place, ce fichier ne porte que le delta.",
+  "total_eur": 206.03,
+  "item_count": 44,
+  "covers": 4,
+  "validate_cart": { "ok": true, "checked": 44, "violations": 0, "bans_active": 4 },
+  "arbitrage_julien": "Julien garde les 14 lignes apparues (ajouts humains assumés) et demande d'acheter aussi ce qui avait été écarté par prudence de stock : nectarines 1 kg (2,49 €), fromage blanc 3,2% 1 kg (2,11 €), 2e botte de persil (+1,29 €). Restent non achetés les seuls impossibles — dorade en rupture, lotte absente du catalogue, truite fraîche inexistante — et les lentilles, que Julien avait lui-même retirées ce soir sur stock vérifié.",
+  "budget_alert": "206,03 € pour une semaine à 4 couverts — au-dessus du seuil de 150 € de la règle courses. 14 lignes (≈ 45 €) sont apparues dans le panier pendant la session sans venir de CM2 : melons, avocats, raisins, St Moret, cottage cheese, emmental, parmigiano Casa Azzurra, chocolat pâtissier, Cruesli, concombre, pommes Gala x6, myrtilles 500 g, Calin fromage blanc. Ajouts humains parallèles, à arbitrer par Julien.",
+  "verified_in_browser": false,
+  "items": [
+    {
+      "requested": "parmesan râpé",
+      "product": "Parmigiano reggiano rapé frais 100g (AMBROSI)",
+      "auchan_id": "C1200084",
+      "qty": 2,
+      "unit_price": 2.92,
+      "rationale": "Frittata aux champignons et feta (mercredi déjeuner) + Risotto aux champignons, poivrons et poulet fermier (dimanche dîner) + Frittata aux poivrons, mozzarella et parmesan — 127 g requis, garde-manger marqué out"
+    },
+    {
+      "requested": "tomates (3 pièces)",
+      "product": "Tomates rondes noires Kumato france 500g (SANS MARQUE)",
+      "auchan_id": "C1349697",
+      "qty": 1,
+      "unit_price": 3.49,
+      "rationale": "Gratin de poissons aux légumes (jeudi dîner) — garde-manger out ; Kumato plutôt que les tomates en grappe à quantité variable, qui rendent 500 sur cart/update (mcp-vps#177)"
+    },
+    {
+      "requested": "persil pour décorer + persil plat",
+      "product": "Persil frisé france 1 botte (SANS MARQUE)",
+      "auchan_id": "C1350103",
+      "qty": 1,
+      "unit_price": 1.29,
+      "rationale": "Chili con carne (mardi dîner, décor) + Frittata champignons-feta et Taboulé de quinoa — « persil plat » rend 0 résultat au drive ; 1 botte seulement car le garde-manger porte déjà 2 bottes de frisé entrées le 08/09"
+    },
+    {
+      "requested": "truites (2 filets) + dorade (1 pièce)",
+      "product": "Filet de limande 210g (SANS MARQUE)",
+      "auchan_id": "C1380397",
+      "qty": 2,
+      "unit_price": 3.99,
+      "rationale": "Gratin de poissons aux légumes (jeudi dîner) + repas dorade — aucune truite FRAÎCHE au drive (que du fumé) et les 2 références de dorade sont en stock 0 ; limande validée par Julien comme bascule"
+    }
+  ],
+  "items_petit_dejeuner_gouter": [
+    {
+      "requested": "bananes (24 pièces sur la semaine)",
+      "product": "Bananes Prix Bas côte d'Ivoire 5 pièces (SANS MARQUE)",
+      "auchan_id": "C1774822",
+      "qty": 4,
+      "unit_price": 0.99,
+      "rationale": "Avoine + whey + banane (lun, jeu) + Tartine beurre de cacahuète + banane (goûter jeu) + Pancakes banane-avoine (sam) — 5 bananes seulement en stock. PRIX BAS autorisé ici : le ban de gamme ne porte que sur animal_protein"
+    },
+    {
+      "requested": "flocons d'avoine (700 g)",
+      "product": "Flocons d'avoine 500g (AUCHAN)",
+      "auchan_id": "C1259480",
+      "qty": 2,
+      "unit_price": 0.92,
+      "rationale": "Avoine + whey (lun, jeu), Overnight oats (mer), Pancakes banane-avoine (sam) — stock 680 g, marqué insuffisant"
+    },
+    {
+      "requested": "compote sans sucres ajoutés (8 gourdes)",
+      "product": "Gourdes compotes multivariétés sans sucres ajoutés 12x90g (POM'POTES)",
+      "auchan_id": "C1268463",
+      "qty": 1,
+      "unit_price": 6.06,
+      "rationale": "Goûter Compote + graines de courge (mer et dim), 4 couverts — 1 seule gourde en stock"
+    },
+    {
+      "requested": "pain complet (12 tranches)",
+      "product": "Pain de mie complet sans sucres ajoutés 500g 24 tranches (AUCHAN)",
+      "auchan_id": "C1785387",
+      "qty": 1,
+      "unit_price": 1.8,
+      "rationale": "Œufs brouillés + pain complet (petit-déj dim) + Tartine beurre de cacahuète (goûter jeu)"
+    },
+    {
+      "requested": "nectarines (8 pièces)",
+      "product": "Nectarines jaunes ou blanches prix bas france 1kg (SANS MARQUE)",
+      "auchan_id": "C1349083",
+      "qty": 1,
+      "unit_price": 2.49,
+      "rationale": "Goûter Fromage blanc + fruits (lun et ven) — 1 seule nectarine en stock ; rachetées sur demande de Julien après arbitrage"
+    },
+    {
+      "requested": "fromage blanc (2800 g sur la semaine)",
+      "product": "Fromage blanc 3,2% MG 1kg (AUCHAN)",
+      "auchan_id": "C1178080",
+      "qty": 1,
+      "unit_price": 2.11,
+      "rationale": "Fromage blanc + whey + pomme (mar, ven) et Fromage blanc + fruits (lun, ven) — marge au-dessus des 2,7 kg stock+panier ; 3,2% et non 0%, interdit à Julien"
+    },
+    {
+      "requested": "persil plat (1,5 botte + décor chili)",
+      "product": "Persil frisé france 1 botte (SANS MARQUE) — 2e botte",
+      "auchan_id": "C1350103",
+      "qty": 1,
+      "unit_price": 1.29,
+      "rationale": "Repassé de 1 à 2 bottes sur demande de Julien : les 2 bottes du stock datent du 08/09 et ne sont pas sûres"
+    }
+  ],
+  "menu_slots_ajoutes": {
+    "slots": "7 breakfast + 7 snack écrits en base — menu_meal passe de 14 à 28 lignes",
+    "recette_creee": "oeufs-brouilles-pain-complet — sans saumon fumé, le cap saumon 1/semaine étant déjà pris par le dîner de mercredi",
+    "drift_repare": "menu.meals (JSONB) était resté sur l'ancienne version des dîners alors que menu_meal portait la réécriture ; le POST /api/menus a resynchronisé les deux"
+  },
+  "not_bought": [
+    {
+      "item": "dorade (1 pièce)",
+      "recipe": "Cuisses de poulet au four",
+      "reason": "rupture réelle : les 2 références du drive Aubagne sont stock 0 — remplacée par la limande"
+    },
+    {
+      "item": "truites (2 filets)",
+      "recipe": "Gratin de poissons aux légumes (jeudi dîner)",
+      "reason": "le drive n'a que de la truite fumée (dont une POUCE, bannie sur animal_protein) — remplacée par la limande"
+    },
+    {
+      "item": "lotte (125 g)",
+      "recipe": "Chili con carne facile (mardi dîner)",
+      "reason": "zéro lotte au catalogue ; la ligne venait du moteur de substitution bœuf→lotte, jugée culinairement fausse — abandonnée, chili au bœuf seul"
+    },
+    {
+      "item": "lentilles cuites froides (200 g)",
+      "recipe": "Salade de lentilles froides, oignon rouge & graines de courge (lundi déjeuner)",
+      "reason": "ajoutée puis RETIRÉE du panier : le garde-manger porte 2 boîtes de lentilles cuites ok + 4 paquets secs. Le verdict absent venait d'un alias manquant — alias posé (id 24, « lentille cuite froide » → « Auchan Lentilles »), la ligne rend maintenant inconnu/présent"
+    },
+    {
+      "item": "myrtilles, pommes Gala, nectarines, fromage blanc supplémentaire",
+      "recipe": "petits-déjeuners et goûters de la semaine",
+      "reason": "déjà couverts : 900 g de surgelés au stock + 500 g de myrtilles fraîches déjà au panier, 6 pommes au stock + 6 au panier, 1,85 kg de fromage blanc au stock + le Calin du panier ; les melons et raisins apparus couvrent le fruit des goûters"
+    },
+    {
+      "item": "chili en poudre, clou de girofle, genièvre, moutarde, bouillon de bœuf",
+      "recipe": "diverses",
+      "reason": "condiments et épices — exemptés d'office (règle condiments de base), à n'acheter que sur demande explicite"
+    }
+  ],
+  "next": [
+    "Checkout humain : créneau + 3D Secure — https://www.auchan.fr/checkout/cart/",
+    "Reporter les achats au garde-manger une fois la commande retirée"
+  ]
+}
