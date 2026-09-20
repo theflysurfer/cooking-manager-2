@@ -4,8 +4,8 @@
   "cart_id": "79e90b58-f2db-4314-a2d1-d396f5004bd8",
   "menu_slug": "2026-09-21_semaine-aubagne-enfants",
   "window": "lun 21 -> dim 27 sept",
-  "total_eur": 112.04,
-  "item_count": 20,
+  "total_eur": 116.94,
+  "item_count": 21,
   "covers": 4,
   "verified_in_browser": false,
   "items": [
@@ -170,6 +170,14 @@
       "qty": 2,
       "unit_price": 6.69,
       "rationale": "Risotto aux champignons, poivrons et poulet fermier (dimanche dîner) — le risotto ne portait AUCUNE protéine"
+    },
+    {
+      "requested": "crevettes décortiquées (part Clémence)",
+      "product": "Crevettes Nordiques décortiquées cuites 200g (AUCHAN)",
+      "auchan_id": "C1177727",
+      "qty": 1,
+      "unit_price": 4.9,
+      "rationale": "Part pescétarienne de Clémence sur le Risotto aux champignons, poivrons et poulet fermier (dimanche dîner) — elle ne mange pas le poulet"
     }
   ],
   "not_bought_already_home": [
@@ -208,9 +216,12 @@
     "Doublon bouillon : l'API shopping-list a rendu 'absent du garde-manger' pour 'cube de bouillon de legume' alors qu'un article équivalent existait déjà en pantry sous un nom différent — alias manquant, jamais recherché avant l'ajout au panier. Corrigé par POST /api/pantry/aliases (ingredient='cube de bouillon de legume', pantry_item='Bouillon goût légumes déshydraté').",
     "Vinaigre de vin acheté à tort : la règle d'exemption condiments (sel/poivre/épices/huiles/vinaigres/farines) de julien-cooking-manager-weekly-prep §3.1bis n'a pas été appliquée côté achat — seulement côté confirmation de composition.",
     "Poulet PRIX BAS achete alors que Julien l'avait refuse en avril 2026 (conversation claude.ai, jamais versee dans le systeme). Cause racine : la table shopping_preference existait, s'ecrivait, et n'etait lue par PERSONNE avant l'ajout au panier. Corrige : POST /api/shopping/validate-cart + bans injectes dans /shopping-list (commit e441106), 2 lignes posees en base (produit C1195603, gamme PRIX BAS sur animal_protein).",
-    "Menu pauvre en proteines pour des enfants en croissance : 7 repas legumineuse, zero viande rouge, 1 repas sans aucune proteine. Invisible jusqu'ici car dietary_preference n'etait lu par personne. Corrige : /compatibility rend preferences + by_family + meals_without_protein, et 2 regles posees en base (maximize proteine animale >= 5 repas/semaine, rotate <= 2 par famille)."
+    "Menu pauvre en proteines pour des enfants en croissance : 7 repas legumineuse, zero viande rouge, 1 repas sans aucune proteine. Invisible jusqu'ici car dietary_preference n'etait lu par personne. Corrige : /compatibility rend preferences + by_family + meals_without_protein, et 2 regles posees en base (maximize proteine animale >= 5 repas/semaine, rotate <= 2 par famille).",
+    "/compatibility calculait ses conflits sur le JSONB menu.meals, que PATCH /meals/{id} ne met jamais a jour : 2 conflits sur 3 etaient invisibles, dont le boeuf ajoute le jour meme. Corrige, la source est menu_meal.",
+    "Un conflit couvert par une part separee se lisait comme un conflit oublie. Ajoute conflicts_uncovered + covered_by (convention '(part de X)' deja presente dans le corpus).",
+    "La liste de courses dimensionnait tout a 4 couverts alors que la presence connait la tablee reelle : thon 560 g au lieu de 280 g pour un repas du couple. Corrige."
   ],
-  "next": "panier 20 lignes 112,04 EUR ; verifier la quantite parmesan avant paiement ; checkout (creneau + 3DS) reste humain ; RESTE A ARBITRER : rotate famille de proteine encore franchi (legumineuse 6/2, poisson 4/2) et samedi midi (taboule quinoa feta) sans proteine principale",
+  "next": "panier 21 lignes 116,94 EUR ; verifier la quantite parmesan avant paiement ; checkout (creneau + 3DS) reste humain ; RESTE A ARBITRER : rotate famille de proteine (legumineuse 6/2, poisson 4/2) et samedi midi sans proteine principale",
   "menu_changes_2026_09_20": [
     {
       "repas": "jeudi déjeuner",
@@ -229,6 +240,12 @@
       "avant": "Risotto aux champignons et poivrons",
       "apres": "Risotto aux champignons, poivrons et poulet fermier",
       "motif": "repas sans aucune protéine, détecté par /compatibility → meals_without_protein"
+    },
+    {
+      "repas": "les 3 repas carnés",
+      "avant": "part de Clémence en ## Notes (jamais parsée)",
+      "apres": "part dans les ingrédients : pois chiches (mar, ven), crevettes (dim)",
+      "motif": "une part en Notes n'entre pas dans la liste de courses — convention du corpus : « (part de Clémence) » dans les ingrédients"
     }
   ]
 }
