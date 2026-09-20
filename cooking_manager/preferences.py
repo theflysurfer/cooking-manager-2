@@ -9,10 +9,32 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
-from cooking_manager.convives import _contains_term, _fold
+from cooking_manager.convives import (
+    EGG,
+    FISH,
+    MEAT,
+    POULTRY,
+    SEAFOOD,
+    _contains_term,
+    _fold,
+)
 
 COUNTED = ("cap", "rotate")
 WEEK, DAY, MEAL = "week", "day", "meal"
+
+LEGUME = ("lentille", "pois chiche", "haricot rouge", "haricot blanc", "feve",
+          "pois casse", "soja", "tofu", "edamame", "houmous")
+
+FAMILIES: dict[str, tuple[str, ...]] = {
+    "viande": MEAT, "volaille": POULTRY, "poisson": FISH,
+    "fruits de mer": SEAFOOD, "oeuf": EGG, "legumineuse": LEGUME,
+}
+ANIMAL = MEAT + POULTRY + FISH + SEAFOOD + EGG
+CLASSES: dict[str, tuple[str, ...]] = {
+    "proteine animale": ANIMAL,
+    "proteine": ANIMAL + LEGUME,
+    "famille de proteine": ANIMAL + LEGUME,
+}
 COUNTABLE_UNITS = frozenset({"", "repas", "meal", "plat", "fois"})
 _NEGATION = re.compile(r"\bsans\s+(?:\w+\s+){0,3}\w+")
 
@@ -35,6 +57,7 @@ class Check:
     breached: bool
     measurable: bool = True
     hits: list[dict] = field(default_factory=list)
+    by_family: dict[str, int] = field(default_factory=dict)
 
     def as_dict(self) -> dict:
         return {
@@ -42,7 +65,8 @@ class Check:
             "person": self.rule.person, "reason": self.rule.reason,
             "limit": self.limit, "unit": self.rule.unit, "scope": self.scope,
             "count": self.count, "breached": self.breached,
-            "measurable": self.measurable, "hits": self.hits,
+            "measurable": self.measurable, "by_family": self.by_family,
+            "hits": self.hits,
         }
 
 def load_rules(rows) -> list[Rule]:
@@ -65,13 +89,27 @@ def load_rules(rows) -> list[Rule]:
         ))
     return rules
 
-def _mentions(meal: dict, target: str) -> bool:
-    """« compote sans sucres ajoutés » ne compte pas comme du sucre ajouté."""
-    haystack = " ".join([
+def terms_for(target: str) -> tuple[str, ...]:
+    """Une cible est soit un aliment nommé, soit une CLASSE d'aliments connue."""
+    return CLASSES.get(_fold(target), (target,))
+
+def _haystack(meal: dict) -> str:
+    text = " ".join([
         str(meal.get("dish") or ""),
         " ".join(str(i) for i in meal.get("ingredients") or []),
     ])
-    return _contains_term(_NEGATION.sub(" ", _fold(haystack)), target)
+    return _NEGATION.sub(" ", _fold(text))
+
+def _mentions(meal: dict, target: str) -> bool:
+    """« compote sans sucres ajoutés » ne compte pas comme du sucre ajouté."""
+    folded = _haystack(meal)
+    return any(_contains_term(folded, term) for term in terms_for(target))
+
+def families_in(meal: dict) -> list[str]:
+    """Les familles de protéine qu'un repas porte — vide = repas sans protéine."""
+    folded = _haystack(meal)
+    return [name for name, terms in FAMILIES.items()
+            if any(_contains_term(folded, term) for term in terms)]
 
 def check_preferences(
     meals: list[dict], rules: list[Rule], vocabulary: list[str] | None = None,
@@ -98,8 +136,17 @@ def check_preferences(
         else:
             count = len(hits)
 
+        by_family: dict[str, int] = {}
+        if rule.kind == "rotate" and _fold(rule.target) in CLASSES:
+            for meal in meals:
+                for family in families_in(meal):
+                    by_family[family] = by_family.get(family, 0) + 1
+
         breached = False
-        if rule.kind in COUNTED and rule.value is not None:
+        if rule.kind == "rotate" and by_family and rule.value is not None:
+            breached = max(by_family.values()) > rule.value
+            count = max(by_family.values())
+        elif rule.kind in COUNTED and rule.value is not None:
             breached = count > rule.value
         elif rule.kind == "maximize" and rule.value is not None:
             breached = count < rule.value
@@ -110,10 +157,16 @@ def check_preferences(
             breached = False
         elif folded_vocabulary is not None and not hits:
             measurable = any(
-                _contains_term(entry, rule.target) for entry in folded_vocabulary
+                _contains_term(entry, term)
+                for entry in folded_vocabulary for term in terms_for(rule.target)
             )
 
         checks.append(Check(rule=rule, count=count, limit=rule.value,
                             scope=rule.scope, breached=breached,
-                            measurable=measurable, hits=hits))
+                            measurable=measurable, hits=hits, by_family=by_family))
     return checks
+
+def meals_without_protein(meals: list[dict]) -> list[dict]:
+    """Les repas qu'aucune famille de protéine ne touche — un dîner ici est un trou."""
+    return [{"day": m.get("day"), "slot": m.get("slot"), "dish": m.get("dish")}
+            for m in meals if not families_in(m)]

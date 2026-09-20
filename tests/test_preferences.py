@@ -81,9 +81,10 @@ class TestMeasurable:
 
     VOCAB = ["filet de saumon", "pilons de poulet", "cabillaud", "courgettes"]
 
-    def test_category_target_is_flagged_unmeasurable(self):
-        rules = load_rules([{"kind": "rotate", "target": "famille de proteine",
-                             "value": 2, "unit": "repas", "scope": "week",
+    def test_category_target_without_a_class_is_flagged_unmeasurable(self):
+        rules = load_rules([{"kind": "minimize",
+                             "target": "feculent a index glycemique eleve",
+                             "value": None, "unit": "", "scope": "week",
                              "reason": "", "person": ""}])
         check = check_preferences(MEALS, rules, self.VOCAB)[0]
         assert check.count == 0 and check.breached is False
@@ -123,3 +124,36 @@ class TestWhatCannotBeCounted:
         meals = [{"day": "lundi", "slot": "snack", "dish": "Gâteau",
                   "ingredients": ["sucre roux"]}]
         assert check_preferences(meals, rules, ["sucre roux"])[0].count == 1
+
+class TestProteinFamilies:
+    from cooking_manager.preferences import families_in, meals_without_protein
+
+    def test_a_class_target_counts_every_family(self):
+        rules = load_rules([{"kind": "maximize", "target": "proteine animale",
+                             "value": 5, "unit": "repas", "scope": "week",
+                             "reason": "", "person": ""}])
+        check = check_preferences(MEALS, rules, ["filet de saumon"])[0]
+        assert check.count == 4 and check.measurable is True
+        assert check.breached is True
+
+    def test_rotate_on_a_class_counts_per_family(self):
+        rules = load_rules([{"kind": "rotate", "target": "famille de proteine",
+                             "value": 2, "unit": "repas", "scope": "week",
+                             "reason": "", "person": ""}])
+        meals = MEALS + [{"day": "vendredi", "slot": "dinner",
+                          "dish": "Poulet rôti", "ingredients": []}]
+        check = check_preferences(meals, rules, ["blanc de poulet"])[0]
+        assert check.by_family["volaille"] == 3
+        assert check.breached is True and check.measurable is True
+
+    def test_a_meal_without_protein_is_named(self):
+        from cooking_manager.preferences import meals_without_protein
+        meals = MEALS + [{"day": "dimanche", "slot": "dinner",
+                          "dish": "Risotto aux champignons et poivrons",
+                          "ingredients": ["riz à risotto", "champignons"]}]
+        holes = meals_without_protein(meals)
+        assert [h["day"] for h in holes] == ["dimanche"]
+
+    def test_parmesan_alone_is_not_a_protein_family(self):
+        from cooking_manager.preferences import families_in
+        assert families_in({"dish": "Risotto", "ingredients": ["parmesan"]}) == []

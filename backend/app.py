@@ -529,14 +529,18 @@ async def menu_compatibility(slug: str):
                 ],
             })
 
-    from cooking_manager.preferences import check_preferences, load_rules
-
-    prefs = check_preferences(
-        [{"day": m["day_label"], "slot": m["slot"], "dish": m["dish"],
-          "ingredients": list(m["ingredients"] or [])} for m in meal_rows],
-        load_rules(pref_rows),
-        vocabulary,
+    from cooking_manager.preferences import (
+        check_preferences,
+        load_rules,
+        meals_without_protein,
     )
+
+    counted_meals = [
+        {"day": m["day_label"], "slot": m["slot"], "dish": m["dish"],
+         "ingredients": list(m["ingredients"] or [])} for m in meal_rows
+    ]
+    prefs = check_preferences(counted_meals, load_rules(pref_rows), vocabulary)
+    no_protein = meals_without_protein(counted_meals)
 
     return {
         "slug": row["slug"], "title": row["title"],
@@ -545,6 +549,7 @@ async def menu_compatibility(slug: str):
         "preferences": [p.as_dict() for p in prefs],
         "preferences_breached": sum(1 for p in prefs if p.breached),
         "preferences_unmeasurable": sum(1 for p in prefs if not p.measurable),
+        "meals_without_protein": no_protein,
         "results": checked,
     }
 
