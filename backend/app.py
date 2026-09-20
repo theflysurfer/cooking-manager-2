@@ -574,8 +574,7 @@ async def menu_compatibility(slug: str):
         slot = meal["slot"]
 
         present = attendees(day, slot, referential, household) if day else list(convives)
-        conflicts = check_meal(dish, [convives[n] for n in present if n in convives])
-        conflict_count += len(conflicts)
+        at_table_now = [convives[n] for n in present if n in convives]
 
         reading = read_effort(steps_by_meal.get(meal["meal_id"], []))
         clock = clock_by_meal.get(meal["meal_id"])
@@ -586,10 +585,11 @@ async def menu_compatibility(slug: str):
                               "band": reading.band, "total_time_min": clock,
                               "markers": list(reading.markers)})
 
-        at_table = [convives[n] for n in present if n in convives]
-        repairs, unrepaired, declared_parts = [], [], []
+        at_table = at_table_now
+        repairs, unrepaired, declared_parts, conflicts = [], [], [], []
         if lines and at_table:
             ingredient_conflicts = check_ingredients(lines, at_table)
+            conflicts = ingredient_conflicts
             context = detect_context(
                 dish,
                 ingredients=tuple(str(line.get("name") or line.get("raw") or "")
@@ -610,6 +610,10 @@ async def menu_compatibility(slug: str):
                 u for u in unrepaired_conflicts(ingredient_conflicts, repairs)
                 if u.diet not in already
             ] + refused
+
+        if not lines:
+            conflicts = check_meal(dish, at_table)
+        conflict_count += len(conflicts)
 
         repaired_diets = {r.diet for r in repairs}
         shares = shares_for(at_table, len(present) or 4)
