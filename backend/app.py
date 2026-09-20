@@ -467,6 +467,7 @@ async def menu_compatibility(slug: str):
     from datetime import date as _date
 
     from cooking_manager.convives import check_ingredients, check_meal
+    from cooking_manager.effort import fits_weeknight, read_effort
     from cooking_manager.parts import declared_diets, shares_for
     from cooking_manager.substitutions import (
         DIET_REASON_PREFIX,
@@ -502,6 +503,12 @@ async def menu_compatibility(slug: str):
         vocabulary = [r["name"] for r in await conn.fetch(
             "SELECT DISTINCT name FROM recipe_ingredient WHERE name IS NOT NULL"
         )]
+        time_rows = await conn.fetch(
+            """SELECT mm.id AS meal_id, r.total_time_min
+                 FROM menu_meal mm JOIN recipe r ON r.id = mm.recipe_id
+                WHERE mm.menu_id = (SELECT id FROM menu WHERE slug = $1)""",
+            slug,
+        )
         detail_rows = await conn.fetch(
             """SELECT mm.id AS meal_id, mm.recipe_id, ri.name, ri.name_normalized, ri.raw
                  FROM menu_meal mm
@@ -554,7 +561,10 @@ async def menu_compatibility(slug: str):
             outcome=row["outcome"], who_preferred=row["who_preferred"],
         ))
 
+    clock_by_meal = {r["meal_id"]: r["total_time_min"] for r in time_rows}
+
     checked, conflict_count, uncovered_count, repair_count = [], 0, 0, 0
+    too_heavy: list[dict] = []
     for meal in meal_rows:
         dish = meal["dish"]
         if not dish:
@@ -566,6 +576,15 @@ async def menu_compatibility(slug: str):
         present = attendees(day, slot, referential, household) if day else list(convives)
         conflicts = check_meal(dish, [convives[n] for n in present if n in convives])
         conflict_count += len(conflicts)
+
+        reading = read_effort(steps_by_meal.get(meal["meal_id"], []))
+        clock = clock_by_meal.get(meal["meal_id"])
+        weeknight = fits_weeknight(reading, clock)
+        is_weekday_dinner = slot == "dinner" and day is not None and day.weekday() <= 4
+        if is_weekday_dinner and weeknight is False:
+            too_heavy.append({"day": meal["day_label"], "dish": dish,
+                              "band": reading.band, "total_time_min": clock,
+                              "markers": list(reading.markers)})
 
         at_table = [convives[n] for n in present if n in convives]
         repairs, unrepaired, declared_parts = [], [], []
@@ -607,6 +626,8 @@ async def menu_compatibility(slug: str):
             "slot": slot, "dish": dish, "attendees": present,
             "at_home": bool(present),
             "conflicts": rendered,
+            "effort": {**reading.as_dict(), "total_time_min": clock,
+                       "fits_weeknight": weeknight},
             "declared_parts": declared_parts,
             "repairs": [
                 {"ingredient": r.ingredient, "diet": r.diet,
@@ -647,6 +668,7 @@ async def menu_compatibility(slug: str):
         "preferences_breached": sum(1 for p in prefs if p.breached),
         "preferences_unmeasurable": sum(1 for p in prefs if not p.measurable),
         "meals_without_protein": no_protein,
+        "weeknight_too_heavy": too_heavy,
         "results": checked,
     }
 

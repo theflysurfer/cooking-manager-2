@@ -1,4 +1,4 @@
-version: "0.7.0"
+version: "0.8.0"
 slug: cooking-vocabulary
 kind: cooking
 origin: >-
@@ -301,6 +301,17 @@ _scope:
     absence_means: "PAS INSTRUIT — la substitution n'a pas été évaluée."
     known_tensions:
       - "Un substitut `success` dans un contexte (enfants) peut être `failure` dans un autre (adultes). Le champ `who_preferred` désambigue."
+
+  effort_bands:
+    applies_to: "Tout plat dont les ÉTAPES sont écrites — la bande est dérivée du texte, comme `has_anchored_stew`."
+    does_not_apply_to:
+      - "un repas `leftovers`, qui n'a pas de fiche donc pas d'étapes"
+      - "un plat dont les étapes ne décrivent aucun geste (fiche squelette)"
+    absence_means: "PAS DÉRIVABLE — les étapes manquent. Jamais « plat facile » : c'est le défaut le plus coûteux, il ferait passer toute recette non instruite pour un plat de semaine."
+    known_tensions:
+      - "L'horloge et l'effort divergent : un mijoté de 50 min est `hands_off`, un risotto de 35 min est `hands_on`. Un plafond sur `total_time_min` classerait les deux à l'envers."
+      - "La bande est DÉRIVÉE, donc `probation` par construction. Elle ne passe `active` que confirmée au service, dans `service_context` — un plat qu'on a réellement tenu un mardi soir."
+      - "`issue_kinds/effort` note un effort DISPROPORTIONNÉ après coup (ça n'en valait pas la peine). `effort_bands` mesure la charge avant de cuisiner. Les deux peuvent diverger : un plat `light_hands_on` peut être jugé non rentable."
 
   service_contexts:
     applies_to: "Un plat dont le contexte de service a été identifié par l'expérience (pas par lecture de la recette)."
@@ -605,3 +616,28 @@ issue_kinds:
     definition: "Le temps ou la charge de préparation ne valait pas le résultat."
     applicable_when: "Jugé par celui qui cuisine, pas par la tablée."
     synonyms: ["trop long", "trop de vaisselle", "pas rentable", "prise de tête"]
+
+effort_bands:
+  - key: hands_off
+    label: "Les mains libres"
+    status: probation
+    definition: "La cuisson travaille seule — four, mijotage à couvert. On pose et on part."
+    applicable_when: "Aucune étape ne demande une présence continue, et la cuisson longue est passive."
+    synonyms: ["au four", "à couvert", "laisser mijoter", "enfourner", "laisser cuire", "oublier au four"]
+  - key: light_hands_on
+    label: "Quelques gestes"
+    status: probation
+    definition: "Une poêlée, une salade composée, un assemblage : des gestes courts, pas de surveillance."
+    synonyms: ["mélanger", "assembler", "arroser", "égoutter", "couper", "émincer"]
+  - key: hands_on
+    label: "Devant la casserole"
+    status: probation
+    definition: "Présence continue exigée : on ne peut pas quitter la cuisine."
+    applicable_when: "Une étape impose de remuer sans arrêt, de surveiller, ou de mener plusieurs feux de front."
+    synonyms: ["remuer sans cesse", "sans cesser de remuer", "louche par louche", "surveiller", "ne pas quitter", "en remuant constamment"]
+  - key: project
+    label: "Plat de week-end"
+    status: probation
+    definition: "Façonnage, montage ou repos : le plat se construit en plusieurs temps."
+    applicable_when: "Le plat demande de façonner, farcir, monter, ou de respecter un repos entre deux étapes."
+    synonyms: ["façonner", "former des boulettes", "farcir", "monter", "laisser reposer", "pétrir", "abaisser", "rouler"]
