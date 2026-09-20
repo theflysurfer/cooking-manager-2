@@ -466,7 +466,7 @@ async def menu_compatibility(slug: str):
     """Contrôle de compatibilité alimentaire du menu, repas par repas."""
     from datetime import date as _date
 
-    from cooking_manager.convives import check_meal
+    from cooking_manager.convives import check_meal, part_for
 
     from cooking_manager.presence import attendees
 
@@ -502,26 +502,33 @@ async def menu_compatibility(slug: str):
             slug,
         )
 
-    checked, conflict_count = [], 0
+    checked, conflict_count, uncovered_count = [], 0, 0
     for meal in meal_rows:
         dish = meal["dish"]
         if not dish:
             continue
+        ingredients = list(meal["ingredients"] or [])
         day = meal["day"] if isinstance(meal["day"], _date) else None
         slot = meal["slot"]
 
         present = attendees(day, slot, referential, household) if day else list(convives)
         conflicts = check_meal(dish, [convives[n] for n in present if n in convives])
         conflict_count += len(conflicts)
+
+        rendered = []
+        for c in conflicts:
+            part = part_for(c.convive, ingredients)
+            if part is None:
+                uncovered_count += 1
+            rendered.append({"convive": c.convive, "reason": c.reason,
+                             "matched": c.matched, "covered_by": part})
+
         checked.append({
             "day": meal["day_label"],
             "date": day.isoformat() if day else None,
             "slot": slot, "dish": dish, "attendees": present,
             "at_home": bool(present),
-            "conflicts": [
-                {"convive": c.convive, "reason": c.reason, "matched": c.matched}
-                for c in conflicts
-            ],
+            "conflicts": rendered,
         })
 
     from cooking_manager.preferences import (
@@ -541,6 +548,7 @@ async def menu_compatibility(slug: str):
     return {
         "slug": row["slug"], "title": row["title"],
         "meals_checked": len(checked), "conflicts": conflict_count,
+        "conflicts_uncovered": uncovered_count,
         "convives_known": len(convives),
         "preferences": [p.as_dict() for p in prefs],
         "preferences_breached": sum(1 for p in prefs if p.breached),

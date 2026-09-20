@@ -151,6 +151,24 @@ def _parse_diet(value: str) -> str:
             return DIET_ALIASES[alias]
     return "standard"
 
+_PART = re.compile(r"\(([^)]*\bpart\b[^)]*)\)")
+
+def part_for(convive: str, ingredients: list[str]) -> str | None:
+    """L'ingrédient qui porte la part séparée de ce convive, ou None.
+
+    Convention du corpus : « pois chiches cuits (part de Clémence) »,
+    « crevettes décortiquées (part Clémence) », « concombre (servi à part pour
+    Léa) ». Sans elle, un conflit couvert se lit comme un conflit oublié.
+    """
+    wanted = _fold(convive).split()[0] if convive else ""
+    if not wanted:
+        return None
+    for raw in ingredients:
+        folded = _fold(str(raw))
+        if any(wanted in group for group in _PART.findall(folded)):
+            return str(raw)
+    return None
+
 def _contains_term(folded_text: str, term: str) -> bool:
     """Terme présent en tant que MOT fléchi au pluriel, jamais en sous-chaîne — ADR 0003."""
     if not term:
