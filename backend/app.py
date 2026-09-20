@@ -708,6 +708,7 @@ async def menu_shopping_list(
                    "age_days": pantry.age_days(), "is_stale": pantry.is_stale()},
         "counts": counts,
         "purchase_counts": purchase_counts,
+        "bans": [ban.as_dict() for ban in await _load_bans()],
         "lines": lines,
     }
 
@@ -1461,6 +1462,43 @@ async def list_session_products(session_id: int):
             d["nutrition"] = json.loads(d["nutrition"])
         products.append(d)
     return {"products": products, "total": len(products)}
+
+async def _load_bans():
+    """Les produits et gammes refusés à l'achat, lus en base à chaque appel."""
+    from cooking_manager.bans import load_bans
+
+    pool = await get_pool(DATABASE_DSN)
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """SELECT pref_type, key, value, reason, active FROM shopping_preference
+                WHERE active = TRUE AND pref_type IN ('blacklist', 'blacklist_brand')
+                ORDER BY pref_type, key"""
+        )
+    return load_bans(rows)
+
+class CartItem(BaseModel):
+    product: str
+    auchan_id: str | None = None
+    brand: str | None = None
+
+class CartValidation(BaseModel):
+    items: list[CartItem]
+
+@app.post("/api/shopping/validate-cart")
+async def validate_cart(body: CartValidation):
+    """Confronte un panier aux bans — `ok: false` bloque le report et le paiement."""
+    from cooking_manager.bans import find_ban
+
+    bans = await _load_bans()
+    violations = [
+        {"product": item.product, "auchan_id": item.auchan_id,
+         "ban": ban.as_dict()}
+        for item in body.items
+        if (ban := find_ban(item.product, bans, auchan_id=item.auchan_id,
+                            brand=item.brand)) is not None
+    ]
+    return {"ok": not violations, "checked": len(body.items),
+            "violations": violations, "bans_active": len(bans)}
 
 @app.get("/api/shopping/preferences")
 async def list_shopping_preferences():
