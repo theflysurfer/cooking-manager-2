@@ -97,6 +97,12 @@ dans `CONTEXT_REQUIRED` (ADR 0007). Lire, jamais recopier : `/api/preferences` �
 La liste **n'est pas stockée, c'est un calcul** : `GET /api/menus/{slug}/shopping-list` la
 recalcule à chaque appel (menu × tablée × stock). **La DB fait foi du stock.**
 
+⛔ **Deux champs se lisent AVANT `lines`**, parce que `lines` leur est aveugle par
+construction : `slots_uncomposed` (tablée non nulle, aucun repas posé — lire `measured`
+avant `slots`, un `measured:false` ne mesure rien) · `recurrent` (achats d'habitude,
+`shopping_preference` de `pref_type='recurrent'`, déjà filtrés de ce que le menu réclame).
+Leurs fréquences sont un instantané figé, jamais recalculé (#107).
+
 ⛔ **Un panier se confronte aux produits refusés avant de partir** :
 `POST /api/shopping/validate-cart`, `ok:false` bloque. Les bans vivent dans
 `shopping_preference` (`blacklist` par produit, `blacklist_brand` par gamme, `value` = portée).
@@ -132,6 +138,11 @@ Cuissons, cuisines, textures, accommodations, axes de retour et natures de produ
 ajouté au seul YAML n'atteint **pas** l'artefact, et le consommateur lit une valeur vide sans
 erreur. Ajouter = deux dépôts **plus un test**. Régénérer et propager :
 `julien-cooking-donnees` § 3.
+
+⚠️ **Exception non résolue** : les familles de protéine (`FAMILIES`, `SECONDARY`, `CLASSES`
+de `preferences.py`) sont codées en dur, hors ontologie (#109). Elles décident de ce que
+`rotate` compte et de ce qui entre dans `meals_without_protein` — un terme manquant fait
+mentir les deux en silence.
 
 ## Référentiel aliment & produit
 
