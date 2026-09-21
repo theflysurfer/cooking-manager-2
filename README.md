@@ -105,7 +105,7 @@ database; nothing is read from the Obsidian vault.
 | DELETE | `/api/menus/{slug}` | Delete a menu |
 | GET | `/api/menus/{slug}/meals` | Meals for a menu |
 | PATCH | `/api/menus/{slug}/meals/{id}` | Update a meal (recipe, covers) |
-| GET | `/api/menus/{slug}/compatibility` | Dietary check on **ingredients**, per meal — conflicts (each with `membership` and `repaired`), engine `repairs`, `unrepaired`, `preferences`, `meals_without_protein`, `weeknight_too_heavy` |
+| GET | `/api/menus/{slug}/compatibility` | Dietary check on **ingredients**, per meal — conflicts (each with `membership` and `repaired`), engine `repairs`, `unrepaired`, `preferences`, `meals_without_protein` (chacun avec `secondary` — l'apport protéique hors rotation), `weeknight_too_heavy` |
 | GET | `/api/menus/{slug}/shopping-list` | Generate shopping list (`?covers=N&from_date=YYYY-MM-DD`) — each line carries `outcome`, `merged_from` and `purchase` (measured / countable / dose / unresolved) |
 
 ### Shopping
