@@ -146,9 +146,9 @@ mentir les deux en silence.
 
 ## Référentiel aliment & produit
 
-`generiques/` → `food` · `marques/` → `product`. **Le dossier tranche**, jamais le champ
-`marque`. Le parser frontmatter (`parse_food_sheet`) sanitise `null`/`none`/`nan`/`-`/`n/a`/`~`
-en `None` — plus de chaîne `"null"` truthy (#85 fixé).
+`generiques/` → `food` · `marques/` → `product`. **Le dossier tranchait** quand le vault était
+la source ; il ne l'est plus (#101) : `food`, `food_form` et `product` s'écrivent par l'API
+(`POST /api/food`, `POST /api/food/{key}/form`, `PATCH /api/product/{id}`) ou en SQL.
 
 ⛔ **`product.nature` dit ce qu'un `food_key` vide VEUT DIRE** : `single` (aliment
 conditionné) → c'est une **lacune** du référentiel ; `composite` (plusieurs ingrédients) →
@@ -166,10 +166,14 @@ Collisions, formes, XML ANSES, rattachement : `julien-cooking-donnees` § 2.
 
 1. **Pas d'hypothèse** — non résolu ⇒ `unresolved` avec son motif. Une base sans « pour 100 g » est ignorée ; une fiche « Crues »/« Cuites » sans forme nommée ne tranche pas.
 2. **Réconcilier** — `kcal = P×4 + G×4 + L×9` ; au-delà de 5 % d'écart, montrer les deux chiffres.
-3. **Deux sources** — table `food` en DB (163 aliments) > `shopping_product.nutrition` (drive). Le vault `.md` aliments est **coupé** (session 2026-09-13, import final fait). `coverage`/`conclusive` priment sur le total.
+3. **Deux sources** — `food` × `food_form` en DB > `shopping_product.nutrition` (drive). Plus **aucun** chemin de code ne lit le vault pour un aliment (#101). `coverage`/`conclusive` priment sur le total.
+
+⛔ **Les macros vivent dans `food_form`, jamais dans `food`** : une ligne par forme
+(`lentille` × `crues`/`cuites`), et `macros_for()` choisit d'après le nom de l'ingrédient. Un
+aliment **sans aucune forme** n'a pas de macros et ne lève rien — `GET /api/food` rend son
+compte `forms`, à lire avant de conclure que la base « couvre » un aliment.
 
 Pièges : `/macros` lit `_load_food_base_from_db()` (pas de cache, SELECT direct) ; `qty_min` est un `Decimal`.
-Phase 2 en cours : table `food_form` pour les multi-formes + CRUD API (#96→#102).
 
 ## Commande vocale
 
