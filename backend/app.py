@@ -3382,6 +3382,9 @@ async def patch_product(product_id: int, body: ProductPatch):
             if (nature or existing["nature"]) == "composite":
                 raise HTTPException(
                     422, "un composite porte ses propres macros : il ne se rattache pas")
+        status = body.status
+        if body.food_key is not None and status is None:
+            status = "linked"
         row = await conn.fetchrow(
             """UPDATE product SET
                    food_key = COALESCE($2, food_key),
@@ -3391,7 +3394,7 @@ async def patch_product(product_id: int, body: ProductPatch):
                    brand    = COALESCE($6, brand)
                 WHERE id = $1
             RETURNING id, name, brand, food_key, nature, status""",
-            product_id, body.food_key, nature, body.status, body.name, body.brand)
+            product_id, body.food_key, nature, status, body.name, body.brand)
     return dict(row)
 
 
