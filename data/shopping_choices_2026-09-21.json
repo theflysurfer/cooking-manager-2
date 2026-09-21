@@ -166,5 +166,13 @@
   "next": [
     "Checkout humain : créneau + 3D Secure — https://www.auchan.fr/checkout/cart/",
     "Reporter les achats au garde-manger une fois la commande retirée"
-  ]
+  ],
+  "order": {
+    "order_id": "1f900f71-2fd6-4d9b-9ca9-a59853bb83df",
+    "consignment_id": "61cfc6ec-d930-4566-a6cf-39b1a6daa83c",
+    "url": "https://www.auchan.fr/checkout/order/1f900f71-2fd6-4d9b-9ca9-a59853bb83df?latest=true",
+    "slot_reserved": null,
+    "paid": false,
+    "note": "Commande creee le 2026-09-21 sur decision de Julien, SANS creneau : un creneau reserve est PENDING et expire seul en 15 min. Creneaux libres constates le 21 et le 22/09, 08:00->20:30, toutes les demi-heures, 60 a 80 places. Le panier n'est plus modifiable : passer par la commande."
+  }
 }
