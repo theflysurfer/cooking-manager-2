@@ -25,6 +25,16 @@ FAMILIES: dict[str, tuple[str, ...]] = {
     "viande": MEAT, "volaille": POULTRY, "poisson": FISH,
     "fruits de mer": SEAFOOD, "oeuf": EGG, "legumineuse": LEGUME,
 }
+DAIRY = ("fromage", "fromage blanc", "skyr", "yaourt", "petit suisse", "feta",
+         "mozzarella", "parmesan", "ricotta", "cottage cheese", "lait", "emmental",
+         "comte", "chevre", "mascarpone")
+WHEY = ("whey", "isolat", "proteine en poudre")
+NUT_SEED = ("cacahuete", "beurre de cacahuete", "amande", "noix", "noisette", "chia",
+            "graine de courge", "graine de tournesol", "graine de lin", "sesame",
+            "tahin", "pistache", "cajou")
+SECONDARY: dict[str, tuple[str, ...]] = {
+    "laitage": DAIRY, "whey": WHEY, "oleagineux": NUT_SEED,
+}
 ANIMAL = MEAT + POULTRY + FISH + SEAFOOD + EGG
 GLUTEN = ("ble", "farine", "pain", "pate", "pates", "semoule", "couscous", "boulgour",
           "epeautre", "orge", "seigle", "chapelure", "biscotte", "tortilla", "wrap",
@@ -164,8 +174,15 @@ def check_preferences(
                             measurable=measurable, hits=hits, by_family=by_family))
     return checks
 
+def secondary_protein_in(meal: dict) -> list[str]:
+    """Les apports protéiques qui ne sont pas une famille de rotation."""
+    folded = _haystack(meal)
+    return [name for name, terms in SECONDARY.items()
+            if any(_contains_term(folded, term) for term in terms)]
+
 def meals_without_protein(meals: list[dict]) -> list[dict]:
-    """Les repas sans aucune famille de protéine ; `leftovers` exclus (#76)."""
-    return [{"day": m.get("day"), "slot": m.get("slot"), "dish": m.get("dish")}
+    """Repas sans famille PRINCIPALE ; `secondary` dit ce qu'il porte quand même (#76)."""
+    return [{"day": m.get("day"), "slot": m.get("slot"), "dish": m.get("dish"),
+             "secondary": secondary_protein_in(m)}
             for m in meals
             if m.get("match_kind") != "leftovers" and not families_in(m)]

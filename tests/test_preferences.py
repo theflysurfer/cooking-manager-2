@@ -184,3 +184,33 @@ class TestMinimizeClasses:
         meals = [{"day": "vendredi", "slot": "dinner", "dish": "Chili con carne",
                   "ingredients": ["boeuf haché"]}]
         assert check_preferences(meals, rules, ["boeuf haché"])[0].count == 1
+
+class TestSecondaryProtein:
+    """Un compteur qui dit « sans protéine » sur un petit-déj whey ne mesure plus rien."""
+
+    def test_a_whey_breakfast_is_still_a_hole_but_names_its_source(self):
+        from cooking_manager.preferences import meals_without_protein
+        meals = [{"day": "lundi", "slot": "breakfast",
+                  "dish": "Avoine + whey + banane + myrtilles + chia",
+                  "ingredients": ["flocons d'avoine", "whey", "banane", "chia"]}]
+        hole = meals_without_protein(meals)[0]
+        assert hole["secondary"] == ["whey", "oleagineux"]
+
+    def test_a_feta_lunch_stays_a_hole(self):
+        from cooking_manager.preferences import meals_without_protein
+        meals = [{"day": "samedi", "slot": "lunch",
+                  "dish": "Taboulé de quinoa aux poivrons grillés et feta",
+                  "ingredients": ["quinoa", "poivron", "feta"]}]
+        hole = meals_without_protein(meals)[0]
+        assert hole["secondary"] == ["laitage"]
+
+    def test_a_real_hole_carries_nothing(self):
+        from cooking_manager.preferences import meals_without_protein
+        meals = [{"day": "dimanche", "slot": "dinner", "dish": "Risotto aux champignons",
+                  "ingredients": ["riz à risotto", "champignons"]}]
+        assert meals_without_protein(meals)[0]["secondary"] == []
+
+    def test_a_secondary_source_never_enters_the_rotation(self):
+        from cooking_manager.preferences import families_in
+        assert families_in({"dish": "Fromage blanc + fruits",
+                            "ingredients": ["fromage blanc", "pomme"]}) == []
