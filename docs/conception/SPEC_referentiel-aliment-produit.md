@@ -22,8 +22,13 @@ aucune.
 
 | Identité | Ce que c'est | Où elle vit aujourd'hui | Combien |
 |---|---|---|---|
-| **Aliment** | du comté — ce qu'une recette consomme, ce dont on calcule les macros | `Coach Nutrition/aliments-vérifiés/generiques/` | 69 fiches |
-| **Produit** | Comté Juraflore AOP au lait cru 250 g, `C1196689` — ce qu'on achète | `aliments-vérifiés/marques/` **et** `shopping_product` | 179 fiches + 49 lignes |
+| **Aliment** | du comté — ce qu'une recette consomme, ce dont on calcule les macros | table `food` (+ `food_form` pour ses formes) | 183 aliments, 201 formes |
+| **Produit** | Comté Juraflore AOP au lait cru 250 g, `C1196689` — ce qu'on achète | tables `product` **et** `shopping_product` | mesuré par `/api/product` |
+
+> ⚠️ État du 2026-09-21 : les deux colonnes « où ça vit » disaient le **vault**
+> (`aliments-vérifiés/generiques/` et `marques/`). Ce n'est plus vrai — #101 a retiré tout
+> chemin de lecture du vault pour les aliments, et l'écriture passe par l'API (#102).
+> Le reste de cette spec décrit un modèle qui, lui, tient toujours.
 
 Ces référentiels s'ignorent. Trois conséquences mesurées le 2026-09-07 :
 
@@ -55,18 +60,21 @@ consomment ce référentiel mais ne sont pas livrés ici.
 
 ### `food` — l'aliment
 
-Dérivé des 69 fiches `generiques/`, dont les champs existent déjà :
+| Colonne | Note |
+|---|---|
+| `key` | l'identité stable — c'est elle que vise un alias (ADR 0008) |
+| `name` | |
+| `category` | axe fermé → candidat ontologie |
+| `kind` | |
+| `ciqual_code` | ⚠️ ne se croit pas sur parole — `pain-complet` déclarait le code du pain **bis** |
+| `conservation` | périssable / stable |
+| `source`, `verified_at` | |
 
-| Colonne | Source | Note |
-|---|---|---|
-| `key` | `slug` | l'identité stable — c'est elle que vise un alias (ADR 0008) |
-| `name` | `title` | |
-| `category` | `categorie` | axe fermé → candidat ontologie |
-| `kind` | `type_produit` | |
-| `ciqual_code` | `ciqual_code` | |
-| `macros_per_100g` | tableau « Macros pour 100 g » | JSONB |
-| `conservation` | déduit du rayon aujourd'hui, déclaré demain | périssable / stable |
-| `source`, `verified_at` | `source_macros`, `date_maj` | |
+⛔ **Les macros ne sont PAS une colonne de `food`.** Elles vivent dans `food_form`, une ligne
+par forme (`food_key`, `label`, `kcal`, `protein`, `carbs`, `fat`), parce qu'un aliment en a
+plusieurs : `lentille` × `crues`/`cuites`, `viande hachee boeuf` × `5%`/`10%`/`15%`/`20%`.
+`food.macros_per_100g` a existé et a été supprimée le 2026-09-21 (#97) — une colonne unique
+ne pouvait porter qu'une forme, et les 8 aliments multi-formes n'entraient pas.
 
 ### `food_unit` — les unités d'usage d'un aliment
 
@@ -167,7 +175,8 @@ Ses trois sources deviennent deux tables et une règle de préférence, inchang�
 dans son esprit : **produit précis > produit générique de la même enseigne >
 aliment CIQUAL**. Ce qui change :
 
-- il lit la DB, plus les fichiers ; `load_food_base_cached()` disparaît ;
+- il lit la DB, plus les fichiers : `_load_food_base_from_db()` joint `food` × `food_form`,
+  sans cache (SELECT direct) ;
 - un aliment absent reste `unresolved` **avec son motif** — la doctrine « pas
   d'hypothèse » ne bouge pas ;
 - `coverage` et `conclusive` priment toujours sur le total.
@@ -186,26 +195,19 @@ aliment CIQUAL**. Ce qui change :
 sous-projet 2, pas maquillés en façades : un écrivain qui ne respecte pas la
 grammaire de quantité fait diverger le stock en silence.
 
-## Migration
+## Migration — faite
 
-Cinq étapes, dans cet ordre, et l'ordre n'est pas négociable.
+Les cinq étapes prévues (importer, comparer, basculer les écrivains, observer une semaine,
+archiver et retirer le code) sont accomplies. La dernière — celle qu'on saute d'habitude —
+l'a été le 2026-09-21 : `backend/food_import.py` et `parse_food_sheet` sont supprimés,
+`import backend.food_import` lève `ModuleNotFoundError` (#101).
 
-1. **Importer** les 248 fiches, sans rien supprimer. Les deux mondes coexistent.
-2. **Comparer** — un rapport prouve l'équivalence fiche par fiche : macros,
-   poids unitaire, conditionnement extrait, contraintes de personne déplacées.
-   **Un écart non expliqué bloque l'étape 3.**
-3. **Basculer les écrivains** — outils MCP, ingestion des tickets et du drive.
-   Le vault devient muet, reste en place.
-4. **Observer une semaine réelle** — un menu, des courses, des déclarations.
-5. **Archiver** les fiches (`aliments-vérifiés/_archive/<date>/`) et **retirer le
-   code de lecture** correspondant.
+Dernière lecture du vault : le 2026-09-21, par un script one-shot qui a importé les
+8 aliments multi-formes (19 formes) puis a été supprimé avec le reste (#99).
 
-La base legacy `logs/aliments/` (~80 fiches, « migration progressive » depuis
-juillet) est traitée ici : résorbée dans `food`, ou déclarée morte. Elle ne
-reste pas « en cours ».
-
-⚠️ L'étape 5 fait partie de la livraison. Un décommissionnement dont personne ne
-retire le code laisse deux chemins d'écriture vivants.
+⚠️ Deux fiches vault multi-formes sont restées sur le carreau — bouillon Knorr et
+court-bouillon Intermarché, qui vivent sous `marques/` et produisent donc des `product`,
+que `food_form` ne sait pas porter (#112).
 
 ## Critères de succès
 
