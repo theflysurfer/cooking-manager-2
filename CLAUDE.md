@@ -11,12 +11,9 @@ courses différentielles, macros. **Cible : iPad mini 2 / Safari 12.5.8**, en cu
 ## Commandes
 
 ```bash
-# Déployer (le VPS est un vrai clone git)
 ssh srv759970 'cd /opt/cooking-manager-2 && git pull && .venv/bin/pip install -q . && sudo systemctl restart cooking-manager'
-
-# L'API est derrière une basic auth nginx : toujours passer par le VPS
-ssh srv759970 'curl -s localhost:8795/api/<route>'
-ssh srv759970 'curl -s -X POST localhost:8795/api/ingest'          # re-link menu meals
+ssh srv759970 'curl -s localhost:8795/api/<route>'   # basic auth nginx : toujours via le VPS
+ssh srv759970 'curl -s -X POST localhost:8795/api/ingest'   # re-link des repas du menu
 ssh srv759970 'docker exec postgresql-shared psql -U cooking -d cooking_manager -c "SELECT ..."'
 ```
 
@@ -42,8 +39,8 @@ tables recette appartiennent à **recipe-manager** (8796), CM2 est colocataire.
 
 ## DB fait foi (ADR 0010/0022)
 
-Le vault Obsidian est **déconnecté** (ADR 0022) : la DB PostgreSQL est seule source de vérité
-pour recettes, menus, convives et stock — recipe-manager y écrit directement, plus de `.md` ni rclone.
+Le vault Obsidian est **déconnecté** : la DB PostgreSQL est seule source de vérité pour
+recettes, menus, convives et stock. Plus aucun `.md`, plus aucun rclone.
 
 | Piège | Geste |
 |---|---|
@@ -52,8 +49,8 @@ pour recettes, menus, convives et stock — recipe-manager y écrit directement,
 | Modifier un repas | `POST /api/menus` **reconstruit** `menu_meal` depuis `menu.meals` et supprime le reste ; `PATCH .../meals/{id}` n'écrit QUE `menu_meal`. Les deux divergent en silence, et le POST suivant écrase le PATCH |
 | Marquer un repas mangé | `POST /api/menus/{slug}/served` (day/slot), **jamais** le `PATCH` du repas |
 
-⛔ **Jamais de `DELETE FROM menu` ni `menu_meal`** : l'API upsert, un DELETE global
-efface les menus créés par l'API et la colonne `served`.
+⛔ **Jamais de `DELETE FROM menu` ni `menu_meal`** : l'API upsert, un DELETE global efface les
+menus créés par l'API et la colonne `served`.
 
 ## Qui est à table
 
@@ -68,12 +65,10 @@ efface les menus créés par l'API et la colonne `served`.
 
 ## Contraintes alimentaires — quatre axes distincts
 
-| Axe | Sens | Vérifié par `/compatibility` ? |
-|---|---|---|
-| `person.forbidden` | ne se discute pas | ✅ |
-| `person.dislikes` | aversion pour un aliment nommé | ✅ |
-| `person.diet_exceptions` | ce que le régime interdit mais que la personne mange | ✅ |
-| `dietary_preference` | ce qui **pèse sans bloquer** (`minimize`/`maximize`/`cap`/`rotate`/`no_restriction`) | ⚠️ compté quand la cible est un **ingrédient nommé** |
+Quatre axes, détaillés dans `julien-cooking-manager-weekly-prep` § 3 : `forbidden`,
+`dislikes`, `diet_exceptions` (vérifiés par `/compatibility`) et `dietary_preference`, qui
+**pèse sans bloquer** et n'est compté que si sa cible est un **ingrédient nommé**. Un goût
+partagé par tout le foyer s'écrit `dietary_preference` avec `person_id NULL`.
 
 ⛔ **Trois compteurs se lisent AVANT leur voisin rassurant** (ADR 0023, 0025) :
 `preferences_unmeasurable` avant `preferences_breached` (une cible qu'aucun ingrédient ne porte,
@@ -87,46 +82,42 @@ confronter (#76).
 d'invité. Une **part séparée** se déclare dans les ingrédients (`150 g pois chiches (part de
 Clémence)`), jamais en `## Notes` — elles ne sont ni parsées ni achetées.
 
-Un terme alimentaire s'écrit **au singulier**, toujours : la flexion va du singulier vers le
-pluriel, jamais l'inverse. Un terme ambigu (`roti`, `blanc`, `filet`) se déclare avec son motif
-dans `CONTEXT_REQUIRED` (ADR 0007). Lire, jamais recopier : `/api/preferences` ·
-`/api/menus/<slug>/compatibility`. Détail : `julien-cooking-manager-weekly-prep` § 3.
+Un terme alimentaire s'écrit **au singulier**, toujours. Un terme ambigu (`roti`, `blanc`,
+`filet`) se déclare avec son motif dans `CONTEXT_REQUIRED` (ADR 0007). Lire, jamais recopier :
+`/api/preferences` · `/api/menus/<slug>/compatibility`.
 
 ## Courses et garde-manger
 
 La liste **n'est pas stockée, c'est un calcul** : `GET /api/menus/{slug}/shopping-list` la
 recalcule à chaque appel (menu × tablée × stock). **La DB fait foi du stock.**
 
-⛔ **Deux champs se lisent AVANT `lines`**, parce que `lines` leur est aveugle par
-construction : `slots_uncomposed` (tablée non nulle, aucun repas posé — lire `measured`
-avant `slots`, un `measured:false` ne mesure rien) · `recurrent` (achats d'habitude,
-`shopping_preference` de `pref_type='recurrent'`, déjà filtrés de ce que le menu réclame).
-Leurs fréquences sont un instantané figé, jamais recalculé (#107).
+⛔ **Deux champs se lisent AVANT `lines`**, aveugle à eux par construction :
+`slots_uncomposed` (tablée non nulle, aucun repas — lire `measured` avant `slots`) ·
+`recurrent` (achats d'habitude, déjà filtrés du menu ; fréquences figées, #107).
 
-⛔ **Un panier se confronte aux produits refusés avant de partir** :
-`POST /api/shopping/validate-cart`, `ok:false` bloque. Les bans vivent dans
-`shopping_preference` (`blacklist` par produit, `blacklist_brand` par gamme, `value` = portée).
+⛔ **Un panier se confronte aux refus avant de partir** : `POST /api/shopping/validate-cart`,
+`ok:false` bloque. Bans dans `shopping_preference` (`blacklist` produit, `blacklist_brand`
+gamme) — un ban dont AUCUN nom ne porte le mot visé ne frappe rien et rend `ok:true` (#115).
 Une préférence énoncée par Julien s'écrit en base **tout de suite**, sinon elle n'existe pas.
 
-⛔ **`pantry_item` est un JOURNAL D'ENTRÉES, pas un inventaire** : rien ne le décrémente, aucun
-repas servi ne retire rien. `ok` répond « quelqu'un l'a acheté un jour », jamais « il y en a » —
-et un `out` n'est pas plus fiable. **Faire confirmer avant de composer dessus** (#94). Corollaire :
-un `insuffisant` en cours de semaine additionne les repas déjà mangés, ne pas racheter dessus.
-Plus rien ne lit `Garde-manger.md` (ADR 0017) : le stock ne bouge que sur déclaration.
+⛔ **`pantry_item` est un JOURNAL D'ENTRÉES, pas un inventaire** : rien ne le décrémente. `ok`
+dit « acheté un jour », jamais « il y en a », et un `out` n'est pas plus fiable. **Faire
+confirmer avant de composer dessus** (#94) — et une confirmation ne se voit nulle part (#120).
 
 ⛔ **`normalize_name` retire découpe et pluriel, jamais un ÉTAT** : « sèches », « surgelés »,
-« fraîche », « entier » changent l'identité de l'aliment.
+« fraîche » changent l'identité — donc ne se fusionnent jamais. Et `pantry_item` n'ayant ni
+`food_key` ni `product_id` (#118), `find()` **élit une** ligne parmi les doublons : si elle dit
+`out` quand une autre dit `ok`, la liste fait racheter. Nommage en attendant : aliment pour le
+frais, produit pour l'épicerie et le surgelé.
 
-Fraîcheur **par article** sur `entered_at` : périssable > 14 j ou sans date → `inconnu`.
 `outcome: inconnu` = présent mais quantité incomparable (lire `reason`). Commande drive non
-retirée → `absent` en courses (lire `grocery_orders` avant de racheter). Déclarer : `PATCH /api/pantry`
-par **nom**, 409 sur homonyme — `julien-cooking-manager-pantry-update` · calcul et drive : `julien-cooking-donnees` § 5.
+retirée → `absent`. Déclarer : `PATCH /api/pantry` par **nom**, 409 sur homonyme (alors
+`PUT /api/pantry/items/{id}`) — `julien-cooking-manager-pantry-update`.
 
 ## Photos
 
-Le fichier local `web/media/recipes/<slug>.jpg` prime et survit au réseau. **Extension `.jpg`
-obligatoire**, `ingest.py` ne scanne que celle-là (#70). Génération et upsert protégé :
-`julien-cooking-donnees` § 4.
+`web/media/recipes/<slug>.jpg` prime et survit au réseau. **Extension `.jpg` obligatoire**,
+`ingest.py` ne scanne que celle-là (#70). Génération : `julien-cooking-donnees` § 4.
 
 ## Vocabulaire (ontologie)
 
@@ -134,46 +125,43 @@ Cuissons, cuisines, textures, accommodations, axes de retour et natures de produ
 `data/ontology/cooking-vocabulary.yaml` → `ontology-manager` → artefact épinglé
 `cooking_manager/cooking-vocabulary.json` — **jamais d'une table écrite dans le code**.
 
-⚠️ Le générateur a un **jeu de champs fixe** (dépôt ontology-manager) : un champ ou une facette
-ajouté au seul YAML n'atteint **pas** l'artefact, et le consommateur lit une valeur vide sans
-erreur. Ajouter = deux dépôts **plus un test**. Régénérer et propager :
-`julien-cooking-donnees` § 3.
+⚠️ Le générateur a un **jeu de champs fixe** : une valeur ajoutée au seul YAML n'atteint
+**pas** l'artefact, et le consommateur lit du vide sans erreur. Ajouter = deux dépôts **plus un
+test**. Régénérer et propager : `julien-cooking-donnees` § 3.
 
-⚠️ **Exception non résolue** : les familles de protéine (`FAMILIES`, `SECONDARY`, `CLASSES`
-de `preferences.py`) sont codées en dur, hors ontologie (#109). Elles décident de ce que
-`rotate` compte et de ce qui entre dans `meals_without_protein` — un terme manquant fait
-mentir les deux en silence.
+⚠️ Les familles de protéine (`FAMILIES`, `SECONDARY`, `CLASSES` de `preferences.py`) sont
+codées en dur, hors ontologie (#109) : un terme manquant fait mentir `rotate` et
+`meals_without_protein` en silence.
 
 ## Référentiel aliment & produit
 
-`generiques/` → `food` · `marques/` → `product`. **Le dossier tranchait** quand le vault était
-la source ; il ne l'est plus (#101) : `food`, `food_form` et `product` s'écrivent par l'API
-(`POST /api/food`, `POST /api/food/{key}/form`, `PATCH /api/product/{id}`) ou en SQL.
+`food`, `food_form` et `product` s'écrivent par l'**API** ou en SQL, plus par le vault (#101).
 
 ⛔ **`product.nature` dit ce qu'un `food_key` vide VEUT DIRE** : `single` (aliment
-conditionné) → c'est une **lacune** du référentiel ; `composite` (plusieurs ingrédients) →
-c'est **normal**, et l'import refuse de le rattacher. Sans elle, un plat rattaché à un
-ingrédient prend ses macros et se lit comme réparé (ADR 0016).
+conditionné) → **lacune** du référentiel ; `composite` (plusieurs ingrédients) → **normal**,
+et l'API refuse de le rattacher (422). Sans elle, un plat rattaché à un ingrédient prend ses
+macros et se lit comme réparé (ADR 0016).
 
-⚠️ **Un `ciqual_code` ne se croit pas sur parole** (`pain-complet` déclarait `7010`, le pain
-**bis**), et une fiche corrigée en local n'atteint pas le VPS sans `rclone copy`.
-
-Collisions, formes, XML ANSES, rattachement : `julien-cooking-donnees` § 2.
+⚠️ **Un `ciqual_code` ne se croit pas sur parole** — `pain-complet` déclarait le code du pain
+**bis**. Source : `2025.09 Cooking manager/docs/metier/references/ciqual-2020.csv`. Collisions,
+formes, XML ANSES, rattachement : `julien-cooking-donnees` § 2.
 
 ## Macros
 
 `nutrition.py` applique les règles du Coach Nutrition, il n'invente rien.
 
-1. **Pas d'hypothèse** — non résolu ⇒ `unresolved` avec son motif. Une base sans « pour 100 g » est ignorée ; une fiche « Crues »/« Cuites » sans forme nommée ne tranche pas.
+1. **Pas d'hypothèse** — non résolu ⇒ `unresolved` avec son motif.
 2. **Réconcilier** — `kcal = P×4 + G×4 + L×9` ; au-delà de 5 % d'écart, montrer les deux chiffres.
-3. **Deux sources** — `food` × `food_form` en DB > `shopping_product.nutrition` (drive). Plus **aucun** chemin de code ne lit le vault pour un aliment (#101). `coverage`/`conclusive` priment sur le total.
+3. **Deux sources** — `food` × `food_form` en DB > `shopping_product.nutrition` (drive).
+   `coverage`/`conclusive` priment sur le total.
 
 ⛔ **Les macros vivent dans `food_form`, jamais dans `food`** : une ligne par forme
-(`lentille` × `crues`/`cuites`), et `macros_for()` choisit d'après le nom de l'ingrédient. Un
-aliment **sans aucune forme** n'a pas de macros et ne lève rien — `GET /api/food` rend son
-compte `forms`, à lire avant de conclure que la base « couvre » un aliment.
+(`lentille` × `crues`/`cuites`). Un aliment **sans forme** n'a pas de macros et ne lève rien —
+`GET /api/food` rend son compte `forms`. Un aliment dont la clé porte un mot de plus que la
+recette est **invisible** à `match_entry` sans lever non plus (#117).
 
-Pièges : `/macros` lit `_load_food_base_from_db()` (pas de cache, SELECT direct) ; `qty_min` est un `Decimal`.
+Pièges : `/macros` lit `_load_food_base_from_db()` (pas de cache) ; `qty_min` est un `Decimal` ;
+`servings` vaut 1, 2 ou 4 selon la recette, donc deux `per_portion` ne se comparent pas (#116).
 
 ## Commande vocale
 
@@ -195,12 +183,9 @@ only, **pas de build**. Aucun scanner ne voit zoom auto < 16 px, `100vh`, `:hove
 **Appétissant** · **Sans friction** · **Maîtrisé**. Letter-spacing, pas graisse.
 
 ## Skills liées
-
-- `julien-cooking-manager-weekly-prep` — semaine : tablée, menu, photos, stock, courses, macros, retours.
-- `julien-cooking-manager-pantry-update` — stock : déclarer épuisé/bas/présent, corriger quantité, drive.
-- `julien-cooking-donnees` — données : ingestion vault, référentiel, ontologie, photos, courses.
-- `julien-audit-cooking-vault` — auditer les données ingérées avant génération de courses.
-- `cooking-manager-auchan-drive` — pilote le panier Auchan depuis les courses.
+`julien-cooking-manager-weekly-prep` (semaine) · `julien-cooking-manager-pantry-update` (stock)
+· `julien-cooking-donnees` (données, référentiel, ontologie) · `julien-audit-cooking-vault`
+(audit avant courses) · `cooking-manager-auchan-drive` (panier Auchan).
 
 ## Contraintes mesurées (ratchet)
 

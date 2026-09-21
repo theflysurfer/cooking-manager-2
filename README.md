@@ -135,7 +135,26 @@ database; nothing is read from the Obsidian vault.
 | DELETE | `/api/pantry/items/{id}` | Remove item |
 | GET | `/api/pantry/search?q=` | Search items by name |
 | POST | `/api/pantry/leftover` | Mark a pantry item as leftover |
-| PATCH | `/api/pantry` | Update pantry (legacy Markdown writer) |
+| PATCH | `/api/pantry` | Update an item **by name** — 409 on homonyms, use `PUT /items/{id}` |
+
+### Food reference (no frontend — curl, MCP or script)
+| Method | Endpoint | Description |
+|---|---|---|
+| GET | `/api/food` | List foods with their macro-form count (`?q=` filters) |
+| POST | `/api/food` | Create a food (key derived from the name when omitted) |
+| GET | `/api/food/{key}` | Food detail: forms + linked products |
+| PUT | `/api/food/{key}` | Update a food |
+| DELETE | `/api/food/{key}` | Delete a food — forms cascade, products are detached |
+| GET | `/api/food/{key}/form` | List a food's macro forms |
+| POST | `/api/food/{key}/form` | Upsert a form — `(food_key, label)` is the key |
+| DELETE | `/api/food/{key}/form/{label}` | Remove one form |
+| GET | `/api/product` | List products (`?q=`, `?unlinked=true`) |
+| PATCH | `/api/product/{id}` | Link `food_key`, fix name/brand/nature/status |
+
+Macros live in `food_form`, one row per form (`lentille` × `crues`/`cuites`) — never in `food`.
+Three explicit refusals rather than a silent success: unknown `status` → **422**, unknown
+`food_key` → **404**, linking a `composite` product → **422** (a composite carries its own
+macros, ADR 0016).
 
 ### Other
 | Method | Endpoint | Description |
