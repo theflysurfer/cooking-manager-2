@@ -302,31 +302,17 @@ async def delete_recipe(slug: str):
     return {"deleted": slug}
 
 async def _load_food_base_from_db() -> dict:
-    """Table food → index FoodEntry, même format que load_food_base."""
-    from cooking_manager import nutrition as nut
+    """Tables food + food_form → index FoodEntry, toutes les formes d'un aliment."""
+    from cooking_manager.food_repository import base_from_form_rows
 
     pool = await get_pool(DATABASE_DSN)
     async with pool.acquire() as conn:
         rows = await conn.fetch(
-            "SELECT key, name, macros_per_100g, source, kind FROM food"
+            """SELECT f.key, f.name, f.source, f.kind,
+                      ff.label, ff.kcal, ff.protein, ff.carbs, ff.fat
+                 FROM food f JOIN food_form ff ON ff.food_key = f.key"""
         )
-    index: dict[str, nut.FoodEntry] = {}
-    for r in rows:
-        raw = r["macros_per_100g"]
-        if not raw:
-            continue
-        m = json.loads(raw) if isinstance(raw, str) else dict(raw)
-        macros = nut.Macros(
-            kcal=m.get("kcal"), protein=m.get("protein"),
-            carbs=m.get("carbs"), fat=m.get("fat"),
-        )
-        entry = nut.FoodEntry(
-            key=r["key"], title=r["name"],
-            forms={m.get("form", "100g"): macros},
-            source=r["source"] or "", kind=r["kind"] or "generique",
-        )
-        index[r["key"]] = entry
-    return index
+    return base_from_form_rows([dict(r) for r in rows])
 
 
 @app.get("/api/recipes/{slug}/macros")

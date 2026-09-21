@@ -413,11 +413,23 @@ CREATE TABLE IF NOT EXISTS food (
     category        TEXT,
     kind            TEXT,
     ciqual_code     TEXT,
-    macros_per_100g JSONB,
     conservation    TEXT,
     source          TEXT,
     verified_at     DATE,
     created_at      TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- food_form : lentille crue et lentille cuite n'ont pas les mêmes macros, et
+-- une colonne unique ne pouvait en porter qu'une — les 18 aliments multi-formes
+-- n'ont jamais pu être importés. Source unique des macros d'aliment. Refs #97.
+CREATE TABLE IF NOT EXISTS food_form (
+    food_key TEXT NOT NULL REFERENCES food(key) ON DELETE CASCADE,
+    label    TEXT NOT NULL,
+    kcal     REAL,
+    protein  REAL,
+    carbs    REAL,
+    fat      REAL,
+    PRIMARY KEY (food_key, label)
 );
 
 -- Le gramme ne couvre que 38 % des lignes d'ingrédients : un aliment doit
@@ -672,6 +684,29 @@ CREATE TABLE IF NOT EXISTS service_context (
     UNIQUE (recipe_id, context)
 );
 CREATE INDEX IF NOT EXISTS idx_service_context_recipe ON service_context(recipe_id);
+
+-- ═══════════════════════════════════════════════════════════════════════
+-- food_form : bascule des macros mono-forme, puis la colonne disparaît
+-- ═══════════════════════════════════════════════════════════════════════
+-- Le VPS a déjà `food` avec sa colonne JSONB : la copier ligne à ligne avant
+-- de la supprimer, sinon 163 aliments perdent leurs macros. Le DO avale
+-- undefined_column pour rester idempotent au deuxième passage. Refs #97.
+DO $food_form_mig$
+BEGIN
+    INSERT INTO food_form (food_key, label, kcal, protein, carbs, fat)
+    SELECT key,
+           COALESCE(NULLIF(macros_per_100g->>'form', ''), '100g'),
+           (macros_per_100g->>'kcal')::real,
+           (macros_per_100g->>'protein')::real,
+           (macros_per_100g->>'carbs')::real,
+           (macros_per_100g->>'fat')::real
+      FROM food
+     WHERE macros_per_100g IS NOT NULL
+    ON CONFLICT DO NOTHING;
+EXCEPTION
+    WHEN undefined_column THEN NULL;
+END $food_form_mig$;
+ALTER TABLE food DROP COLUMN IF EXISTS macros_per_100g;
 """
 
 _pool: asyncpg.Pool | None = None
