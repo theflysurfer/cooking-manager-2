@@ -3364,7 +3364,10 @@ async def list_product(q: str | None = None, unlinked: bool = False,
 async def patch_product(product_id: int, body: ProductPatch):
     from cooking_manager.matching import clean_nature
 
-    nature = clean_nature(body.nature, f"product/{product_id}")
+    try:
+        nature = clean_nature(body.nature, f"product/{product_id}")
+    except ValueError as e:
+        raise HTTPException(422, str(e)) from None
     if body.status is not None and body.status not in FOOD_STATUSES:
         raise HTTPException(
             422, f"status {body.status!r} inconnu, attendu parmi {list(FOOD_STATUSES)}")
