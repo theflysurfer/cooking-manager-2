@@ -6,11 +6,16 @@
   "window": "lun 21 -> dim 27 sept",
   "supersedes": "data/shopping_choices_2026-09-20.json",
   "note": "Complement de session : les 21 lignes du 20/09 restent en place, ce fichier ne porte que le delta.",
-  "total_eur": 206.03,
-  "item_count": 44,
+  "total_eur": 212.16,
+  "item_count": 46,
   "covers": 4,
-  "validate_cart": { "ok": true, "checked": 44, "violations": 0, "bans_active": 4 },
-  "arbitrage_julien": "Julien garde les 14 lignes apparues (ajouts humains assumés) et demande d'acheter aussi ce qui avait été écarté par prudence de stock : nectarines 1 kg (2,49 €), fromage blanc 3,2% 1 kg (2,11 €), 2e botte de persil (+1,29 €). Restent non achetés les seuls impossibles — dorade en rupture, lotte absente du catalogue, truite fraîche inexistante — et les lentilles, que Julien avait lui-même retirées ce soir sur stock vérifié.",
+  "validate_cart": {
+    "ok": true,
+    "checked": 46,
+    "violations": 0,
+    "bans_active": 4
+  },
+  "arbitrage_julien": "Julien garde les 14 lignes apparues (ajouts humains assumés) et demande d'acheter aussi ce qui avait été écarté par prudence de stock : nectarines 1 kg (2,49 €), fromage blanc 3,2% 1 kg (2,11 €), 2e botte de persil (+1,29 €). Restent non achetés les seuls impossibles — dorade en rupture, lotte absente du catalogue, truite fraîche inexistante — et les lentilles, que Julien avait lui-même retirées ce soir sur stock vérifié. — Session du 21/09 tard : Julien tranche d'ajouter pois chiches ET oeufs plutot que de composer sur un stock non verifie.",
   "budget_alert": "206,03 € pour une semaine à 4 couverts — au-dessus du seuil de 150 € de la règle courses. 14 lignes (≈ 45 €) sont apparues dans le panier pendant la session sans venir de CM2 : melons, avocats, raisins, St Moret, cottage cheese, emmental, parmigiano Casa Azzurra, chocolat pâtissier, Cruesli, concombre, pommes Gala x6, myrtilles 500 g, Calin fromage blanc. Ajouts humains parallèles, à arbitrer par Julien.",
   "verified_in_browser": false,
   "items": [
@@ -45,6 +50,22 @@
       "qty": 2,
       "unit_price": 3.99,
       "rationale": "Gratin de poissons aux légumes (jeudi dîner) + repas dorade — aucune truite FRAÎCHE au drive (que du fumé) et les 2 références de dorade sont en stock 0 ; limande validée par Julien comme bascule"
+    },
+    {
+      "requested": "pois chiches cuits",
+      "product": "Pois chiches 530g (AUCHAN)",
+      "auchan_id": "C1240739",
+      "qty": 2,
+      "unit_price": 1.29,
+      "rationale": "Taboule de quinoa aux poivrons grilles et feta (samedi midi) — pois chiches ajoutes a la fiche pour lui donner une proteine principale. Stock declare (2 boites du 04/08) non verifiable : pantry_item est un journal d'entrees."
+    },
+    {
+      "requested": "oeufs",
+      "product": "Oeufs de poules elevees en plein air 12 pieces (L'OEUF DE NOS VILLAGES)",
+      "auchan_id": "C1164722",
+      "qty": 1,
+      "unit_price": 3.55,
+      "rationale": "Taboule de samedi midi (4 oeufs durs) + oeufs brouilles du dimanche matin. Les 30 oeufs dates du 08/09 ont 13 jours de consommation derriere eux, l'insuffisant de shopping-list ne les mesure pas."
     }
   ],
   "items_petit_dejeuner_gouter": [
