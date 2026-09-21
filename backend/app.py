@@ -1081,7 +1081,7 @@ class PantryItemUpdate(BaseModel):
 @app.post("/api/pantry/items")
 async def create_pantry_item(body: PantryItemCreate):
     from cooking_manager.ingredients import normalize_name
-    from cooking_manager.pantry import XSTATUS_MAP, PERISHABLE_HINTS
+    from cooking_manager.pantry import XSTATUS_MAP, is_perishable_section
 
     name_normalized = normalize_name(body.name)
     if not name_normalized:
@@ -1089,7 +1089,7 @@ async def create_pantry_item(body: PantryItemCreate):
 
     xstatus = body.status
     status = XSTATUS_MAP.get(xstatus, body.status)
-    perishable = any(h in body.section.lower() for h in PERISHABLE_HINTS)
+    perishable = is_perishable_section(body.section)
 
     pool = await get_pool(DATABASE_DSN)
     async with pool.acquire() as conn:
@@ -1126,7 +1126,7 @@ async def get_pantry_item(item_id: int):
 @app.put("/api/pantry/items/{item_id}")
 async def update_pantry_item(item_id: int, body: PantryItemUpdate):
     from cooking_manager.ingredients import normalize_name
-    from cooking_manager.pantry import XSTATUS_MAP, PERISHABLE_HINTS
+    from cooking_manager.pantry import XSTATUS_MAP, is_perishable_section
 
     pool = await get_pool(DATABASE_DSN)
     async with pool.acquire() as conn:
@@ -1144,7 +1144,7 @@ async def update_pantry_item(item_id: int, body: PantryItemUpdate):
 
         from cooking_manager.pantry import _parse_qty
         qty_value, unit = _parse_qty(qty_text)
-        perishable = any(h in section.lower() for h in PERISHABLE_HINTS)
+        perishable = is_perishable_section(section)
 
         await conn.execute(
             """UPDATE pantry_item SET
@@ -1181,7 +1181,7 @@ class PantryBulkItem(BaseModel):
 async def bulk_upsert_pantry(items: list[PantryBulkItem]):
     """Upsert a batch of pantry items (vocal bulk inventory)."""
     from cooking_manager.ingredients import normalize_name
-    from cooking_manager.pantry import PERISHABLE_HINTS, _parse_qty
+    from cooking_manager.pantry import _parse_qty, is_perishable_section
 
     if not items:
         raise HTTPException(400, "Liste vide")
@@ -1198,7 +1198,7 @@ async def bulk_upsert_pantry(items: list[PantryBulkItem]):
                 continue
 
             qty_value, unit = _parse_qty(item.qty_text)
-            perishable = any(h in item.section.lower() for h in PERISHABLE_HINTS)
+            perishable = is_perishable_section(item.section)
 
             existing = await conn.fetchrow(
                 "SELECT id FROM pantry_item WHERE name_normalized = $1 AND section = $2",

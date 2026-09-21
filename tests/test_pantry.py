@@ -411,3 +411,23 @@ class TestPerItemFreshness:
         v = check_need(need, pantry, today=today)
         assert v.outcome == "inconnu"
         assert v.assumed_empty
+
+
+class TestPerishableSection:
+    """Refs #119 : le test portait sur le NOM du rayon, pas sur l'aliment."""
+
+    def test_a_fresh_section_is_perishable(self):
+        from cooking_manager.pantry import is_perishable_section
+        assert is_perishable_section("Frais — Légumes & Fruits")
+        assert is_perishable_section("Frais — Protéines")
+
+    def test_a_dry_section_never_is_even_when_it_says_fruit(self):
+        from cooking_manager.pantry import is_perishable_section
+        assert not is_perishable_section("Sec — Fruits Secs & Graines")
+        assert not is_perishable_section("Sec — Protéines & Compléments")
+
+    def test_a_section_without_a_hint_is_not_perishable(self):
+        from cooking_manager.pantry import is_perishable_section
+        assert not is_perishable_section("Condiments & Huiles")
+        assert not is_perishable_section("Surgelés")
+        assert not is_perishable_section("")

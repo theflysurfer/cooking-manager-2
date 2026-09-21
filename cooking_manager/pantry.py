@@ -34,6 +34,16 @@ UNKNOWN = "inconnu"
 
 PERISHABLE_HINTS = ("frais", "l\u00e9gume", "legume", "fruit", "prot\u00e9ine", "proteine")
 
+DRY_SECTION_PREFIX = "sec"
+
+
+def is_perishable_section(section: str) -> bool:
+    """Un rayon sec ne p\u00e9rit pas, quel que soit le mot que son nom contient (#119)."""
+    name = (section or "").strip().lower()
+    if name.startswith(DRY_SECTION_PREFIX):
+        return False
+    return any(h in name for h in PERISHABLE_HINTS)
+
 STALE_AFTER = timedelta(days=14)
 
 NON_PURCHASE: frozenset[str] = frozenset({
@@ -78,8 +88,7 @@ class PantryItem:
 
     @property
     def is_perishable(self) -> bool:
-        rayon = self.rayon.lower()
-        return any(h in rayon for h in PERISHABLE_HINTS)
+        return is_perishable_section(self.rayon)
 
 @dataclass
 class Pantry:
