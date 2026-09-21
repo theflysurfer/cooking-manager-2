@@ -3189,6 +3189,209 @@ async def commit_import_draft(draft_id: int, overwrite: bool = False):
     )
     return result
 
+class FoodBody(BaseModel):
+    key: str | None = None
+    name: str
+    category: str | None = None
+    kind: str | None = None
+    ciqual_code: str | None = None
+    conservation: str | None = None
+    source: str | None = None
+
+
+class FormBody(BaseModel):
+    label: str = "100g"
+    kcal: float | None = None
+    protein: float | None = None
+    carbs: float | None = None
+    fat: float | None = None
+
+
+class ProductPatch(BaseModel):
+    food_key: str | None = None
+    status: str | None = None
+    nature: str | None = None
+    name: str | None = None
+    brand: str | None = None
+
+
+FOOD_STATUSES = ("linked", "a_rapprocher")
+
+
+async def _food_or_404(conn, key: str) -> dict:
+    row = await conn.fetchrow("SELECT * FROM food WHERE key = $1", key)
+    if row is None:
+        raise HTTPException(404, f"Aliment introuvable : {key}")
+    return dict(row)
+
+
+async def _forms_of(conn, key: str) -> list[dict]:
+    rows = await conn.fetch(
+        """SELECT label, kcal, protein, carbs, fat FROM food_form
+            WHERE food_key = $1 ORDER BY label""", key)
+    return [dict(r) for r in rows]
+
+
+@app.get("/api/food")
+async def list_food(q: str | None = None, limit: int = 200):
+    """Aliments et le nombre de formes de chacun — zero forme = aucune macro."""
+    pool = await get_pool(DATABASE_DSN)
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """SELECT f.key, f.name, f.category, f.kind, f.ciqual_code, f.source,
+                      count(ff.label) AS forms
+                 FROM food f LEFT JOIN food_form ff ON ff.food_key = f.key
+                WHERE $1::text IS NULL OR f.key ILIKE '%' || $1 || '%'
+                     OR f.name ILIKE '%' || $1 || '%'
+                GROUP BY f.key ORDER BY f.key LIMIT $2""", q, limit)
+    return {"count": len(rows), "foods": [dict(r) for r in rows]}
+
+
+@app.post("/api/food", status_code=201)
+async def create_food(body: FoodBody):
+    from cooking_manager.ingredients import normalize_name
+
+    key = body.key or normalize_name(body.name)
+    if not key:
+        raise HTTPException(400, "Clé vide après normalisation")
+    pool = await get_pool(DATABASE_DSN)
+    async with pool.acquire() as conn:
+        if await conn.fetchval("SELECT 1 FROM food WHERE key = $1", key):
+            raise HTTPException(409, f"Aliment déjà existant : {key}")
+        await conn.execute(
+            """INSERT INTO food (key, name, category, kind, ciqual_code,
+                                 conservation, source)
+               VALUES ($1,$2,$3,$4,$5,$6,$7)""",
+            key, body.name, body.category, body.kind, body.ciqual_code,
+            body.conservation, body.source or "api")
+    return {"key": key, "name": body.name, "forms": []}
+
+
+@app.get("/api/food/{key}")
+async def get_food(key: str):
+    pool = await get_pool(DATABASE_DSN)
+    async with pool.acquire() as conn:
+        food = await _food_or_404(conn, key)
+        food["forms"] = await _forms_of(conn, key)
+        food["products"] = [dict(r) for r in await conn.fetch(
+            "SELECT id, name, brand, status FROM product WHERE food_key = $1", key)]
+    _serialize_dates(food, ("verified_at", "created_at"))
+    return food
+
+
+@app.put("/api/food/{key}")
+async def update_food(key: str, body: FoodBody):
+    pool = await get_pool(DATABASE_DSN)
+    async with pool.acquire() as conn:
+        await _food_or_404(conn, key)
+        await conn.execute(
+            """UPDATE food SET name=$2, category=$3, kind=$4, ciqual_code=$5,
+                               conservation=$6, source=COALESCE($7, source)
+                WHERE key=$1""",
+            key, body.name, body.category, body.kind, body.ciqual_code,
+            body.conservation, body.source)
+        forms = await _forms_of(conn, key)
+    return {"key": key, "name": body.name, "forms": forms, "updated": True}
+
+
+@app.delete("/api/food/{key}")
+async def delete_food(key: str):
+    """Les formes partent avec l'aliment ; les produits restent, détachés."""
+    pool = await get_pool(DATABASE_DSN)
+    async with pool.acquire() as conn:
+        await _food_or_404(conn, key)
+        detached = await conn.fetchval(
+            "SELECT count(*) FROM product WHERE food_key = $1", key)
+        await conn.execute("DELETE FROM food WHERE key = $1", key)
+    return {"deleted": key, "detached_products": detached}
+
+
+@app.get("/api/food/{key}/form")
+async def list_food_forms(key: str):
+    pool = await get_pool(DATABASE_DSN)
+    async with pool.acquire() as conn:
+        await _food_or_404(conn, key)
+        return {"food_key": key, "forms": await _forms_of(conn, key)}
+
+
+@app.post("/api/food/{key}/form")
+async def upsert_food_form(key: str, body: FormBody):
+    """Une forme déjà posée est corrigée, jamais doublée — (food_key, label) est la clé."""
+    if not body.label.strip():
+        raise HTTPException(400, "Label de forme vide")
+    pool = await get_pool(DATABASE_DSN)
+    async with pool.acquire() as conn:
+        await _food_or_404(conn, key)
+        await conn.execute(
+            """INSERT INTO food_form (food_key, label, kcal, protein, carbs, fat)
+               VALUES ($1,$2,$3,$4,$5,$6)
+               ON CONFLICT (food_key, label) DO UPDATE SET
+                 kcal = EXCLUDED.kcal, protein = EXCLUDED.protein,
+                 carbs = EXCLUDED.carbs, fat = EXCLUDED.fat""",
+            key, body.label.strip(), body.kcal, body.protein, body.carbs, body.fat)
+        forms = await _forms_of(conn, key)
+    return {"food_key": key, "forms": forms}
+
+
+@app.delete("/api/food/{key}/form/{label}")
+async def delete_food_form(key: str, label: str):
+    pool = await get_pool(DATABASE_DSN)
+    async with pool.acquire() as conn:
+        deleted = await conn.fetchval(
+            """DELETE FROM food_form WHERE food_key = $1 AND label = $2
+               RETURNING label""", key, label)
+    if deleted is None:
+        raise HTTPException(404, f"Forme introuvable : {key} / {label}")
+    return {"deleted": {"food_key": key, "label": label}}
+
+
+@app.get("/api/product")
+async def list_product(q: str | None = None, unlinked: bool = False,
+                       limit: int = 200):
+    """`nature` dit ce qu'un food_key vide VEUT DIRE : single = lacune, composite = normal."""
+    pool = await get_pool(DATABASE_DSN)
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """SELECT id, name, brand, food_key, nature, status, store
+                 FROM product
+                WHERE ($1::text IS NULL OR name ILIKE '%' || $1 || '%')
+                  AND (NOT $2 OR food_key IS NULL)
+                ORDER BY id LIMIT $3""", q, unlinked, limit)
+    return {"count": len(rows), "products": [dict(r) for r in rows]}
+
+
+@app.patch("/api/product/{product_id}")
+async def patch_product(product_id: int, body: ProductPatch):
+    from cooking_manager.matching import clean_nature
+
+    nature = clean_nature(body.nature, f"product/{product_id}")
+    if body.status is not None and body.status not in FOOD_STATUSES:
+        raise HTTPException(
+            422, f"status {body.status!r} inconnu, attendu parmi {list(FOOD_STATUSES)}")
+    pool = await get_pool(DATABASE_DSN)
+    async with pool.acquire() as conn:
+        existing = await conn.fetchrow(
+            "SELECT * FROM product WHERE id = $1", product_id)
+        if existing is None:
+            raise HTTPException(404, f"Produit introuvable : {product_id}")
+        if body.food_key is not None:
+            await _food_or_404(conn, body.food_key)
+            if (nature or existing["nature"]) == "composite":
+                raise HTTPException(
+                    422, "un composite porte ses propres macros : il ne se rattache pas")
+        row = await conn.fetchrow(
+            """UPDATE product SET
+                   food_key = COALESCE($2, food_key),
+                   nature   = COALESCE($3, nature),
+                   status   = COALESCE($4, status),
+                   name     = COALESCE($5, name),
+                   brand    = COALESCE($6, brand)
+                WHERE id = $1
+            RETURNING id, name, brand, food_key, nature, status""",
+            product_id, body.food_key, nature, body.status, body.name, body.brand)
+    return dict(row)
+
+
 WEB_DIR = Path(__file__).parent.parent / "web"
 if WEB_DIR.is_dir():
     @app.get("/")
