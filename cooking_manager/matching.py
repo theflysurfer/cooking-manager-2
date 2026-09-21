@@ -10,6 +10,8 @@ from .pantry import STOP_WORDS
 WEIGHT_RATIO = 5.0
 PRICE_RATIO = 10.0
 
+ABSENT_VALUES = ("null", "none", "nan", "-", "n/a", "à compléter", "a completer")
+
 PROPOSE = "propose"
 REFUSE = "refuse"
 UNSURE = "unsure"
@@ -51,6 +53,51 @@ def compare(candidate: Signals, target: Signals) -> Match:
         return Match(REFUSE, reasons)
 
     return Match(UNSURE if mute else PROPOSE, reasons)
+
+
+def strip_brand(name: str, brand: str | None) -> str:
+    """Le nom sans la marque qu'il répète — elle vit déjà dans `product.brand`."""
+    if not brand:
+        return name
+    words = normalize_name(brand).split()
+    remaining = normalize_name(name).split()
+    while words and remaining and remaining[0] == words[0]:
+        remaining.pop(0)
+        words.pop(0)
+    return " ".join(remaining) if remaining else name
+
+
+def product_natures() -> tuple[str, ...]:
+    """Les natures de produit du vocabulaire épinglé — jamais une liste écrite ici."""
+    from .substitutions import load_vocabulary
+
+    return tuple(c["key"] for c in load_vocabulary().get("product_natures") or [])
+
+
+def clean_nature(value: object, origin: str = "") -> str | None:
+    """Une nature absente reste absente ; une nature inventée est refusée."""
+    if value is None:
+        return None
+    text = str(value).strip().lower()
+    if not text or text in ABSENT_VALUES:
+        return None
+    allowed = product_natures()
+    if text not in allowed:
+        raise ValueError(
+            f"{origin} : nature {text!r} inconnue du vocabulaire, attendu parmi {list(allowed)}."
+        )
+    return text
+
+
+def link_food_key(product: Signals, nature: str | None,
+                  foods: dict[str, str]) -> str | None:
+    """Clé d'aliment rattachable, ou None. Un composite n'est JAMAIS rattaché."""
+    if nature == "composite":
+        return None
+    for key, name in foods.items():
+        if compare(product, Signals(name=name)).verdict == PROPOSE:
+            return key
+    return None
 
 
 def _head_words(text: str) -> list[str]:

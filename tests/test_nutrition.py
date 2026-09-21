@@ -1,132 +1,13 @@
-SHEET_KJ = """---
-title: Pignons de pin
----
-
-## Macros pour 100 g
-
-| Nutriment | Valeur |
-|---|---|
-| Energie | 2820 kJ (673 kcal) |
-| Proteines | 13,7 g |
-| Glucides | 4,0 g |
-| Lipides | 68,4 g |
-"""
-
 """Macros calculées depuis les ingrédients. Aucun réseau, aucune DB."""
 
 from cooking_manager.nutrition import (
     FoodEntry,
     Macros,
     match_entry,
-    parse_food_sheet,
     recipe_macros,
     reconcile,
     to_grams,
 )
-
-COURGETTE = """---
-type: generique
-categorie: legumes
-statut: partiel
-source: ANSES-Ciqual
----
-
-# 🥒 Courgette
-
-## 1️⃣ Macros
-
-| Métrique | /100g | Portion 150g |
-|---|---|---|
-| **Énergie** | 17 kcal | 25 kcal |
-| **Protéines** | 2g | 3g |
-| **Glucides** | 2g | 3g |
-| **Fibres** | 1.1g | 1.6g |
-| **Lipides** | 0.4g | 0.6g |
-"""
-
-LENTILLES = """---
-type: generique
-statut: partiel
-source: ANSES-Ciqual
----
-
-| Métrique | Crues /100g | Cuites /100g | Portion 80g cuits |
-|---|---|---|---|
-| **Énergie** | 339 kcal | 116 kcal | 93 kcal |
-| **Protéines** | 25g | 9g | 7.2g |
-| **Glucides** | 56g | 18g | 14.4g |
-| **Fibres** | 11g | 4g | 3.2g |
-| **Lipides** | 1.4g | 0.5g | 0.4g |
-"""
-
-class TestParseFoodSheet:
-    def test_reads_frontmatter_and_the_per_100g_column(self):
-        fm, forms = parse_food_sheet(COURGETTE)
-        assert fm["source"] == "ANSES-Ciqual"
-        assert fm["statut"] == "partiel"
-        m = forms["100g"]
-        assert (m.kcal, m.protein, m.carbs, m.fat) == (17, 2, 2, 0.4)
-
-    def test_portion_columns_are_ignored(self):
-        """« Portion 150g » n'est pas exprimée pour 100 g : la lire donnerait"""
-        assert list(parse_food_sheet(COURGETTE)[1]) == ["100g"]
-
-    def test_fibres_are_not_mistaken_for_a_macro(self):
-        assert parse_food_sheet(COURGETTE)[1]["100g"].fat == 0.4
-
-    def test_every_per_100g_column_is_kept_not_just_the_first(self):
-        """⚠️ La 1re colonne n'est pas toujours « /100g » : `lentilles.md`"""
-        forms = parse_food_sheet(LENTILLES)[1]
-        assert forms["crues"].kcal == 339
-        assert forms["cuites"].kcal == 116
-
-MOZZARELLA = """---
-type: generique
-source: ANSES-Ciqual
----
-
-# Mozzarella
-
-## Macros pour 100g
-
-| Nutriment | Valeur |
-|---|---|
-| Énergie | 224 kcal |
-| Protéines | 18g |
-| Glucides | 1g |
-| Lipides | 17g (dont AGS ~11g) |
-"""
-
-class TestThirdTableShape:
-    """« | Nutriment | Valeur | », base annoncée par le TITRE DE SECTION."""
-
-    def test_value_column_is_read_when_the_document_says_pour_100g(self):
-        forms = parse_food_sheet(MOZZARELLA)[1]
-        assert forms["100g"].kcal == 224
-        assert forms["100g"].protein == 18
-        assert forms["100g"].fat == 17
-
-    def test_without_the_mention_the_table_is_ignored_not_assumed(self):
-        """Sans « pour 100 g » explicite, rapporter les valeurs à une base"""
-        text = MOZZARELLA.replace("## Macros pour 100g", "## Macros")
-        assert parse_food_sheet(text)[1] == {}
-
-class TestFrontmatterNullString:
-    """#85 — `null` en YAML doit devenir None, pas la chaîne `"null"`."""
-
-    def test_null_becomes_none(self):
-        text = """---\ntitle: Pain complet\nciqual_code: null\nmarque: null\nnature: None\n---\n"""
-        fm, _ = parse_food_sheet(text)
-        assert fm["title"] == "Pain complet"
-        assert fm["ciqual_code"] is None
-        assert fm["marque"] is None
-        assert fm["nature"] is None
-
-    def test_empty_value_becomes_none(self):
-        text = """---\ntitle: Test\nfoo:\n---\n"""
-        fm, _ = parse_food_sheet(text)
-        assert fm["foo"] is None
-
 
 class TestReconcile:
     """Règle 2bis (erreur #25) : kcal annoncées vs P×4 + G×4 + L×9."""
@@ -324,9 +205,3 @@ class TestEnergyUnit:
         """Aucun aliment ne depasse ~900 kcal/100 g : l'huile pure plafonne a 900."""
         from cooking_manager.nutrition import read_energy
         assert read_energy("2820") is None
-
-    def test_a_sheet_in_kilojoules_yields_kcal(self):
-        from cooking_manager.nutrition import parse_food_sheet
-        sheet = SHEET_KJ
-        _, forms = parse_food_sheet(sheet)
-        assert forms["100g"].kcal == 673.0

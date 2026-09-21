@@ -55,8 +55,7 @@ def _entry(title: str, row: dict, kind: str, storage_key: str) -> FoodEntry | No
     if macros is None:
         return None
     return FoodEntry(key=storage_key, title=title, forms={"100g": macros},
-                     source=str(row.get("source") or kind), kind=kind,
-                     statut="", path="db")
+                     source=str(row.get("source") or kind), kind=kind)
 
 
 def _macros(value: object) -> Macros | None:

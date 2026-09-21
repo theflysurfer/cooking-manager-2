@@ -68,8 +68,6 @@ class FoodEntry:
     forms: dict[str, Macros]
     source: str
     kind: str
-    statut: str = ""
-    path: str = ""
 
     @property
     def rank(self) -> int:
@@ -134,17 +132,7 @@ def reconcile(kcal: float | None, protein: float | None,
         "gap_pct": round(gap * 100, 1),
     }
 
-_FM_RE = re.compile(r"\A---\n(.*?)\n---", re.DOTALL)
-_FM_ABSENT = frozenset({"null", "none", "nan", "-", "n/a", "", "~"})
 _NUM_RE = re.compile(r"(\d+(?:[.,]\d+)?)")
-_PER_100G_RE = re.compile(r"/\s*100\s*(?:g|ml)", re.IGNORECASE)
-
-_METRIC_KEYS = {
-    "energie": "kcal", "énergie": "kcal", "calories": "kcal", "kcal": "kcal",
-    "proteines": "protein", "protéines": "protein", "p": "protein",
-    "glucides": "carbs", "g": "carbs",
-    "lipides": "fat", "l": "fat",
-}
 
 _PARTICLES = frozenset({"de", "du", "des", "d", "l", "la", "le", "les",
                         "a", "au", "aux", "en"})
@@ -184,73 +172,6 @@ def read_energy(text: str) -> float | None:
     if value is not None and value > MAX_KCAL_PER_100G:
         return None
     return value
-
-def _cells(line: str) -> list[str]:
-    return [c.strip().strip("*").strip() for c in line.strip().strip("|").split("|")]
-
-def parse_food_sheet(text: str) -> tuple[dict, dict[str, Macros]]:
-    """Fiche markdown → (frontmatter, {forme: macros pour 100 g})."""
-    fm: dict = {}
-    m = _FM_RE.match(text)
-    if m:
-        for line in m.group(1).splitlines():
-            if ":" in line:
-                k, _, v = line.partition(":")
-                raw = v.strip().strip('"')
-                fm[k.strip()] = None if raw.lower() in _FM_ABSENT else raw
-
-
-    _PER_100G_IN_TEXT = bool(re.search(r"pour\s*100\s*(?:g|ml)", text, re.IGNORECASE))
-
-    forms: dict[str, Macros] = {}
-    columns: dict[int, str] = {}
-    metric_cols: dict[int, str] = {}
-    for line in text.splitlines():
-        if not line.lstrip().startswith("|"):
-            continue
-        cells = _cells(line)
-
-        if not columns and not metric_cols:
-            found = {
-                i: _PER_100G_RE.sub("", c).strip().lower() or "100g"
-                for i, c in enumerate(cells) if _PER_100G_RE.search(c)
-            }
-            if found:
-                columns = found
-                forms = {label: Macros() for label in columns.values()}
-                continue
-            metrics = {i: _METRIC_KEYS[c.lower()]
-                       for i, c in enumerate(cells) if c.lower() in _METRIC_KEYS}
-            if len(metrics) >= 3:
-                metric_cols = metrics
-                continue
-            if len(cells) == 2 and _PER_100G_IN_TEXT:
-                columns = {1: "100g"}
-                forms = {"100g": Macros()}
-            continue
-
-        if metric_cols:
-            label = cells[0].strip().lower()
-            if not label or set(label) <= {"-", " "}:
-                continue
-            macros = forms.setdefault(label, Macros())
-            for idx, key in metric_cols.items():
-                if idx < len(cells) and getattr(macros, key) is None:
-                    read = read_energy if key == "kcal" else _first_number
-                    setattr(macros, key, read(cells[idx]))
-            continue
-
-        key = _METRIC_KEYS.get(cells[0].lower())
-        if not key:
-            continue
-        read = read_energy if key == "kcal" else _first_number
-        for idx, label in columns.items():
-            if idx < len(cells) and getattr(forms[label], key) is None:
-                setattr(forms[label], key, read(cells[idx]))
-
-    return fm, forms
-
-
 
 _DRIVE_KEYS = {
     "valeur énergétique (kcal)": "kcal", "valeur energetique (kcal)": "kcal",
