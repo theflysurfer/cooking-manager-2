@@ -1725,17 +1725,36 @@ async function uploadImportPages(files) {
   fd.append('source', sourceEl ? sourceEl.value : '');
 
   try {
-    var r = await fetch(API + '/api/recipes/import', { method: 'POST', body: fd });
+    var r = await fetch(API + '/api/recipes/import/page', { method: 'POST', body: fd });
     if (!r.ok) {
       var detail = await r.text();
       throw new Error(detail.slice(0, 200));
     }
-    var draft = await r.json();
+    var task = await r.json();
+    var draft = await waitForImportTask(task.task_id);
     location.hash = '#/import/' + draft.id;
   } catch (e) {
     status.innerHTML = '<p class="import__error">Lecture impossible : ' +
                        esc(e.message) + '</p>';
   }
+}
+
+var IMPORT_POLL_MS = 2000;
+var IMPORT_POLL_MAX = 90;
+
+function delay(ms) {
+  return new Promise(function (resolve) { setTimeout(resolve, ms); });
+}
+
+async function waitForImportTask(taskId) {
+  for (var i = 0; i < IMPORT_POLL_MAX; i++) {
+    await delay(IMPORT_POLL_MS);
+    var task = await api('/api/recipes/import/tasks/' + taskId);
+    if (task.status === 'done') return task.draft;
+    if (task.status === 'failed') throw new Error(task.detail || 'lecture échouée');
+  }
+  throw new Error('la lecture dépasse ' +
+                  Math.round(IMPORT_POLL_MS * IMPORT_POLL_MAX / 1000) + ' s');
 }
 
 var CURRENT_DRAFT = null;
@@ -1748,6 +1767,11 @@ async function viewImportDraft(id) {
   var d = CURRENT_DRAFT;
   var html = '<button class="btn" onclick="location.hash=\'#/import\'">← Imports</button>' +
     '<h1 class="title">Relire avant d\'ajouter</h1>';
+
+  if (d.usable === false) {
+    html += '<p class="import__flag">Extraction incomplète : ' +
+            'aucune étape ou aucune quantité n\'a été lue. À compléter à la main.</p>';
+  }
 
   if (d.unparsed_count) {
     html += '<p class="import__flag">' + d.unparsed_count +
@@ -1786,7 +1810,7 @@ async function viewImportDraft(id) {
   }
 
   html += '<div class="draft-actions">' +
-    '<button class="btn btn--accent" id="draft-commit">Ajouter au vault</button>' +
+    '<button class="btn btn--accent" id="draft-commit">Ajouter aux recettes</button>' +
     '<button class="btn" id="draft-discard">Jeter</button>' +
     '</div><div id="draft-status"></div>';
 

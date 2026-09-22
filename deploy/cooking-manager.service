@@ -1,8 +1,7 @@
 [Unit]
 Description=Cooking Manager API
-After=network.target recipe-manager.service
+After=network.target
 Wants=network.target
-Requires=recipe-manager.service
 
 [Service]
 Type=simple
@@ -12,13 +11,14 @@ ExecStart=/opt/cooking-manager-2/deploy/run-with-cred.sh
 Restart=on-failure
 RestartSec=5
 Environment=DATABASE_URL=postgresql://cooking:cooking@127.0.0.1:5432/cooking_manager
-Environment=VAULT_ROOT=/mnt/dropbox-full/JULIEN/Obsidian/vault/Noyau/Cuisine
 Environment=PORT=8795
 Environment=OLLAMA_URL=https://ollama.com
+Environment=MEDIA_ROOT=/opt/cooking-manager-2/web/media/recipes
 LoadCredentialEncrypted=cooking-deepgram-key:/etc/credstore.encrypted/cooking-deepgram-key
 LoadCredentialEncrypted=cooking-ollama-key:/etc/credstore.encrypted/cooking-ollama-key
 LoadCredentialEncrypted=groq-key:/etc/credstore.encrypted/bibliotheque-groq-key
 LoadCredentialEncrypted=cooking-leclerc-cookies:/etc/credstore.encrypted/cooking-leclerc-cookies
+LoadCredentialEncrypted=recipe-manager-gemini-key:/etc/credstore.encrypted/recipe-manager-gemini-key
 
 [Install]
 WantedBy=multi-user.target

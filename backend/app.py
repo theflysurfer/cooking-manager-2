@@ -1,13 +1,17 @@
 """FastAPI application — recipe browser + ingest trigger."""
 
+import asyncio
+import base64
+import dataclasses
 import json
 import logging
 import os
+import uuid
 from contextlib import asynccontextmanager
 import datetime
 from pathlib import Path
 
-from fastapi import FastAPI, Query, HTTPException, UploadFile
+from fastapi import FastAPI, Form, Query, HTTPException, UploadFile
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict
@@ -29,10 +33,14 @@ from cooking_manager.feedback import (
     validate_concept,
 )
 from cooking_manager.substitutions import VOCABULARY_VERSION, load_vocabulary
+from cooking_manager.ingredients import parse_recipe_body
 
-from .config import DATABASE_DSN
+from . import book_import, images
+from .config import DATABASE_DSN, OLLAMA_URL
 from .db import get_pool, init_schema, close_pool
 from .ingest import relink_meals, write_recipe, _link_meals
+from .url_parser import parse_recipe_html, parse_recipe_url
+from .url_parser.draft import to_draft as url_to_draft
 
 async def _get_recipe_id(conn, slug: str) -> int:
     row = await conn.fetchrow("SELECT id FROM recipe WHERE slug = $1", slug)
@@ -3106,87 +3114,295 @@ async def seed_household():
 
 logger = logging.getLogger("cooking_manager.app")
 
-RECIPE_MANAGER_URL = os.environ.get("RECIPE_MANAGER_URL", "http://127.0.0.1:8796")
-_IMPORT_TIMEOUT_S = 180.0
+FLARESOLVERR_URL = os.environ.get("FLARESOLVERR_URL", "http://127.0.0.1:8191/v1")
+PARSER_LLM_MODEL = os.environ.get("LLM_MODEL", "gemma3:cloud")
 
-async def _rm_request(method: str, path: str, **kwargs):
-    import httpx
+class ParseUrlRequest(BaseModel):
+    url: str
+    enable_llm: bool = False
 
-    try:
-        async with httpx.AsyncClient(timeout=_IMPORT_TIMEOUT_S) as client:
-            resp = await client.request(method, RECIPE_MANAGER_URL + path, **kwargs)
-    except httpx.HTTPError as exc:
-        raise HTTPException(503, f"recipe-manager unreachable: {exc}") from exc
-    if resp.status_code >= 400:
-        raise HTTPException(resp.status_code, _rm_detail(resp))
-    return resp.json()
+class ParseHtmlRequest(BaseModel):
+    html: str
+    url: str = ""
+    enable_llm: bool = False
 
-def _rm_detail(resp) -> str:
-    try:
-        return resp.json().get("detail") or resp.text[:300]
-    except ValueError:
-        return resp.text[:300]
-
-@app.post("/api/recipes/import", status_code=201)
-async def import_book_page(files: list[UploadFile], source: str = ""):
-    payloads = [("files", (f.filename or "page.jpg", await f.read(),
-                           f.content_type or "image/jpeg")) for f in files]
-    if not payloads:
-        raise HTTPException(400, "aucune image reçue")
-    return await _rm_request("POST", "/recipes/import/page",
-                             files=payloads, data={"source": source})
-
-@app.post("/api/recipes/parse-url")
-async def parse_recipe_url(data: dict):
-    """Extrait une recette d'une URL — rend la recette telle quelle, sans rien persister."""
-    url = (data.get("url") or "").strip()
-    if not url:
-        raise HTTPException(400, "url manquante")
-    return await _rm_request(
-        "POST", "/parse-url",
-        json={"url": url, "enable_llm": bool(data.get("enable_llm", False))},
+async def _parse_url(req: ParseUrlRequest):
+    recipe = await parse_recipe_url(
+        req.url,
+        enable_llm=req.enable_llm,
+        ollama_host=OLLAMA_URL,
+        llm_model=PARSER_LLM_MODEL,
+        flaresolverr_url=FLARESOLVERR_URL,
     )
+    if not recipe:
+        raise HTTPException(422, "Could not extract recipe from URL")
+    return recipe
+
+@app.post("/api/recipes/parse")
+async def parse_recipe_from_url(req: ParseUrlRequest):
+    """URL → recette extraite, rendue telle quelle, sans rien persister."""
+    return dataclasses.asdict(await _parse_url(req))
+
+@app.post("/api/recipes/parse-html")
+async def parse_recipe_from_html(req: ParseHtmlRequest):
+    """HTML déjà téléchargé → recette extraite. Forme de payload consommée par Waaker."""
+    recipe = await asyncio.to_thread(
+        parse_recipe_html,
+        req.html,
+        req.url or None,
+        enable_llm=req.enable_llm,
+        ollama_host=OLLAMA_URL,
+        llm_model=PARSER_LLM_MODEL,
+    )
+    if not recipe:
+        raise HTTPException(422, "Could not extract recipe from HTML")
+    return dataclasses.asdict(recipe)
+
+def _draft_row(row) -> dict:
+    d = dict(row)
+    if isinstance(d.get("draft"), str):
+        d["draft"] = json.loads(d["draft"])
+    _serialize_dates(d, ("created_at", "updated_at"))
+    return d
+
+async def _insert_draft(draft: dict, source: str | None, page_count: int) -> dict:
+    pool = await get_pool(DATABASE_DSN)
+    row = await pool.fetchrow(
+        """INSERT INTO import_draft (slug, title, source, draft, page_count)
+           VALUES ($1, $2, $3, $4, $5) RETURNING *""",
+        draft["slug"], draft["title"], source or None,
+        json.dumps(draft), page_count,
+    )
+    return _draft_row(row)
 
 @app.post("/api/recipes/import/url", status_code=201)
-async def import_recipe_url(data: dict):
+async def import_recipe_url(req: ParseUrlRequest):
     """URL → brouillon révisable, le même garde-fou que le livre photographié (SC-33)."""
-    url = (data.get("url") or "").strip()
-    if not url:
-        raise HTTPException(400, "url manquante")
-    return await _rm_request(
-        "POST", "/recipes/import/url",
-        json={"url": url, "enable_llm": bool(data.get("enable_llm", False))},
+    recipe = await _parse_url(req)
+    draft = url_to_draft(recipe)
+    if not draft["title"]:
+        raise HTTPException(422, "no title could be extracted from the URL")
+    return await _insert_draft(draft, req.url, 0)
+
+_IMPORT_TASKS: dict[str, dict] = {}
+_IMPORT_TASK_REFS: dict[str, asyncio.Task] = {}
+_IMPORT_TASKS_KEPT = 50
+_BUG_EXCEPTIONS = (NameError, AttributeError, TypeError, ImportError)
+
+def _forget_oldest_tasks() -> None:
+    while len(_IMPORT_TASKS) > _IMPORT_TASKS_KEPT:
+        oldest = next(iter(_IMPORT_TASKS))
+        if oldest in _IMPORT_TASK_REFS:
+            break
+        del _IMPORT_TASKS[oldest]
+
+async def _read_page_task(task_id: str, pages: list[tuple[bytes, str]], source: str) -> None:
+    try:
+        page = await book_import.read_page(pages)
+        draft = book_import.to_draft(page)
+        if not draft["title"]:
+            raise ValueError("no title could be read from the page")
+        row = await _insert_draft(draft, source, len(pages))
+        _IMPORT_TASKS[task_id] = {"status": "done", "draft": row, "detail": None}
+    except Exception as exc:
+        _IMPORT_TASKS[task_id] = {"status": "failed", "draft": None, "detail": str(exc)}
+        logger.warning("import page task %s failed: %s", task_id, exc)
+        if isinstance(exc, _BUG_EXCEPTIONS):
+            raise
+    finally:
+        _IMPORT_TASK_REFS.pop(task_id, None)
+
+@app.post("/api/recipes/import/page", status_code=202)
+async def import_book_page(files: list[UploadFile], source: str = Form("")):
+    """Photo(s) de page → tâche de lecture. La durée du décodage d'image n'est pas mesurée."""
+    pages = [(await f.read(), f.content_type or "image/jpeg") for f in files]
+    pages = [(raw, mime) for raw, mime in pages if raw]
+    if not pages:
+        raise HTTPException(400, "aucune image reçue")
+    task_id = uuid.uuid4().hex
+    _IMPORT_TASKS[task_id] = {"status": "running", "draft": None, "detail": None}
+    _forget_oldest_tasks()
+    _IMPORT_TASK_REFS[task_id] = asyncio.create_task(
+        _read_page_task(task_id, pages, source)
     )
+    return {"task_id": task_id, "status": "running"}
+
+@app.get("/api/recipes/import/tasks/{task_id}")
+async def get_import_task(task_id: str):
+    task = _IMPORT_TASKS.get(task_id)
+    if task is None:
+        raise HTTPException(404, "task not found")
+    return {"task_id": task_id, **task}
 
 @app.get("/api/recipes/import/drafts")
 async def list_import_drafts(status: str = "pending"):
-    return await _rm_request("GET", "/recipes/import/drafts",
-                             params={"status": status})
+    pool = await get_pool(DATABASE_DSN)
+    rows = await pool.fetch(
+        "SELECT * FROM import_draft WHERE status = $1 ORDER BY created_at DESC", status
+    )
+    return {"drafts": [_draft_row(r) for r in rows], "count": len(rows)}
 
 @app.get("/api/recipes/import/drafts/{draft_id}")
 async def get_import_draft(draft_id: int):
-    return await _rm_request("GET", f"/recipes/import/drafts/{draft_id}")
+    pool = await get_pool(DATABASE_DSN)
+    row = await pool.fetchrow("SELECT * FROM import_draft WHERE id = $1", draft_id)
+    if not row:
+        raise HTTPException(404, "draft not found")
+    return _draft_row(row)
 
 @app.patch("/api/recipes/import/drafts/{draft_id}")
 async def update_import_draft(draft_id: int, data: dict):
-    return await _rm_request("PATCH", f"/recipes/import/drafts/{draft_id}", json=data)
+    """Corrections humaines. Le brouillon reçu remplace le précédent."""
+    pool = await get_pool(DATABASE_DSN)
+    current = await pool.fetchrow("SELECT * FROM import_draft WHERE id = $1", draft_id)
+    if not current:
+        raise HTTPException(404, "draft not found")
+    if current["status"] != "pending":
+        raise HTTPException(409, f"draft already {current['status']}")
+
+    stored = json.loads(current["draft"]) if isinstance(current["draft"], str) else current["draft"]
+    draft = {**stored, **(data.get("draft") or data)}
+    if not (draft.get("title") or "").strip():
+        raise HTTPException(422, "un brouillon sans titre ne peut pas être enregistré")
+    draft["unparsed_count"] = sum(
+        1 for i in draft.get("ingredients", []) if not i.get("parsed")
+    )
+    row = await pool.fetchrow(
+        """UPDATE import_draft
+              SET draft = $2, title = $3, slug = $4, updated_at = NOW()
+            WHERE id = $1 RETURNING *""",
+        draft_id, json.dumps(draft), draft.get("title"), draft.get("slug"),
+    )
+    return _draft_row(row)
 
 @app.delete("/api/recipes/import/drafts/{draft_id}")
 async def discard_import_draft(draft_id: int):
-    return await _rm_request("DELETE", f"/recipes/import/drafts/{draft_id}")
+    pool = await get_pool(DATABASE_DSN)
+    result = await pool.execute(
+        "UPDATE import_draft SET status = 'discarded', updated_at = NOW() WHERE id = $1",
+        draft_id,
+    )
+    if result.endswith("0"):
+        raise HTTPException(404, "draft not found")
+    return {"status": "discarded", "id": draft_id}
 
 @app.post("/api/recipes/import/drafts/{draft_id}/commit")
 async def commit_import_draft(draft_id: int, overwrite: bool = False):
-    """Commit un brouillon via recipe-manager (qui écrit en DB directement depuis ADR 0022)."""
-    result = await _rm_request(
-        "POST", f"/recipes/import/drafts/{draft_id}/commit",
-        params={"overwrite": str(overwrite).lower()},
-    )
-    slug = result.get("slug")
+    """Brouillon validé → recette en DB (ADR 0022 — vault déconnecté)."""
     pool = await get_pool(DATABASE_DSN)
-    result["visible"] = bool(
-        await pool.fetchval("SELECT 1 FROM recipe WHERE slug = $1", slug)
+    row = await pool.fetchrow("SELECT * FROM import_draft WHERE id = $1", draft_id)
+    if not row:
+        raise HTTPException(404, "draft not found")
+    if row["status"] == "committed":
+        raise HTTPException(409, f"already committed as {row['committed_path']}")
+
+    draft = json.loads(row["draft"]) if isinstance(row["draft"], str) else row["draft"]
+    slug = draft.get("slug")
+    if not slug:
+        raise HTTPException(422, "draft has no slug")
+    if not (draft.get("title") or "").strip():
+        raise HTTPException(422, "draft has no title")
+
+    existing = await pool.fetchval("SELECT id FROM recipe WHERE slug = $1", slug)
+    if existing and not overwrite:
+        raise HTTPException(409, f"recipe '{slug}' already exists — pass overwrite=true")
+
+    body = book_import.to_markdown(draft, source=row["source"])
+    content = parse_recipe_body(body)
+
+    async with pool.acquire() as conn, conn.transaction():
+        if existing:
+            await conn.execute(
+                """UPDATE recipe SET title=$1, status='a-tester', recipe_type=$2,
+                   servings=$3, prep_time_min=$4, cook_time_min=$5,
+                   sources=$6, body=$7, updated=CURRENT_DATE, ingested_at=NOW()
+                   WHERE slug=$8""",
+                draft.get("title", slug), draft.get("recipe_type"),
+                draft.get("servings"), draft.get("prep_time_min"),
+                draft.get("cook_time_min"),
+                [row["source"]] if row["source"] else [],
+                body, slug,
+            )
+            recipe_id = existing
+        else:
+            recipe_id = await conn.fetchval(
+                """INSERT INTO recipe (slug, title, status, recipe_type, servings,
+                   prep_time_min, cook_time_min, sources, body, created, updated)
+                   VALUES ($1,$2,'a-tester',$3,$4,$5,$6,$7,$8,CURRENT_DATE,CURRENT_DATE)
+                   RETURNING id""",
+                slug, draft.get("title", slug), draft.get("recipe_type"),
+                draft.get("servings"), draft.get("prep_time_min"),
+                draft.get("cook_time_min"),
+                [row["source"]] if row["source"] else [],
+                body,
+            )
+
+        await conn.execute("DELETE FROM recipe_ingredient WHERE recipe_id = $1", recipe_id)
+        for ing in content.ingredients:
+            await conn.execute(
+                """INSERT INTO recipe_ingredient
+                   (recipe_id, position, raw, qty_min, qty_max, unit, name,
+                    name_normalized, is_optional, parsed)
+                   VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)""",
+                recipe_id, ing.position, ing.raw, ing.qty_min, ing.qty_max,
+                ing.unit, ing.name, ing.name_normalized, ing.is_optional, ing.parsed,
+            )
+
+        await conn.execute("DELETE FROM recipe_step WHERE recipe_id = $1", recipe_id)
+        for step in content.steps:
+            await conn.execute(
+                "INSERT INTO recipe_step (recipe_id, position, text) VALUES ($1,$2,$3)",
+                recipe_id, step.position, step.text,
+            )
+
+        await conn.execute(
+            """UPDATE import_draft
+                  SET status = 'committed', committed_path = $2, updated_at = NOW()
+                WHERE id = $1""",
+            draft_id, f"db:recipe:{slug}",
+        )
+
+    return {"status": "committed", "id": draft_id, "slug": slug, "via": "database",
+            "visible": bool(await pool.fetchval("SELECT 1 FROM recipe WHERE slug = $1", slug))}
+
+@app.post("/api/recipes/{slug}/generate-image")
+async def generate_recipe_image(slug: str, force: bool = False, inline: bool = False):
+    """Génère la photo de la recette sous « <slug>.jpg » ; `force` remplace une photo existante."""
+    pool = await get_pool(DATABASE_DSN)
+    row = await pool.fetchrow("SELECT id, title, photo_url FROM recipe WHERE slug = $1", slug)
+    if not row:
+        raise HTTPException(404, f"Recipe '{slug}' not found")
+
+    if row["photo_url"] and not force:
+        return {"slug": slug, "photo_url": row["photo_url"], "generated": False,
+                "reason": "already has a photo — pass force=true to replace it"}
+
+    ing_rows = await pool.fetch(
+        "SELECT name FROM recipe_ingredient WHERE recipe_id = $1 ORDER BY position LIMIT 5",
+        row["id"],
     )
+    ingredients = [r["name"] for r in ing_rows if r["name"]]
+
+    try:
+        jpeg = await images.generate(row["title"], ingredients)
+    except images.ImageGenerationError as exc:
+        raise HTTPException(502, str(exc)) from exc
+
+    path = images.write(slug, jpeg)
+    photo_url = f"/media/recipes/{slug}.jpg"
+    await pool.execute("UPDATE recipe SET photo_url = $1 WHERE slug = $2", photo_url, slug)
+    logger.info("Generated image for %s (%d bytes) -> %s", slug, len(jpeg), path)
+
+    result = {
+        "slug": slug,
+        "photo_url": photo_url,
+        "path": str(path),
+        "bytes": len(jpeg),
+        "generated": True,
+        "prompt_version": images.PROMPT_VERSION,
+    }
+    if inline:
+        result["image_base64"] = base64.b64encode(jpeg).decode("ascii")
     return result
 
 class FoodBody(BaseModel):

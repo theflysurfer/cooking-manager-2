@@ -307,7 +307,7 @@ class TestFoundingBug:
 
 
 class TestRealVault:
-    """Contrôle de volume contre le vrai fichier — le compte connu est 244"""
+    """Contrôle de volume du parser contre le vrai fichier."""
 
     def test_real_file_parses_completely(self):
         from pathlib import Path
@@ -367,8 +367,7 @@ class TestNonPurchaseExclusion:
 
 
 class TestPerItemFreshness:
-    """#84 — un frais vieux de 30 jours est périmé, même si un autre article
-    a été touché aujourd'hui (global is_stale = False)."""
+    """#84 — un frais périmé le reste même si un autre article vient d'être touché."""
 
     def test_old_perishable_is_unknown_even_when_global_is_fresh(self):
         today = date(2026, 9, 10)

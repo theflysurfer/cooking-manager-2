@@ -11,6 +11,10 @@ if [ -n "$CREDENTIALS_DIRECTORY" ]; then
     export GROQ_API_KEY=$(cat "$CREDENTIALS_DIRECTORY/groq-key")
   [ -f "$CREDENTIALS_DIRECTORY/cooking-leclerc-cookies" ] && \
     export LECLERC_COOKIES=$(cat "$CREDENTIALS_DIRECTORY/cooking-leclerc-cookies")
+  [ -f "$CREDENTIALS_DIRECTORY/recipe-manager-gemini-key" ] && \
+    export GEMINI_API_KEY=$(cat "$CREDENTIALS_DIRECTORY/recipe-manager-gemini-key")
+  [ -f "$CREDENTIALS_DIRECTORY/cooking-gemini-key" ] && \
+    export GEMINI_API_KEY=$(cat "$CREDENTIALS_DIRECTORY/cooking-gemini-key")
 fi
 
 exec /opt/cooking-manager-2/.venv/bin/python -m uvicorn backend.app:app --host 127.0.0.1 --port 8795

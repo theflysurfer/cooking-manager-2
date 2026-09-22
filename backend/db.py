@@ -3,9 +3,101 @@
 import asyncpg
 
 SCHEMA_SQL = """
--- recipe, recipe_ingredient, recipe_step, recipe_execution are owned by
--- recipe-manager (port 8796). CM2 reads/writes them as a colocataire but
--- does not create them. Requires: After=recipe-manager.service in systemd.
+CREATE TABLE IF NOT EXISTS recipe (
+    id          SERIAL PRIMARY KEY,
+    slug        TEXT UNIQUE NOT NULL,
+    title       TEXT NOT NULL,
+    status      TEXT NOT NULL DEFAULT 'draft',
+    recipe_type TEXT,
+    family      TEXT,
+    servings    INTEGER,
+    total_time_min INTEGER,
+    prep_time_min  INTEGER,
+    cook_time_min  INTEGER,
+    tags        TEXT[] DEFAULT '{}',
+    compatible_constraints TEXT[] DEFAULT '{}',
+    sources     TEXT[] DEFAULT '{}',
+    appreciated_by TEXT[] DEFAULT '{}',
+    applied_substitutions TEXT[] DEFAULT '{}',
+    mediterranean_criteria INTEGER[] DEFAULT '{}',
+    construction_regime TEXT,
+    execution_count INTEGER DEFAULT 0,
+    lieu_execution TEXT,
+    macros_kcal   NUMERIC,
+    macros_protein NUMERIC,
+    macros_carbs  NUMERIC,
+    macros_fat    NUMERIC,
+    protein_density NUMERIC,
+    photo_url   TEXT,
+    sub_recipes TEXT[] DEFAULT '{}',
+    body        TEXT,
+    created     DATE,
+    updated     DATE,
+    ingested_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS recipe_ingredient (
+    id          SERIAL PRIMARY KEY,
+    recipe_id   INTEGER NOT NULL REFERENCES recipe(id) ON DELETE CASCADE,
+    position    INTEGER NOT NULL,
+    raw         TEXT NOT NULL,
+    qty_min     NUMERIC,
+    qty_max     NUMERIC,
+    unit        TEXT,
+    name        TEXT NOT NULL,
+    name_normalized TEXT NOT NULL DEFAULT '',
+    is_optional BOOL NOT NULL DEFAULT FALSE,
+    parsed      BOOL NOT NULL DEFAULT FALSE,
+    UNIQUE (recipe_id, position)
+);
+
+CREATE TABLE IF NOT EXISTS recipe_step (
+    id          SERIAL PRIMARY KEY,
+    recipe_id   INTEGER NOT NULL REFERENCES recipe(id) ON DELETE CASCADE,
+    position    INTEGER NOT NULL,
+    text        TEXT NOT NULL,
+    UNIQUE (recipe_id, position)
+);
+
+CREATE TABLE IF NOT EXISTS recipe_execution (
+    id          SERIAL PRIMARY KEY,
+    recipe_id   INTEGER NOT NULL REFERENCES recipe(id) ON DELETE CASCADE,
+    date        DATE NOT NULL,
+    cooked_by   TEXT,
+    rating      INTEGER CHECK (rating >= 1 AND rating <= 5),
+    appreciated_by TEXT[] DEFAULT '{}',
+    appreciation_date DATE,
+    notes       TEXT,
+    created_at  TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Brouillon d'import : une page de livre lue, PAS ENCORE validée. La capture se
+-- fait debout, la relecture assis et plus tard ; sans persistance, l'import
+-- n'aboutit que si les deux gestes tiennent dans la même minute.
+CREATE TABLE IF NOT EXISTS import_draft (
+    id          SERIAL PRIMARY KEY,
+    slug        TEXT,
+    title       TEXT,
+    source      TEXT,
+    status      TEXT NOT NULL DEFAULT 'pending'
+                CHECK (status IN ('pending', 'committed', 'discarded')),
+    draft       JSONB NOT NULL,
+    page_count  INTEGER DEFAULT 0,
+    committed_path TEXT,
+    created_at  TIMESTAMPTZ DEFAULT NOW(),
+    updated_at  TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_recipe_slug ON recipe(slug);
+CREATE INDEX IF NOT EXISTS idx_recipe_status ON recipe(status);
+CREATE INDEX IF NOT EXISTS idx_recipe_family ON recipe(family);
+CREATE INDEX IF NOT EXISTS idx_recipe_tags ON recipe USING GIN(tags);
+CREATE INDEX IF NOT EXISTS idx_execution_recipe ON recipe_execution(recipe_id);
+CREATE INDEX IF NOT EXISTS idx_execution_date ON recipe_execution(date DESC);
+CREATE INDEX IF NOT EXISTS idx_ingredient_recipe ON recipe_ingredient(recipe_id);
+CREATE INDEX IF NOT EXISTS idx_ingredient_norm ON recipe_ingredient(name_normalized);
+CREATE INDEX IF NOT EXISTS idx_step_recipe ON recipe_step(recipe_id);
+CREATE INDEX IF NOT EXISTS idx_import_draft_status ON import_draft(status);
 
 CREATE TABLE IF NOT EXISTS menu (
     id          SERIAL PRIMARY KEY,
@@ -474,6 +566,26 @@ CREATE INDEX IF NOT EXISTS product_ean_idx ON product(ean);
 """
 
 MIGRATIONS_SQL = """
+ALTER TABLE recipe ADD COLUMN IF NOT EXISTS body TEXT;
+ALTER TABLE recipe ADD COLUMN IF NOT EXISTS sub_recipes TEXT[] DEFAULT '{}';
+ALTER TABLE recipe_execution ADD COLUMN IF NOT EXISTS appreciation_date DATE;
+
+-- `ALTER COLUMN ... USING` réécrit toute la table sous ACCESS EXCLUSIVE même quand
+-- le type est déjà le bon : sans ce garde, chaque redémarrage réécrivait `recipe`.
+DO $recipe_numeric$
+DECLARE col TEXT;
+BEGIN
+  FOREACH col IN ARRAY ARRAY['macros_kcal', 'macros_protein', 'macros_carbs',
+                             'macros_fat', 'protein_density'] LOOP
+    IF EXISTS (SELECT 1 FROM information_schema.columns
+                WHERE table_name = 'recipe' AND column_name = col
+                  AND data_type <> 'numeric') THEN
+      EXECUTE format('ALTER TABLE recipe ALTER COLUMN %I TYPE NUMERIC USING %I::numeric', col, col);
+    END IF;
+  END LOOP;
+END
+$recipe_numeric$;
+
 -- nature : un produit porte-t-il les macros d'UN aliment (`single`) ou les
 -- siennes propres (`composite`) ? Sans elle, `food_key` vide veut dire deux
 -- choses incompatibles — « aliment manquant au référentiel » et « n'en a pas ».

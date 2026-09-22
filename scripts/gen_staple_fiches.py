@@ -1,9 +1,4 @@
-"""Génère un lot de fiches aliments génériques (staples) dans le référentiel du vault.
-
-Valeurs pour 100 g, standard ANSES Ciqual / étiquette. statut: partiel (à confirmer).
-Un tuple = (dossier, slug, titre, kcal, P, G, L, source).
-Ne réécrit jamais une fiche déjà présente.
-"""
+"""Fiches aliments génériques (dossier, slug, titre, kcal, P, G, L, source) pour 100 g, sans écraser l'existant."""
 
 from pathlib import Path
 import os

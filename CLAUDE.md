@@ -34,8 +34,10 @@ python ~/.claude/skills/julien-audit-ios12-compat/scripts/audit_ios12.py web   #
 `convives` (compatibilité) `presence` (qui est à table) `pantry` (stock, différentiel)
 `nutrition` `substitutions`. `backend/` = FastAPI, schéma, writers DB, `stt.py`, `cooking_mcp.py`.
 `web/` = 3 fichiers statiques, zéro build. `data/ontology/` = source du vocabulaire.
-Déploiement : systemd `cooking-manager` (8795) + `cooking-mcp` (3868) sur srv759970 ; les
-tables recette appartiennent à **recipe-manager** (8796), CM2 est colocataire.
+`backend/url_parser/`, `images.py`, `book_import.py` = parsing web et import de livre, absorbés
+de recipe-manager (ADR 0031). Déploiement : systemd `cooking-manager` (8795) + `cooking-mcp`
+(3868) sur srv759970 ; CM2 est **propriétaire** des tables recette. Waaker appelle
+`POST /api/recipes/parse-html` sur 8795.
 
 ## DB fait foi (ADR 0010/0022)
 
