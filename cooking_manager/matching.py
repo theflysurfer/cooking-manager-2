@@ -2,10 +2,20 @@
 
 from __future__ import annotations
 
+
 from dataclasses import dataclass, field
 
 from .ingredients import normalize_name
 from .pantry import STOP_WORDS
+
+
+def food_link_counts(linked: int | None, total: int | None) -> dict:
+    """Rattachement a un aliment : `unlinked` se lit AVANT toute ligne (ADR 0032)."""
+    total = int(total or 0)
+    linked = int(linked or 0)
+    if linked > total:
+        raise ValueError(f"linked ({linked}) depasse total ({total})")
+    return {"linked": linked, "unlinked": total - linked, "total": total}
 
 WEIGHT_RATIO = 5.0
 PRICE_RATIO = 10.0

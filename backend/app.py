@@ -34,6 +34,7 @@ from cooking_manager.feedback import (
 )
 from cooking_manager.substitutions import VOCABULARY_VERSION, load_vocabulary
 from cooking_manager.ingredients import parse_recipe_body
+from cooking_manager.matching import food_link_counts
 
 from . import book_import, images
 from .config import DATABASE_DSN, OLLAMA_URL
@@ -771,6 +772,11 @@ async def get_pantry():
         meta = await conn.fetchrow(
             "SELECT MAX(updated_at) AS last_updated, COUNT(*) AS total FROM pantry_item"
         )
+        link = await conn.fetchrow(
+            """SELECT COUNT(*) FILTER (WHERE food_key IS NOT NULL) AS linked,
+                      COUNT(*) AS total
+                 FROM pantry_item"""
+        )
 
     last_updated = meta["last_updated"]
     age_days = None
@@ -801,6 +807,7 @@ async def get_pantry():
         "age_days": age_days,
         "is_stale": is_stale,
         "total": meta["total"],
+        "food_link": food_link_counts(link["linked"], link["total"]),
         "rayons": [{"name": k, "items": v} for k, v in rayons.items()],
     }
 
@@ -859,6 +866,13 @@ async def menu_shopping_list(
                                   "dish": row["dish"]})
             else:
                 matched.append((row, row["dish"]))
+
+        ingredient_link = await conn.fetchrow(
+            """SELECT COUNT(*) FILTER (WHERE food_key IS NOT NULL) AS linked,
+                      COUNT(*) AS total
+                 FROM recipe_ingredient WHERE recipe_id = ANY($1::int[])""",
+            [r["id"] for r, _ in matched],
+        )
 
         convives = await load_convives_from_db(conn)
 
@@ -971,6 +985,7 @@ async def menu_shopping_list(
         "purchase_counts": purchase_counts,
         "bans": [ban.as_dict() for ban in await _load_bans()],
         "slots_uncomposed": _slot_coverage(meal_days, composed, referential, household),
+        "food_link": food_link_counts(ingredient_link["linked"], ingredient_link["total"]),
         "lines": lines,
         "recurrent": await _recurrent_lines({ln["name_normalized"] for ln in lines}),
     }

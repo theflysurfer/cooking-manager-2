@@ -46,6 +46,7 @@ CREATE TABLE IF NOT EXISTS recipe_ingredient (
     unit        TEXT,
     name        TEXT NOT NULL,
     name_normalized TEXT NOT NULL DEFAULT '',
+    food_key    TEXT,
     is_optional BOOL NOT NULL DEFAULT FALSE,
     parsed      BOOL NOT NULL DEFAULT FALSE,
     UNIQUE (recipe_id, position)
@@ -162,6 +163,8 @@ CREATE TABLE IF NOT EXISTS shopping_session (
     total       REAL,
     items_count INTEGER,
     notes       TEXT,
+    status      TEXT NOT NULL DEFAULT 'cart'
+                CHECK (status IN ('cart', 'ordered', 'abandoned')),
     created_at  TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -226,6 +229,7 @@ CREATE TABLE IF NOT EXISTS pantry_item (
     perishable          BOOLEAN NOT NULL DEFAULT FALSE,
     entered_at          DATE,
     source              TEXT DEFAULT 'vault',
+    food_key            TEXT,
     shopping_product_id INTEGER REFERENCES shopping_product(id) ON DELETE SET NULL,
     notes               TEXT,
     created_at          TIMESTAMPTZ DEFAULT NOW(),
@@ -585,6 +589,44 @@ BEGIN
   END LOOP;
 END
 $recipe_numeric$;
+
+-- L'aliment est la seule cle d'appariement entre un achat, une ligne de stock et
+-- un ingredient de recette (ADR 0032). `ON DELETE SET NULL`, jamais CASCADE :
+-- supprimer un aliment ne doit effacer ni un stock ni un ingredient.
+ALTER TABLE pantry_item       ADD COLUMN IF NOT EXISTS food_key TEXT;
+ALTER TABLE recipe_ingredient ADD COLUMN IF NOT EXISTS food_key TEXT;
+
+DO $food_key_fk$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'pantry_item_food_key_fkey') THEN
+    ALTER TABLE pantry_item ADD CONSTRAINT pantry_item_food_key_fkey
+      FOREIGN KEY (food_key) REFERENCES food(key) ON DELETE SET NULL;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'recipe_ingredient_food_key_fkey') THEN
+    ALTER TABLE recipe_ingredient ADD CONSTRAINT recipe_ingredient_food_key_fkey
+      FOREIGN KEY (food_key) REFERENCES food(key) ON DELETE SET NULL;
+  END IF;
+END
+$food_key_fk$;
+
+CREATE INDEX IF NOT EXISTS pantry_item_food_idx       ON pantry_item(food_key);
+CREATE INDEX IF NOT EXISTS recipe_ingredient_food_idx ON recipe_ingredient(food_key);
+
+-- status : une session existait avant la colonne parce qu'une commande etait
+-- passee — son defaut retrospectif est donc `ordered`, celui des suivantes `cart`.
+ALTER TABLE shopping_session ADD COLUMN IF NOT EXISTS status TEXT;
+UPDATE shopping_session SET status = 'ordered' WHERE status IS NULL;
+ALTER TABLE shopping_session ALTER COLUMN status SET DEFAULT 'cart';
+ALTER TABLE shopping_session ALTER COLUMN status SET NOT NULL;
+
+DO $session_status$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'shopping_session_status_check') THEN
+    ALTER TABLE shopping_session ADD CONSTRAINT shopping_session_status_check
+      CHECK (status IN ('cart', 'ordered', 'abandoned'));
+  END IF;
+END
+$session_status$;
 
 -- nature : un produit porte-t-il les macros d'UN aliment (`single`) ou les
 -- siennes propres (`composite`) ? Sans elle, `food_key` vide veut dire deux
