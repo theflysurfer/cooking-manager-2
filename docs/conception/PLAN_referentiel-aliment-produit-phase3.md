@@ -4,7 +4,7 @@ axis: conception
 proof_level: plan
 upstream: [PLAN_referentiel-aliment-produit-phase2.md, SPEC_referentiel-aliment-produit.md]
 downstream: []
-status: à exécuter
+status: étapes 1 et 2 exécutées le 2026-09-22 ; étapes 3 à 5 à faire
 date: 2026-09-22
 adr: [0031, 0032]
 issues: [94, 101, 102, 109, 117, 118, 120]
@@ -51,7 +51,7 @@ même migration faite deux fois.
 
 ---
 
-## Étape 1 — Fusion de recipe-manager
+## Étape 1 — Fusion de recipe-manager ✅ 2026-09-22 (`af82dc8`)
 
 **Livrable** : un process, port 8795. `recipe-manager.service` arrêté, dépôt archivé.
 
@@ -81,7 +81,7 @@ routes portées depuis le VPS · un `POST /parse-html` émis depuis Waaker qui r
 
 ---
 
-## Étape 2 — La colonne d'aliment
+## Étape 2 — La colonne d'aliment ✅ 2026-09-22 (`6be377b`)
 
 **Livrable** : `food_key` sur `pantry_item` et `recipe_ingredient`, et un compteur de non-rattachés.
 
