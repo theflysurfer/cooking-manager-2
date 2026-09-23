@@ -77,26 +77,42 @@ def strip_brand(name: str, brand: str | None) -> str:
     return " ".join(remaining) if remaining else name
 
 
-def product_natures() -> tuple[str, ...]:
-    """Les natures de produit du vocabulaire épinglé — jamais une liste écrite ici."""
+def _facet_keys(facet: str) -> tuple[str, ...]:
+    """Les clés d'une facette du vocabulaire épinglé — jamais une liste écrite ici."""
     from .substitutions import load_vocabulary
 
-    return tuple(c["key"] for c in load_vocabulary().get("product_natures") or [])
+    return tuple(c["key"] for c in load_vocabulary().get(facet) or [])
 
 
-def clean_nature(value: object, origin: str = "") -> str | None:
-    """Une nature absente reste absente ; une nature inventée est refusée."""
+def _clean_against(value: object, facet: str, noun: str, origin: str) -> str | None:
+    """Une valeur absente reste absente ; une valeur inventée est refusée."""
     if value is None:
         return None
     text = str(value).strip().lower()
     if not text or text in ABSENT_VALUES:
         return None
-    allowed = product_natures()
+    allowed = _facet_keys(facet)
     if text not in allowed:
         raise ValueError(
-            f"{origin} : nature {text!r} inconnue du vocabulaire, attendu parmi {list(allowed)}."
+            f"{origin} : {noun} {text!r} inconnu(e) du vocabulaire, attendu parmi {list(allowed)}."
         )
     return text
+
+
+def product_natures() -> tuple[str, ...]:
+    return _facet_keys("product_natures")
+
+
+def food_kinds() -> tuple[str, ...]:
+    return _facet_keys("food_kinds")
+
+
+def clean_nature(value: object, origin: str = "") -> str | None:
+    return _clean_against(value, "product_natures", "nature", origin)
+
+
+def clean_kind(value: object, origin: str = "") -> str | None:
+    return _clean_against(value, "food_kinds", "famille d'aliment", origin)
 
 
 def link_food_key(product: Signals, nature: str | None,

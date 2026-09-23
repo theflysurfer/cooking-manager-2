@@ -26,6 +26,19 @@ class TestFormRows:
         base = base_from_form_rows([row])
         assert base["mystere"].forms["100g"].kcal is None
 
+    def test_the_index_key_drops_particles(self):
+        """« lait de coco » ne s'apparie qu'indexé sur « lait coco » — même règle que base_from_rows."""
+        base = base_from_form_rows([form_row("lait de coco", "100g", 176.0, "Lait de coco")])
+        assert list(base) == ["lait coco"]
+        assert base["lait coco"].key == "lait de coco"
+
+    def test_the_family_of_a_food_is_not_its_provenance(self):
+        """`food.kind` nomme une famille culinaire ; `FoodEntry.kind` classe une source."""
+        row = form_row("hareng fume doux", "100g", 220.0, "Hareng fumé doux")
+        row["kind"] = "oily-fish"
+        base = base_from_form_rows([row])
+        assert base["hareng fume doux"].kind == "generique"
+
 
 def food(key, name, kcal: float | None = 100.0, kind="generique", **kw):
     row = {"key": key, "name": name, "kind": kind,

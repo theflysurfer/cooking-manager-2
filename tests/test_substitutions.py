@@ -195,7 +195,7 @@ def test_toute_cle_citee_est_detectable():
 
 
 def test_le_vocabulaire_est_epingle():
-    assert VOCABULARY_VERSION == "0.8.0"
+    assert VOCABULARY_VERSION == "0.9.0"
 
 
 def test_le_bornage_dun_axe_atteint_lartefact():

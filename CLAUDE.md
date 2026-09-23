@@ -135,6 +135,9 @@ test**. Régénérer et propager : `julien-cooking-donnees` § 3.
 codées en dur, hors ontologie (#109) : un terme manquant fait mentir `rotate` et
 `meals_without_protein` en silence.
 
+⛔ **`food.kind` est un axe FERMÉ** (facette `food_kinds`, clés en anglais) : `POST`/`PUT
+/api/food` rend 422 hors vocabulaire. Une famille absente = PAS INSTRUIT, jamais « aucune ».
+
 ## Référentiel aliment & produit
 
 `food`, `food_form` et `product` s'écrivent par l'**API** ou en SQL, plus par le vault (#101).
@@ -164,6 +167,12 @@ recette est **invisible** à `match_entry` sans lever non plus (#117).
 
 Pièges : `/macros` lit `_load_food_base_from_db()` (pas de cache) ; `qty_min` est un `Decimal` ;
 `servings` vaut 1, 2 ou 4 selon la recette, donc deux `per_portion` ne se comparent pas (#116).
+
+⛔ **Deux routes refusent de conclure, et c'est leur réponse** (ADR 0033) :
+`/menus/{slug}/mediterranean` lit `measured` puis `out_of_reach` **avant** `criteria` — le
+critère 9 (eau, thé) n'a aucun aliment, son absence n'est jamais un manque ·
+`/menus/{slug}/nutrition` rend `verdict: null` et nomme ses manques dès qu'un ingrédient du
+jour n'est pas compté. `target_age_days` **se lit, il ne se juge pas** : aucun seuil.
 
 ## Commande vocale
 

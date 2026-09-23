@@ -132,6 +132,26 @@ def reconcile(kcal: float | None, protein: float | None,
         "gap_pct": round(gap * 100, 1),
     }
 
+TARGET_MACROS = ("kcal", "protein", "carbs", "fat")
+
+
+def against_target(totals: dict, target: dict) -> dict:
+    """Chaque macro face à sa fourchette. Une borne absente ne produit aucun verdict."""
+    out: dict[str, str] = {}
+    for macro in TARGET_MACROS:
+        low, high = target.get(f"{macro}_min"), target.get(f"{macro}_max")
+        value = totals.get(macro)
+        if value is None or (low is None and high is None):
+            continue
+        if low is not None and value < float(low):
+            out[macro] = "under"
+        elif high is not None and value > float(high):
+            out[macro] = "over"
+        else:
+            out[macro] = "in_range"
+    return out
+
+
 _NUM_RE = re.compile(r"(\d+(?:[.,]\d+)?)")
 
 _PARTICLES = frozenset({"de", "du", "des", "d", "l", "la", "le", "les",

@@ -1,4 +1,4 @@
-version: "0.8.0"
+version: "0.9.0"
 slug: cooking-vocabulary
 kind: cooking
 origin: >-
@@ -330,6 +330,29 @@ _scope:
       - "`food` contient déjà des préparations promues au rang d'aliment (`soupe pois casse industrielle`, `vinaigrette classique`, `sauce teriyaki`, `flan patissier`). La frontière single/composite traverse donc aussi le référentiel aliment, où rien ne la déclare."
       - "Un assaisonnement composé (pesto, pâte de curry, vinaigrette) est `composite` par construction, alors qu'on ne le mange pas comme un plat. La valeur dit « pas d'aliment parent », pas « c'est un plat »."
 
+  food_kinds:
+    applies_to: "Tout aliment du référentiel `food` — la famille culinaire dont il relève."
+    does_not_apply_to:
+      - "un `product` : il porte une marque et un conditionnement, sa famille est celle de son `food_key`"
+      - "une ligne d'ingrédient de recette : elle nomme un aliment, elle n'en est pas un"
+    absence_means: "PAS INSTRUIT — l'aliment n'a pas été classé. Jamais « ne relève d'aucune famille ». Mesuré le 2026-09-23 : 177 aliments sur 192 sans `kind`, donc l'absence est l'état DOMINANT du référentiel."
+    known_tensions:
+      - "`food.category` (rayon de courses) et `food.kind` (famille culinaire) se recouvrent sans se confondre : `feculents-legumineuses` réunit ce que `legume` et `whole-grain` séparent. C'est cette confusion qui rendait les critères 3 et 4 indérivables (ADR 0033)."
+      - "Les douze clés `active` sont celles RÉELLEMENT écrites en base au 2026-09-23, renommées en anglais dans la même migration. Les huit autres viennent de la note de cadrage du 2026-05-22 et n'ont encore qualifié aucun aliment — d'où leur `probation`."
+      - "`grain` et ses deux raffinements (`whole-grain`, `refined-grain`) coexistent : les trois aliments déjà classés `grain` n'ont pas été rejugés. Un aliment resté `grain` ne satisfait AUCUN critère — ce n'est pas un défaut de l'axe, c'est une qualification qui manque."
+
+  mediterranean_criteria:
+    applies_to: "Une journée ou une semaine de menu dont les ingrédients sont rattachés à un aliment (`recipe_ingredient.food_key`)."
+    does_not_apply_to:
+      - "un repas `leftovers` : il n'a pas de fiche, donc aucun ingrédient à confronter (#76)"
+      - "un repas hors domicile : personne n'a choisi les ingrédients"
+      - "les autres convives — le cadre vise le seul profil de Julien (note du 2026-05-22)"
+    absence_means: "PAS MESURABLE — aucun ingrédient rattaché. Jamais « critère non tenu » : mesuré le 2026-09-23, le rattachement vaut 0 ligne sur 1169, donc un score dérivé aujourd'hui vaudrait zéro partout sans rien dire."
+    known_tensions:
+      - "Le critère 9 (eau + thé vert) ne déclare aucun `food_kind` : rien dans une recette ne porte l'eau bue dans la journée. Il se lit HORS DE PORTÉE, jamais « non tenu » — sinon il fait baisser un score qu'aucun geste ne peut relever."
+      - "Les seuils du cadre (« ≥ 3 portions », « ≥ 1 c. à soupe ») ne sont pas portés ici : une portion n'est pas dérivable de la base tant que `person` n'a pas de profil nutritionnel (#78). L'axe dit QUELS aliments comptent, pas COMBIEN il en faut."
+      - "`recipe.mediterranean_criteria` (`INTEGER[]`) porte trois annotations manuelles antérieures. `code` en donne la lecture, mais la dérivation ne les consomme pas : elles témoignent d'un geste abandonné."
+
 appreciations:
   - key: loved
     label: "Adoré"
@@ -641,3 +664,158 @@ effort_bands:
     definition: "Façonnage, montage ou repos : le plat se construit en plusieurs temps."
     applicable_when: "Le plat demande de façonner, farcir, monter, ou de respecter un repos entre deux étapes."
     synonyms: ["façonner", "former des boulettes", "farcir", "monter", "laisser reposer", "pétrir", "abaisser", "rouler"]
+
+# ============================================================================
+# food_kinds — la famille culinaire d'un aliment (ADR 0033)
+# ============================================================================
+# `active` = la clé qualifie DÉJÀ un aliment en base (mesuré le 2026-09-23, les
+# douze valeurs présentes, renommées en anglais dans la même migration).
+# `probation` = la clé vient de la note de cadrage du 2026-05-22 et n'a encore
+# qualifié aucun aliment. Elle existe parce qu'un critère méditerranéen la cite.
+
+food_kinds:
+  - key: butter
+    label: "Beurre"
+    status: active
+    definition: "Matière grasse laitière."
+  - key: biscuit
+    label: "Biscuit"
+    status: active
+    definition: "Produit sucré sec de l'épicerie."
+  - key: grain
+    label: "Céréale"
+    status: active
+    definition: "Céréale dont le degré de raffinage n'a pas été tranché."
+  - key: cured-meat
+    label: "Charcuterie"
+    status: active
+    definition: "Viande salée, fumée ou séchée."
+  - key: flour
+    label: "Farine"
+    status: active
+    definition: "Céréale ou légumineuse moulue."
+  - key: cheese
+    label: "Fromage"
+    status: active
+    definition: "Laitage affiné ou frais vendu comme fromage."
+  - key: dairy
+    label: "Laitage"
+    status: active
+    definition: "Lait et produits laitiers hors fromage."
+  - key: legume
+    label: "Légumineuse"
+    status: active
+    definition: "Lentille, pois chiche, haricot, fève."
+  - key: nut
+    label: "Oléagineux"
+    status: active
+    definition: "Fruit à coque et graine oléagineuse."
+  - key: bread
+    label: "Pain"
+    status: active
+    definition: "Pain et panification."
+  - key: breading
+    label: "Panure"
+    status: active
+    definition: "Chapelure et enrobage de friture."
+  - key: fish
+    label: "Poisson"
+    status: active
+    definition: "Poisson dont la teneur en lipides n'a pas été tranchée."
+  - key: vegetable
+    label: "Légume"
+    status: probation
+    definition: "Légume frais, surgelé ou en conserve."
+  - key: fruit
+    label: "Fruit"
+    status: probation
+    definition: "Fruit frais entier, hors jus."
+  - key: whole-grain
+    label: "Céréale complète"
+    status: probation
+    definition: "Céréale dont le son et le germe sont conservés."
+  - key: refined-grain
+    label: "Céréale raffinée"
+    status: probation
+    definition: "Céréale blutée, son et germe retirés."
+  - key: oily-fish
+    label: "Poisson gras"
+    status: probation
+    definition: "Poisson riche en oméga-3 : sardine, maquereau, saumon, hareng, truite."
+  - key: lean-fish
+    label: "Poisson maigre"
+    status: probation
+    definition: "Poisson pauvre en lipides : cabillaud, lieu, merlan, sole."
+  - key: olive-oil
+    label: "Huile d'olive"
+    status: probation
+    definition: "Huile d'olive, vierge ou raffinée."
+  - key: other-oil
+    label: "Autre huile"
+    status: probation
+    definition: "Huile végétale qui n'est pas d'olive."
+
+# ============================================================================
+# mediterranean_criteria — les 9 critères de la note du 2026-05-22 (ADR 0033)
+# ============================================================================
+# `code` porte le numéro du critère dans la note, seule lecture possible des
+# trois annotations `recipe.mediterranean_criteria` antérieures.
+# `satisfied_by` porte les `food_kinds` qui satisfont le critère : la couverture
+# se DÉRIVE de l'aliment, jamais d'une saisie à la main.
+# Un critère sans `satisfied_by` est HORS DE PORTÉE et doit dire pourquoi.
+
+mediterranean_criteria:
+  - key: vegetables
+    label: "Légumes"
+    status: probation
+    code: "1"
+    definition: "Au moins 3 portions par jour, dont une crue."
+    satisfied_by: ["vegetable"]
+  - key: fruits
+    label: "Fruits"
+    status: probation
+    code: "2"
+    definition: "Au moins 2 portions par jour, entiers, jamais en jus."
+    satisfied_by: ["fruit"]
+  - key: legumes
+    label: "Légumineuses"
+    status: probation
+    code: "3"
+    definition: "Au moins une portion par jour."
+    satisfied_by: ["legume"]
+  - key: whole-grains
+    label: "Céréales complètes"
+    status: probation
+    code: "4"
+    definition: "Au moins une portion par jour, hors riz."
+    satisfied_by: ["whole-grain"]
+  - key: oily-fish
+    label: "Poisson gras"
+    status: probation
+    code: "5"
+    definition: "Au moins deux fois par semaine."
+    satisfied_by: ["oily-fish"]
+  - key: olive-oil
+    label: "Huile d'olive"
+    status: probation
+    code: "6"
+    definition: "Au moins une cuillère à soupe par jour, extra-vierge de préférence."
+    satisfied_by: ["olive-oil"]
+  - key: dairy
+    label: "Produits laitiers"
+    status: probation
+    code: "7"
+    definition: "Au moins une portion par jour, jamais 0 % de matière grasse."
+    satisfied_by: ["dairy", "cheese"]
+  - key: nuts
+    label: "Fruits secs et noix"
+    status: probation
+    code: "8"
+    definition: "Environ une poignée par jour."
+    satisfied_by: ["nut"]
+  - key: water-and-tea
+    label: "Eau et thé vert"
+    status: probation
+    code: "9"
+    definition: "Six à huit verres d'eau et au moins une infusion par jour."
+    applicable_when: "Hors de portée : aucun ingrédient de recette ne porte la boisson d'une journée. Se lit HORS DE PORTÉE, jamais « non tenu »."

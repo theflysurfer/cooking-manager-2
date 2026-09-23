@@ -266,6 +266,8 @@ class RecipeWrite(BaseModel):
     slug: str | None = None
     body: str = ""
 
+RECIPE_STATUSES = ("draft", "to_test", "active", "validated")
+
 async def _persist_recipe(payload: dict, slug_override: str | None) -> dict:
     from cooking_manager.normalizer import normalize_recipe, slugify
 
@@ -276,6 +278,10 @@ async def _persist_recipe(payload: dict, slug_override: str | None) -> dict:
     if not raw.get("slug"):
         raw["slug"] = slugify(raw.get("title", ""))
     normalized, warns = normalize_recipe(raw)
+    status = normalized.get("status")
+    if status is not None and status not in RECIPE_STATUSES:
+        raise HTTPException(
+            422, f"statut {status!r} inconnu, attendu parmi {list(RECIPE_STATUSES)}")
     pool = await get_pool(DATABASE_DSN)
     async with pool.acquire() as conn:
         w, pi, ur, ps = await write_recipe(conn, normalized)
@@ -1015,6 +1021,168 @@ async def _recurrent_lines(covered: set[str]) -> list[dict]:
                 WHERE active = TRUE AND pref_type = 'recurrent' ORDER BY key"""
         )
     return recurrent_products(rows, covered)
+
+@app.get("/api/menus/{slug}/mediterranean")
+async def menu_mediterranean(slug: str):
+    """Couverture du cadre méditerranéen, DÉRIVÉE de `food.kind` — ADR 0033."""
+    from cooking_manager.mediterranean import cover
+
+    pool = await get_pool(DATABASE_DSN)
+    async with pool.acquire() as conn:
+        menu = await conn.fetchrow(
+            "SELECT id, slug, title FROM menu WHERE slug = $1", slug)
+        if not menu:
+            raise HTTPException(404, f"Menu introuvable : {slug}")
+        dated = await conn.fetchval(
+            "SELECT count(*) FROM menu_meal WHERE menu_id = $1 AND day IS NOT NULL",
+            menu["id"])
+        link = await conn.fetchrow(
+            """SELECT COUNT(*) FILTER (WHERE ri.food_key IS NOT NULL) AS linked,
+                      COUNT(*) AS total
+                 FROM menu_meal mm
+                 JOIN recipe_ingredient ri ON ri.recipe_id = mm.recipe_id
+                WHERE mm.menu_id = $1""", menu["id"])
+        rows = await conn.fetch(
+            """SELECT mm.day, f.kind
+                 FROM menu_meal mm
+                 JOIN recipe_ingredient ri ON ri.recipe_id = mm.recipe_id
+                 JOIN food f ON f.key = ri.food_key
+                WHERE mm.menu_id = $1 AND mm.day IS NOT NULL
+                  AND f.kind IS NOT NULL""", menu["id"])
+
+    kinds_by_day: dict[str, set[str]] = {}
+    for row in rows:
+        kinds_by_day.setdefault(row["day"].isoformat(), set()).add(row["kind"])
+
+    food_link = food_link_counts(link["linked"], link["total"])
+    read = cover(kinds_by_day)
+    measured = bool(kinds_by_day)
+    return {
+        "slug": menu["slug"], "title": menu["title"],
+        "measured": measured,
+        "reason": "" if measured else _mediterranean_wall(dated, food_link),
+        "food_link": food_link,
+        "out_of_reach": read["out_of_reach"],
+        "criteria": read["criteria"] if measured else [],
+        "days": read["days"] if measured else [],
+    }
+
+def _mediterranean_wall(dated: int, food_link: dict) -> str:
+    """Le mur exact sur lequel la dérivation s'est arrêtée — jamais « critère non tenu »."""
+    if not dated:
+        return "aucun repas daté : la couverture n'a pas de journée où se mesurer"
+    if not food_link["linked"]:
+        return (f"aucun ingrédient rattaché à un aliment ({food_link['linked']} "
+                f"sur {food_link['total']}) : la couverture ne se dérive de rien")
+    return (f"{food_link['linked']} ingrédient(s) rattaché(s), mais aucun aliment "
+            "ne porte de famille (`food.kind`)")
+
+@app.get("/api/menus/{slug}/nutrition")
+async def menu_nutrition(slug: str):
+    """Le menu face à la cible macros. Ne conclut PAS tant qu'un ingrédient manque — ADR 0033."""
+    from cooking_manager import nutrition as nut
+
+    pool = await get_pool(DATABASE_DSN)
+    async with pool.acquire() as conn:
+        menu = await conn.fetchrow(
+            "SELECT id, slug, title FROM menu WHERE slug = $1", slug)
+        if not menu:
+            raise HTTPException(404, f"Menu introuvable : {slug}")
+        target_row = await conn.fetchrow(
+            """SELECT t.*, COALESCE(p.name, '') AS person,
+                      (CURRENT_DATE - t.since) AS age_days
+                 FROM nutrition_target t
+                 LEFT JOIN person p ON p.id = t.person_id
+                ORDER BY t.id LIMIT 1""")
+        meals = await conn.fetch(
+            """SELECT mm.day, mm.slot, mm.dish, mm.match_kind,
+                      r.id AS recipe_id, r.servings
+                 FROM menu_meal mm
+                 LEFT JOIN recipe r ON r.id = mm.recipe_id
+                WHERE mm.menu_id = $1 AND mm.day IS NOT NULL
+                ORDER BY mm.day, mm.position""", menu["id"])
+        ingredients = await conn.fetch(
+            """SELECT DISTINCT ri.recipe_id, ri.position, ri.raw, ri.name,
+                      ri.name_normalized, ri.qty_min, ri.unit, ri.is_optional
+                 FROM menu_meal mm
+                 JOIN recipe_ingredient ri ON ri.recipe_id = mm.recipe_id
+                WHERE mm.menu_id = $1
+                ORDER BY ri.recipe_id, ri.position""", menu["id"])
+
+    by_recipe: dict[int, list[dict]] = {}
+    for row in ingredients:
+        by_recipe.setdefault(row["recipe_id"], []).append(dict(row))
+
+    target = _nutrition_target(target_row)
+    base = await _load_food_base_from_db()
+    computed: dict[int, nut.RecipeMacros] = {}
+    days: dict[str, dict] = {}
+    for meal in meals:
+        day = days.setdefault(meal["day"].isoformat(), {
+            "day": meal["day"].isoformat(), "meals": 0, "counted": 0,
+            "kcal": 0.0, "protein": 0.0, "carbs": 0.0, "fat": 0.0, "missing": []})
+        day["meals"] += 1
+        if meal["recipe_id"] is None:
+            day["missing"].append({
+                "slot": meal["slot"], "dish": meal["dish"],
+                "reason": ("repas de restes, sans fiche" if meal["match_kind"] == "leftovers"
+                           else "aucune fiche rattachée")})
+            continue
+        result = computed.get(meal["recipe_id"])
+        if result is None:
+            result = nut.recipe_macros(by_recipe.get(meal["recipe_id"], []), base)
+            computed[meal["recipe_id"]] = result
+        servings = meal["servings"] or 1
+        for macro in nut.TARGET_MACROS:
+            day[macro] += getattr(result, macro) / servings
+        day["counted"] += 1
+        day["missing"] += [
+            {"slot": meal["slot"], "dish": meal["dish"],
+             "ingredient": item.name, "reason": item.reason}
+            for item in result.unresolved
+        ]
+
+    payload = []
+    for day in days.values():
+        totals = {macro: round(day[macro], 1) for macro in nut.TARGET_MACROS}
+        verdict = (nut.against_target(totals, target)
+                   if target is not None and not day["missing"] else None)
+        payload.append({**day, **totals, "verdict": verdict})
+
+    in_range = [d for d in payload
+                if d["verdict"] and set(d["verdict"].values()) == {"in_range"}]
+    conclusive = bool(payload) and all(d["verdict"] for d in payload)
+    return {
+        "slug": menu["slug"], "title": menu["title"],
+        "reading": "une part de chaque repas ; `servings` n'est pas homogène d'une fiche à l'autre (#116)",
+        "target": target,
+        "verdict": ({"days_in_range": len(in_range), "days_total": len(payload)}
+                    if conclusive else None),
+        "reason": "" if conclusive else _nutrition_wall(target, payload),
+        "days": payload,
+    }
+
+def _nutrition_target(row) -> dict | None:
+    """La cible telle qu'elle est écrite. `age_days` se lit, il ne se juge pas."""
+    if row is None:
+        return None
+    target = {f"{macro}_{bound}": (None if row[f"{macro}_{bound}"] is None
+                                  else float(row[f"{macro}_{bound}"]))
+              for macro in ("kcal", "protein", "carbs", "fat")
+              for bound in ("min", "max")}
+    target.update(person=row["person"], source=row["source"],
+                  since=row["since"].isoformat(), age_days=row["age_days"])
+    return target
+
+def _nutrition_wall(target: dict | None, days: list[dict]) -> str:
+    """Pourquoi la lecture ne conclut pas — nommé, jamais un verdict de repli."""
+    if target is None:
+        return "aucune cible en base : il n'y a rien à confronter"
+    if not days:
+        return "aucun repas daté : la journée n'a pas de contenu à compter"
+    blocked = sum(len(d["missing"]) for d in days)
+    return (f"{blocked} manque(s) sur {len(days)} journée(s) : un ingrédient non compté "
+            "rendrait la somme plus basse qu'elle n'est")
 
 class PantryUpdate(BaseModel):
     """Un des 4 gestes du différentiel garde-manger."""
@@ -3478,6 +3646,15 @@ async def list_food(q: str | None = None, limit: int = 200):
     return {"count": len(rows), "foods": [dict(r) for r in rows]}
 
 
+def _food_kind(value: object, origin: str) -> str | None:
+    """`food.kind` est un axe fermé du vocabulaire — une famille inventée est refusée (ADR 0033)."""
+    from cooking_manager.matching import clean_kind
+
+    try:
+        return clean_kind(value, origin)
+    except ValueError as e:
+        raise HTTPException(422, str(e)) from None
+
 @app.post("/api/food", status_code=201)
 async def create_food(body: FoodBody):
     from cooking_manager.ingredients import normalize_name
@@ -3485,6 +3662,7 @@ async def create_food(body: FoodBody):
     key = body.key or normalize_name(body.name)
     if not key:
         raise HTTPException(400, "Clé vide après normalisation")
+    kind = _food_kind(body.kind, f"food/{key}")
     pool = await get_pool(DATABASE_DSN)
     async with pool.acquire() as conn:
         if await conn.fetchval("SELECT 1 FROM food WHERE key = $1", key):
@@ -3493,7 +3671,7 @@ async def create_food(body: FoodBody):
             """INSERT INTO food (key, name, category, kind, ciqual_code,
                                  conservation, source)
                VALUES ($1,$2,$3,$4,$5,$6,$7)""",
-            key, body.name, body.category, body.kind, body.ciqual_code,
+            key, body.name, body.category, kind, body.ciqual_code,
             body.conservation, body.source or "api")
     return {"key": key, "name": body.name, "forms": []}
 
@@ -3512,6 +3690,7 @@ async def get_food(key: str):
 
 @app.put("/api/food/{key}")
 async def update_food(key: str, body: FoodBody):
+    kind = _food_kind(body.kind, f"food/{key}")
     pool = await get_pool(DATABASE_DSN)
     async with pool.acquire() as conn:
         await _food_or_404(conn, key)
@@ -3519,7 +3698,7 @@ async def update_food(key: str, body: FoodBody):
             """UPDATE food SET name=$2, category=$3, kind=$4, ciqual_code=$5,
                                conservation=$6, source=COALESCE($7, source)
                 WHERE key=$1""",
-            key, body.name, body.category, body.kind, body.ciqual_code,
+            key, body.name, body.category, kind, body.ciqual_code,
             body.conservation, body.source)
         forms = await _forms_of(conn, key)
     return {"key": key, "name": body.name, "forms": forms, "updated": True}

@@ -8,24 +8,23 @@ MACRO_FIELDS = ("kcal", "protein", "carbs", "fat")
 
 
 def base_from_form_rows(rows: list[dict]) -> dict[str, FoodEntry]:
-    """Jointure food x food_form -> index par cle d'aliment, une entree par aliment."""
-    index: dict[str, FoodEntry] = {}
+    """Jointure food x food_form -> index par cle d'appariement, une entree par aliment."""
+    by_food: dict[str, FoodEntry] = {}
     for row in rows:
         key = str(row.get("key") or "")
         if not key:
             continue
-        entry = index.get(key)
+        entry = by_food.get(key)
         if entry is None:
             entry = FoodEntry(
                 key=key, title=str(row.get("name") or key), forms={},
-                source=str(row.get("source") or ""),
-                kind=str(row.get("kind") or "generique"),
+                source=str(row.get("source") or ""), kind="generique",
             )
-            index[key] = entry
+            by_food[key] = entry
         entry.forms[str(row.get("label") or "100g")] = Macros(
             **{f: _number(row.get(f)) for f in MACRO_FIELDS}
         )
-    return index
+    return {match_key(entry.key) or entry.key: entry for entry in by_food.values()}
 
 
 def base_from_rows(foods: list[dict], products: list[dict]) -> dict[str, FoodEntry]:

@@ -567,6 +567,27 @@ CREATE TABLE IF NOT EXISTS product (
 
 CREATE INDEX IF NOT EXISTS product_food_idx ON product(food_key);
 CREATE INDEX IF NOT EXISTS product_ean_idx ON product(ean);
+
+-- nutrition_target : les cibles macros d'une JOURNÉE TYPE, telles que la source les
+-- énonce. `source` et `since` disent d'où elles viennent et depuis quand ; l'âge se
+-- lit, il ne se juge pas (aucun seuil de péremption). Pas de colonne `day_kind` :
+-- la source retenue ne décrit qu'une journée. ADR 0033.
+CREATE TABLE IF NOT EXISTS nutrition_target (
+    id           SERIAL PRIMARY KEY,
+    person_id    INTEGER REFERENCES person(id) ON DELETE CASCADE,
+    kcal_min     NUMERIC,
+    kcal_max     NUMERIC,
+    protein_min  NUMERIC,
+    protein_max  NUMERIC,
+    carbs_min    NUMERIC,
+    carbs_max    NUMERIC,
+    fat_min      NUMERIC,
+    fat_max      NUMERIC,
+    source       TEXT NOT NULL,
+    since        DATE NOT NULL,
+    created_at   TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE (person_id)
+);
 """
 
 MIGRATIONS_SQL = """
@@ -861,6 +882,66 @@ EXCEPTION
     WHEN undefined_column THEN NULL;
 END $food_form_mig$;
 ALTER TABLE food DROP COLUMN IF EXISTS macros_per_100g;
+
+-- ═══════════════════════════════════════════════════════════════════════
+-- Cadre méditerranéen : food.kind devient un axe fermé — ADR 0033
+-- ═══════════════════════════════════════════════════════════════════════
+-- Les douze familles écrites au fil de l'eau passent en anglais, comme tout
+-- identifiant. Renommer sans migrer ferait mentir `satisfied_by`, qui cite les
+-- clés du vocabulaire : la couverture lirait zéro partout sans rien dire.
+UPDATE food SET kind = CASE kind
+    WHEN 'beurre'      THEN 'butter'
+    WHEN 'cereale'     THEN 'grain'
+    WHEN 'charcuterie' THEN 'cured-meat'
+    WHEN 'farine'      THEN 'flour'
+    WHEN 'fromage'     THEN 'cheese'
+    WHEN 'laitage'     THEN 'dairy'
+    WHEN 'legumineuse' THEN 'legume'
+    WHEN 'oleagineux'  THEN 'nut'
+    WHEN 'pain'        THEN 'bread'
+    WHEN 'panure'      THEN 'breading'
+    WHEN 'poisson'     THEN 'fish'
+    ELSE kind
+  END
+ WHERE kind IN ('beurre', 'cereale', 'charcuterie', 'farine', 'fromage', 'laitage',
+                'legumineuse', 'oleagineux', 'pain', 'panure', 'poisson');
+
+-- Les sept aliments sans rayon, qualifiés le 2026-09-23. `WHERE category IS NULL`
+-- pour qu'une correction ultérieure survive au redémarrage suivant.
+UPDATE food SET category = 'legumes'
+ WHERE key = 'courge butternut' AND category IS NULL;
+UPDATE food SET category = 'matieres-grasses'
+ WHERE key = 'lait de coco' AND category IS NULL;
+UPDATE food SET category = 'feculents-legumineuses'
+ WHERE key IN ('mais', 'pois chiche boite', 'riz complet') AND category IS NULL;
+UPDATE food SET category = 'oeufs-laitages'
+ WHERE key = 'poudre lait ecreme' AND category IS NULL;
+
+-- ═══════════════════════════════════════════════════════════════════════
+-- recipe.status : quatre valeurs, et plus une de plus — ADR 0034
+-- ═══════════════════════════════════════════════════════════════════════
+-- `valide` et `consommee` sont deux synonymes silencieux de `validated`, écrits
+-- parce que la colonne était un TEXT libre. Le CHECK vient APRÈS la migration :
+-- posé avant, il refuserait les lignes qu'il doit d'abord corriger.
+UPDATE recipe SET status = 'validated' WHERE status IN ('valide', 'consommee');
+
+DO $recipe_status$
+BEGIN
+    ALTER TABLE recipe ADD CONSTRAINT recipe_status_check
+        CHECK (status IN ('draft', 'to_test', 'active', 'validated'));
+EXCEPTION
+    WHEN duplicate_object THEN NULL;
+END $recipe_status$;
+
+-- La cible de Julien : les chiffres de la note du Coach Nutrition du 2026-05-22,
+-- maintenus par Julien après la révision v2.10.33 du 2026-07-17. Une seule ligne.
+INSERT INTO nutrition_target (person_id, kcal_min, kcal_max, protein_min, protein_max,
+                              carbs_min, carbs_max, fat_min, fat_max, source, since)
+SELECT p.id, 1800, 1900, 180, 200, 105, 140, 80, 90,
+       'Coach Nutrition — note de cadrage du 2026-05-22', DATE '2026-05-22'
+  FROM person p
+ WHERE p.name = 'Julien' AND p.circle = 'household'
+   AND NOT EXISTS (SELECT 1 FROM nutrition_target t WHERE t.person_id = p.id);
 """
 
 _pool: asyncpg.Pool | None = None
