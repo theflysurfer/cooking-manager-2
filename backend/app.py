@@ -1969,8 +1969,31 @@ async def validate_cart(body: CartValidation):
         if (ban := find_ban(item.product, bans, auchan_id=item.auchan_id,
                             brand=item.brand)) is not None
     ]
-    return {"ok": not violations, "checked": len(body.items),
-            "violations": violations, "bans_active": len(bans)}
+    unarbitrated = await _unarbitrated_lines([item.product for item in body.items])
+    return {"ok": not violations and not unarbitrated, "checked": len(body.items),
+            "violations": violations, "bans_active": len(bans),
+            "unarbitrated": unarbitrated}
+
+async def _unarbitrated_lines(products: list[str]) -> list[dict]:
+    """L'arbitrage précède l'entrée : une ligne jamais tranchée bloque le panier (ADR 0032)."""
+    from cooking_manager.ingredients import normalize_name
+
+    wanted = {normalize_name(p): p for p in products if normalize_name(p)}
+    if not wanted:
+        return []
+    pool = await get_pool(DATABASE_DSN)
+    async with pool.acquire() as conn:
+        settled = {r["ref"] for r in await conn.fetch(
+            """SELECT ref FROM arbitration
+                WHERE subject = 'food_key' AND status = 'settled' AND ref = ANY($1::text[])""",
+            list(wanted))}
+        recurrent = {normalize_name(r["key"]) for r in await conn.fetch(
+            """SELECT key FROM shopping_preference
+                WHERE active = TRUE AND pref_type = 'recurrent'""")}
+    return [{"product": label, "name_normalized": ref,
+             "reason": "jamais confrontée au référentiel aliment"}
+            for ref, label in sorted(wanted.items())
+            if ref not in settled and ref not in recurrent]
 
 @app.get("/api/shopping/preferences")
 async def list_shopping_preferences():
@@ -3753,6 +3776,222 @@ async def delete_food_form(key: str, label: str):
     if deleted is None:
         raise HTTPException(404, f"Forme introuvable : {key} / {label}")
     return {"deleted": {"food_key": key, "label": label}}
+
+
+ARBITRATION_SCOPE = {"food_key": "label", "food_kind": "food"}
+
+
+class ArbitrationDecision(BaseModel):
+    subject: str
+    ref: str
+    decision: str | None = None
+
+
+class ArbitrationBatch(BaseModel):
+    decided_by: str = "claude-code"
+    decisions: list[ArbitrationDecision]
+
+
+def _arbitration_subject(subject: str) -> str:
+    scope = ARBITRATION_SCOPE.get(subject)
+    if scope is None:
+        raise HTTPException(422, f"Sujet inconnu : {subject!r}, attendu parmi "
+                                 f"{sorted(ARBITRATION_SCOPE)}")
+    return scope
+
+
+async def _settled_refs(conn, subject: str) -> set[str]:
+    rows = await conn.fetch(
+        "SELECT ref FROM arbitration WHERE subject = $1 AND status = 'settled'", subject)
+    return {r["ref"] for r in rows}
+
+
+async def _queue(conn, subject: str, ref: str, label: str, proposal, rows: int) -> None:
+    await conn.execute(
+        """INSERT INTO arbitration (subject, scope, ref, label, candidates, reason)
+           VALUES ($1, $2, $3, $4, $5::jsonb, $6)
+           ON CONFLICT (subject, scope, ref) DO UPDATE
+              SET label = EXCLUDED.label, candidates = EXCLUDED.candidates,
+                  reason = EXCLUDED.reason
+            WHERE arbitration.status = 'pending'""",
+        subject, _arbitration_subject(subject), ref, label,
+        json.dumps([c.as_dict() for c in proposal.candidates], ensure_ascii=False),
+        f"{proposal.reason} — {rows} ligne(s)")
+
+
+async def _settle(conn, subject: str, ref: str, label: str, proposal,
+                  decided_by: str) -> None:
+    await conn.execute(
+        """INSERT INTO arbitration (subject, scope, ref, label, candidates, reason,
+                                    status, decision, decided_by, decided_at)
+           VALUES ($1, $2, $3, $4, $5::jsonb, $6, 'settled', $7, $8, NOW())
+           ON CONFLICT (subject, scope, ref) DO UPDATE
+              SET status = 'settled', decision = EXCLUDED.decision,
+                  decided_by = EXCLUDED.decided_by, decided_at = NOW(),
+                  reason = EXCLUDED.reason, candidates = EXCLUDED.candidates""",
+        subject, _arbitration_subject(subject), ref, label,
+        json.dumps([c.as_dict() for c in proposal.candidates], ensure_ascii=False),
+        proposal.reason, proposal.decision, decided_by)
+
+
+async def _apply_food_key(conn, ref: str, decision: str | None) -> dict:
+    pantry = await conn.execute(
+        "UPDATE pantry_item SET food_key = $1 WHERE name_normalized = $2", decision, ref)
+    ingredients = await conn.execute(
+        "UPDATE recipe_ingredient SET food_key = $1 WHERE name_normalized = $2",
+        decision, ref)
+    return {"pantry_item": _row_count(pantry), "recipe_ingredient": _row_count(ingredients)}
+
+
+def _row_count(tag: str) -> int:
+    return int(tag.rsplit(" ", 1)[-1]) if tag else 0
+
+
+async def _refresh_food_key(conn) -> dict:
+    from cooking_manager.ingredients import normalize_name
+    from cooking_manager.linking import propose_food_key
+
+    foods = {r["key"]: r["name"] or r["key"]
+             for r in await conn.fetch("SELECT key, name FROM food")}
+    recurrent = {normalize_name(r["key"]) for r in await conn.fetch(
+        "SELECT key FROM shopping_preference WHERE active = TRUE AND pref_type = 'recurrent'")}
+    settled = await _settled_refs(conn, "food_key")
+    rows = await conn.fetch(
+        """SELECT name_normalized AS ref, min(name) AS label, count(*) AS rows
+             FROM (SELECT name_normalized, name FROM pantry_item WHERE food_key IS NULL
+                   UNION ALL
+                   SELECT name_normalized, name FROM recipe_ingredient WHERE food_key IS NULL) t
+            WHERE name_normalized <> ''
+            GROUP BY name_normalized ORDER BY 3 DESC""")
+
+    queued = linked = skipped = 0
+    for row in rows:
+        ref = row["ref"]
+        if ref in settled or ref in recurrent:
+            skipped += 1
+            continue
+        proposal = propose_food_key(row["label"] or ref, foods)
+        if proposal.settled:
+            await _apply_food_key(conn, ref, proposal.decision)
+            await _settle(conn, "food_key", ref, row["label"] or ref, proposal, "exact")
+            linked += 1
+            continue
+        await _queue(conn, "food_key", ref, row["label"] or ref, proposal, row["rows"])
+        queued += 1
+    return {"subject": "food_key", "queued": queued, "linked": linked,
+            "already_settled_or_recurrent": skipped}
+
+
+async def _refresh_food_kind(conn) -> dict:
+    from cooking_manager.linking import propose_food_kind
+    from cooking_manager.matching import facet_concepts
+
+    kinds = facet_concepts("food_kinds")
+    settled = await _settled_refs(conn, "food_kind")
+    rows = await conn.fetch(
+        "SELECT key, name, category FROM food WHERE kind IS NULL ORDER BY key")
+
+    queued = qualified = skipped = 0
+    for row in rows:
+        if row["key"] in settled:
+            skipped += 1
+            continue
+        proposal = propose_food_kind(row["name"] or row["key"], row["category"], kinds)
+        label = row["name"] or row["key"]
+        if proposal.settled:
+            await conn.execute("UPDATE food SET kind = $1 WHERE key = $2",
+                               proposal.decision, row["key"])
+            await _settle(conn, "food_kind", row["key"], label, proposal, "exact")
+            qualified += 1
+            continue
+        await _queue(conn, "food_kind", row["key"], label, proposal, 1)
+        queued += 1
+    return {"subject": "food_kind", "queued": queued, "qualified": qualified,
+            "already_settled": skipped}
+
+
+@app.post("/api/arbitration/refresh")
+async def refresh_arbitration(subject: str | None = None):
+    """Reconstruit la file : l'exact se tranche seul, tout le reste se nomme et attend."""
+    subjects = [subject] if subject else list(ARBITRATION_SCOPE)
+    for name in subjects:
+        _arbitration_subject(name)
+    pool = await get_pool(DATABASE_DSN)
+    out = []
+    async with pool.acquire() as conn:
+        for name in subjects:
+            out.append(await _refresh_food_key(conn) if name == "food_key"
+                       else await _refresh_food_kind(conn))
+    return {"refreshed": out}
+
+
+@app.get("/api/arbitration")
+async def list_arbitration(subject: str | None = None, limit: int = 500):
+    """`pending` se lit AVANT `groups` : une file vide n'est pas un référentiel complet."""
+    from cooking_manager.linking import group_by_candidate, link_counts
+
+    if subject:
+        _arbitration_subject(subject)
+    pool = await get_pool(DATABASE_DSN)
+    async with pool.acquire() as conn:
+        counts = await conn.fetch(
+            """SELECT subject,
+                      count(*) FILTER (WHERE status = 'pending') AS pending,
+                      count(*) FILTER (WHERE status = 'settled') AS settled
+                 FROM arbitration
+                WHERE $1::text IS NULL OR subject = $1
+                GROUP BY subject ORDER BY subject""", subject)
+        rows = await conn.fetch(
+            """SELECT subject, scope, ref, label, candidates, reason
+                 FROM arbitration
+                WHERE status = 'pending' AND ($1::text IS NULL OR subject = $1)
+                ORDER BY subject, label LIMIT $2""", subject, limit)
+
+    entries = [{"subject": r["subject"], "scope": r["scope"], "ref": r["ref"],
+                "label": r["label"], "reason": r["reason"],
+                "candidates": json.loads(r["candidates"])} for r in rows]
+    return {
+        "counts": {c["subject"]: link_counts(c["pending"], c["settled"]) for c in counts},
+        "shown": len(entries),
+        "groups": group_by_candidate(entries),
+    }
+
+
+@app.post("/api/arbitration/decisions")
+async def decide_arbitration(body: ArbitrationBatch):
+    """Trancher par lot. `decision: null` = instruit, hors référentiel — jamais un oubli."""
+    pool = await get_pool(DATABASE_DSN)
+    applied = []
+    async with pool.acquire() as conn:
+        known = {r["key"] for r in await conn.fetch("SELECT key FROM food")}
+        for item in body.decisions:
+            scope = _arbitration_subject(item.subject)
+            decision = item.decision
+            if item.subject == "food_key" and decision is not None and decision not in known:
+                raise HTTPException(422, f"Aliment inconnu du référentiel : {decision!r}")
+            if item.subject == "food_kind" and decision is not None:
+                decision = _food_kind(decision, f"arbitration/{item.ref}")
+
+            touched: dict[str, int] = {}
+            if item.subject == "food_key":
+                touched = await _apply_food_key(conn, item.ref, decision)
+            elif decision is not None:
+                await conn.execute("UPDATE food SET kind = $1 WHERE key = $2",
+                                   decision, item.ref)
+                touched = {"food": 1}
+
+            settled = await conn.fetchval(
+                """UPDATE arbitration
+                      SET status = 'settled', decision = $4, decided_by = $5,
+                          decided_at = NOW()
+                    WHERE subject = $1 AND scope = $2 AND ref = $3
+                RETURNING id""",
+                item.subject, scope, item.ref, decision, body.decided_by)
+            if settled is None:
+                raise HTTPException(404, f"Aucune entrée en file : {item.subject}/{item.ref}")
+            applied.append({"subject": item.subject, "ref": item.ref,
+                            "decision": decision, "rows": touched})
+    return {"settled": len(applied), "applied": applied}
 
 
 @app.get("/api/product")

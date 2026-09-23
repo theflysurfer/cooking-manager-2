@@ -588,6 +588,30 @@ CREATE TABLE IF NOT EXISTS nutrition_target (
     created_at   TIMESTAMPTZ DEFAULT NOW(),
     UNIQUE (person_id)
 );
+
+-- arbitration : une seule file pour tout rapprochement qu'aucun étage n'a su
+-- trancher — `subject` dit CE QUI est en jeu (`food_key` pour un rattachement,
+-- `food_kind` pour une famille). Deux portes sur la même file, Claude Code
+-- pendant la course et `web/` à tête reposée (ADR 0032).
+-- ⚠️ `status='settled'` avec `decision IS NULL` veut dire « instruit, hors
+-- référentiel » — c'est ce qui distingue un sujet JUGÉ d'un sujet jamais vu.
+CREATE TABLE IF NOT EXISTS arbitration (
+    id          SERIAL PRIMARY KEY,
+    subject     TEXT NOT NULL CHECK (subject IN ('food_key', 'food_kind')),
+    scope       TEXT NOT NULL,
+    ref         TEXT NOT NULL,
+    label       TEXT NOT NULL,
+    candidates  JSONB NOT NULL DEFAULT '[]'::jsonb,
+    reason      TEXT NOT NULL,
+    status      TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'settled')),
+    decision    TEXT,
+    decided_by  TEXT,
+    decided_at  TIMESTAMPTZ,
+    created_at  TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE (subject, scope, ref)
+);
+
+CREATE INDEX IF NOT EXISTS arbitration_pending_idx ON arbitration(subject, status);
 """
 
 MIGRATIONS_SQL = """

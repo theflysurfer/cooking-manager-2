@@ -1,4 +1,4 @@
-version: "0.9.0"
+version: "0.10.0"
 slug: cooking-vocabulary
 kind: cooking
 origin: >-
@@ -686,6 +686,7 @@ food_kinds:
     label: "Céréale"
     status: active
     definition: "Céréale dont le degré de raffinage n'a pas été tranché."
+    dominates: ["whole-grain", "refined-grain"]
   - key: cured-meat
     label: "Charcuterie"
     status: active
@@ -722,6 +723,7 @@ food_kinds:
     label: "Poisson"
     status: active
     definition: "Poisson dont la teneur en lipides n'a pas été tranchée."
+    dominates: ["oily-fish", "lean-fish"]
   - key: vegetable
     label: "Légume"
     status: probation

@@ -1,5 +1,5 @@
 {
-  "version": "0.9.0",
+  "version": "0.10.0",
   "slug": "cooking-vocabulary",
   "origin": "Extrait du moteur de substitutions porté de cooking-manager v1 (server/src/services/intelligentSubstitutions.ts) et mesuré en production dans cooking-manager-2 le 2026-09-02. Voir cooking-manager-2 ADR 0001.",
   "cooking_methods": [
@@ -1545,7 +1545,10 @@
       "definition": "Céréale dont le degré de raffinage n'a pas été tranché.",
       "synonyms": [],
       "applicable_when": "",
-      "dominates": [],
+      "dominates": [
+        "whole-grain",
+        "refined-grain"
+      ],
       "observed_in": [],
       "code": "",
       "satisfied_by": []
@@ -1653,7 +1656,10 @@
       "definition": "Poisson dont la teneur en lipides n'a pas été tranchée.",
       "synonyms": [],
       "applicable_when": "",
-      "dominates": [],
+      "dominates": [
+        "oily-fish",
+        "lean-fish"
+      ],
       "observed_in": [],
       "code": "",
       "satisfied_by": []

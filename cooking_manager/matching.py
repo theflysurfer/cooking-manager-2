@@ -77,11 +77,16 @@ def strip_brand(name: str, brand: str | None) -> str:
     return " ".join(remaining) if remaining else name
 
 
-def _facet_keys(facet: str) -> tuple[str, ...]:
-    """Les clés d'une facette du vocabulaire épinglé — jamais une liste écrite ici."""
+def facet_concepts(facet: str) -> list[dict]:
+    """Les concepts d'une facette du vocabulaire épinglé — jamais une table écrite ici."""
     from .substitutions import load_vocabulary
 
-    return tuple(c["key"] for c in load_vocabulary().get(facet) or [])
+    return list(load_vocabulary().get(facet) or [])
+
+
+def _facet_keys(facet: str) -> tuple[str, ...]:
+    """Les clés d'une facette du vocabulaire épinglé — jamais une liste écrite ici."""
+    return tuple(c["key"] for c in facet_concepts(facet))
 
 
 def _clean_against(value: object, facet: str, noun: str, origin: str) -> str | None:
