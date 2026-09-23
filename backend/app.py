@@ -3785,6 +3785,7 @@ class ArbitrationDecision(BaseModel):
     subject: str
     ref: str
     decision: str | None = None
+    reason: str | None = None
 
 
 class ArbitrationBatch(BaseModel):
@@ -3967,6 +3968,10 @@ async def decide_arbitration(body: ArbitrationBatch):
         for item in body.decisions:
             scope = _arbitration_subject(item.subject)
             decision = item.decision
+            if decision is None and not (item.reason or "").strip():
+                raise HTTPException(
+                    422, f"{item.subject}/{item.ref} : un refus doit dire pourquoi — "
+                         "sans motif, « hors référentiel » se lit comme un oubli")
             if item.subject == "food_key" and decision is not None and decision not in known:
                 raise HTTPException(422, f"Aliment inconnu du référentiel : {decision!r}")
             if item.subject == "food_kind" and decision is not None:
@@ -3983,10 +3988,10 @@ async def decide_arbitration(body: ArbitrationBatch):
             settled = await conn.fetchval(
                 """UPDATE arbitration
                       SET status = 'settled', decision = $4, decided_by = $5,
-                          decided_at = NOW()
+                          decided_at = NOW(), reason = COALESCE($6, reason)
                     WHERE subject = $1 AND scope = $2 AND ref = $3
                 RETURNING id""",
-                item.subject, scope, item.ref, decision, body.decided_by)
+                item.subject, scope, item.ref, decision, body.decided_by, item.reason)
             if settled is None:
                 raise HTTPException(404, f"Aucune entrée en file : {item.subject}/{item.ref}")
             applied.append({"subject": item.subject, "ref": item.ref,
