@@ -74,8 +74,8 @@ class Convive:
 
     @property
     def diet_terms(self) -> list[str]:
-        """Ce que le régime de cette personne interdit."""
-        return list(DIETS.get(self.diet, ()))
+        """Ce que le régime de cette personne interdit — alias français compris."""
+        return list(DIETS.get(self.diet) or DIETS.get(_parse_diet(self.diet), ()))
 
     def diet_waived_on(self, folded_text: str) -> str | None:
         """L'exception qui dispense CE texte du régime — voir ADR 0003."""
@@ -303,3 +303,22 @@ def check_menu(meals: list[dict], convives: list[Convive]) -> dict[str, list[Con
             if conflicts:
                 out[f"{day}/{slot}"] = conflicts
     return out
+
+def inherit_leftovers(meals: list[dict], lines: dict[int, list],
+                      steps: dict[int, list]) -> list[dict]:
+    """Un reste emprunte les ingrédients de sa source ; sans source, il se nomme (#76)."""
+    unsourced: list[dict] = []
+    for meal in meals:
+        if meal.get("match_kind") != "leftovers":
+            continue
+        source = meal.get("leftovers_of")
+        if source is None or not lines.get(source):
+            unsourced.append({
+                "day": meal.get("day_label"), "slot": meal.get("slot"),
+                "dish": meal.get("dish"),
+                "reason": "reste sans plat source exploitable — rien à confronter",
+            })
+            continue
+        lines[meal["meal_id"]] = lines[source]
+        steps[meal["meal_id"]] = steps.get(source, [])
+    return unsourced

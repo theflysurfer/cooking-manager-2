@@ -505,7 +505,11 @@ async def menu_compatibility(slug: str):
     """Contrôle de compatibilité alimentaire du menu, repas par repas."""
     from datetime import date as _date
 
-    from cooking_manager.convives import check_ingredients, check_meal
+    from cooking_manager.convives import (
+        check_ingredients,
+        check_meal,
+        inherit_leftovers,
+    )
     from cooking_manager.effort import fits_weeknight, read_effort
     from cooking_manager.parts import declared_diets, shares_for
     from cooking_manager.substitutions import (
@@ -603,18 +607,8 @@ async def menu_compatibility(slug: str):
 
     clock_by_meal = {r["meal_id"]: r["total_time_min"] for r in time_rows}
 
-    unsourced: list[dict] = []
-    for meal in meal_rows:
-        if meal["match_kind"] != "leftovers":
-            continue
-        source = meal["leftovers_of"]
-        if source is None:
-            unsourced.append({"day": meal["day_label"], "slot": meal["slot"],
-                              "dish": meal["dish"],
-                              "reason": "reste sans plat source déclaré — rien à confronter"})
-            continue
-        lines_by_meal[meal["meal_id"]] = lines_by_meal.get(source, [])
-        steps_by_meal[meal["meal_id"]] = steps_by_meal.get(source, [])
+    unsourced = inherit_leftovers([dict(m) for m in meal_rows],
+                                  lines_by_meal, steps_by_meal)
 
     checked, conflict_count, uncovered_count, repair_count = [], 0, 0, 0
     too_heavy: list[dict] = []
