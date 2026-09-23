@@ -4,10 +4,10 @@ axis: conception
 proof_level: plan
 upstream: [PLAN_referentiel-aliment-produit-phase2.md, SPEC_referentiel-aliment-produit.md]
 downstream: []
-status: étapes 1 et 2 exécutées le 2026-09-22 ; étapes 3 à 5 à faire
+status: étapes 1 et 2 exécutées le 2026-09-22, étapes 3 et 4 le 2026-09-23 ; étape 5 à faire
 date: 2026-09-22
 adr: [0031, 0032]
-issues: [94, 101, 102, 109, 117, 118, 120]
+issues: [94, 101, 102, 109, 117, 118, 120, 144, 145]
 ---
 
 # Référentiel aliment & produit — phase 3
@@ -109,7 +109,21 @@ peut oublier d'afficher n'est pas un compteur.
 
 ---
 
-## Étape 3 — Le moteur de rapprochement
+## Étape 3 — Le moteur de rapprochement ✅ 2026-09-23 (`02dc9f5`)
+
+**Écart assumé** : la file est **générique** — `subject` vaut `food_key` ou `food_kind`, parce que
+qualifier un aliment est le même geste que le rattacher, et qu'une deuxième file aurait été la
+même mécanique écrite deux fois. Et l'étage 3 « jugement Claude via Ollama » n'a **pas** été
+câblé : la file est déjà servie par Claude Code pendant la course et par `web/` à tête reposée,
+ce qui est le même jugement, rendu par un modèle qui a lu la base. Le seam reste ouvert —
+`Candidate.origin` accepte une provenance `llm`. Seul l'étage **exact** tranche seul ; tout le
+reste passe par l'unique `_refuse`, qui nomme, classe et compte.
+
+Une famille qui en **domine** d'autres ne tranche jamais à leur place : le rayon « poissons »
+proposerait `fish`, et le critère 5 (poisson gras) lirait zéro sans jamais le dire.
+`dominates` existait déjà dans le schéma d'ontologie, il ne restait qu'à le poser.
+
+
 
 **Livrable** : `cooking_manager/linking.py`, pur, sans I/O réseau, et une file d'arbitrage.
 
@@ -151,7 +165,20 @@ jamais rattaché (ADR 0016, ratchet existant).
 
 ---
 
-## Étape 4 — Le rattrapage
+## Étape 4 — Le rattrapage ✅ 2026-09-23, mesuré
+
+| | avant | après |
+|---|---|---|
+| `pantry_item` rattachés | 0 / 330 | **183** |
+| `recipe_ingredient` rattachés | 0 / 1169 | **701** |
+| `food.kind` renseignés | 15 / 191 | **155** |
+| file d'arbitrage | — | 695 tranchés, **150 en attente** |
+
+Les 150 restants ne sont pas des arbitrages en souffrance : 114 demandent une fiche `food` qui
+n'existe pas (#144), 36 une valeur de `food_kinds` qui n'existe pas (#145). Les trancher
+aujourd'hui ferait mentir les macros ou la couverture méditerranéenne.
+
+
 
 **Livrable** : les 460 lignes tranchées, en une passe.
 

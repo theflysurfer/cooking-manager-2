@@ -30,10 +30,9 @@ python ~/.claude/skills/julien-audit-ios12-compat/scripts/audit_ios12.py web   #
 
 ## Architecture
 
-`cooking_manager/` = domaine pur, sans I/O réseau : `normalizer` `ingredients`
-`convives` (compatibilité) `presence` (qui est à table) `pantry` (stock, différentiel)
-`nutrition` `substitutions`. `backend/` = FastAPI, schéma, writers DB, `stt.py`, `cooking_mcp.py`.
-`web/` = 3 fichiers statiques, zéro build. `data/ontology/` = source du vocabulaire.
+`cooking_manager/` = domaine pur, **sans I/O réseau** (un module qui en fait est mal rangé).
+`backend/` = FastAPI, schéma, writers DB, `stt.py`, `cooking_mcp.py`. `web/` = statique, zéro
+build. `data/ontology/` = source du vocabulaire.
 `backend/url_parser/`, `images.py`, `book_import.py` = parsing web et import de livre, absorbés
 de recipe-manager (ADR 0031). Déploiement : systemd `cooking-manager` (8795) + `cooking-mcp`
 (3868) sur srv759970 ; CM2 est **propriétaire** des tables recette. Waaker appelle
@@ -67,26 +66,25 @@ menus créés par l'API et la colonne `served`.
 
 ## Contraintes alimentaires — quatre axes distincts
 
-Quatre axes, détaillés dans `julien-cooking-manager-weekly-prep` § 3 : `forbidden`,
-`dislikes`, `diet_exceptions` (vérifiés par `/compatibility`) et `dietary_preference`, qui
-**pèse sans bloquer** et n'est compté que si sa cible est un **ingrédient nommé**. Un goût
-partagé par tout le foyer s'écrit `dietary_preference` avec `person_id NULL`.
+Quatre axes, détaillés dans `julien-cooking-manager-weekly-prep` § 3 : `forbidden`, `dislikes`,
+`diet_exceptions` (vérifiés par `/compatibility`) et `dietary_preference`, qui **pèse sans
+bloquer** et n'est compté que si sa cible est un **ingrédient nommé** ; un goût partagé par tout
+le foyer s'y écrit avec `person_id NULL`.
 
-⛔ **Trois compteurs se lisent AVANT leur voisin rassurant** (ADR 0023, 0025) :
+⛔ **Quatre compteurs se lisent AVANT leur voisin rassurant** (ADR 0023, 0025) :
 `preferences_unmeasurable` avant `preferences_breached` (une cible qu'aucun ingrédient ne porte,
 ou un `cap` en grammes, rend `measurable: false` — son zéro ne mesure rien) ·
 `conflicts_uncovered` avant `conflicts` (un conflit `repaired: true` est traité) ·
-`unrepaired` avant `repairs`. Angle mort : un repas `leftovers` n'a pas de fiche, donc rien à
-confronter (#76).
+`unrepaired` avant `repairs` · `leftovers_unsourced` avant `conflicts` — un reste emprunte les
+ingrédients de `menu_meal.leftovers_of`, **sans source exploitable il n'est pas contrôlé**, et
+`match_kind: freestyle` dit qu'aucune source n'existe (#76).
 
 ⛔ **Un interdit se lit À UNE TABLÉE** : `/recipes/{slug}/compatibility` résout `?convives=` →
 `?day=&slot=` → **les résidents** (`household_member`). `membership: guest` = contrainte
 d'invité. Une **part séparée** se déclare dans les ingrédients (`150 g pois chiches (part de
-Clémence)`), jamais en `## Notes` — elles ne sont ni parsées ni achetées.
-
-Un terme alimentaire s'écrit **au singulier**, toujours. Un terme ambigu (`roti`, `blanc`,
-`filet`) se déclare avec son motif dans `CONTEXT_REQUIRED` (ADR 0007). Lire, jamais recopier :
-`/api/preferences` · `/api/menus/<slug>/compatibility`.
+Clémence)`), jamais en `## Notes` — elles ne sont ni parsées ni achetées. Un terme alimentaire
+s'écrit **au singulier** ; un terme ambigu (`roti`, `blanc`, `filet`) se déclare avec son motif
+dans `CONTEXT_REQUIRED` (ADR 0007). Lire, jamais recopier : `/api/preferences`.
 
 ## Courses et garde-manger
 
@@ -97,20 +95,23 @@ recalcule à chaque appel (menu × tablée × stock). **La DB fait foi du stock.
 `slots_uncomposed` (tablée non nulle, aucun repas — lire `measured` avant `slots`) ·
 `recurrent` (achats d'habitude, déjà filtrés du menu ; fréquences figées, #107).
 
+⛔ **Une file unique tranche les deux sujets** (`/api/arbitration`, ADR 0032) : `subject` vaut
+`food_key` ou `food_kind`. Seul l'étage **exact** tranche seul. `settled` + `decision: null` =
+**instruit, hors référentiel**, distinct d'un sujet jamais vu (422 sur un refus sans motif) ;
+lire `counts.pending` **avant** `groups`.
+
 ⛔ **Un panier se confronte aux refus avant de partir** : `POST /api/shopping/validate-cart`,
-`ok:false` bloque. Bans dans `shopping_preference` (`blacklist` produit, `blacklist_brand`
-gamme) — un ban dont AUCUN nom ne porte le mot visé ne frappe rien et rend `ok:true` (#115).
-Une préférence énoncée par Julien s'écrit en base **tout de suite**, sinon elle n'existe pas.
+`ok:false` bloque sur un ban ou sur une ligne jamais arbitrée. Bans dans `shopping_preference`
+— un ban dont AUCUN nom ne porte le mot visé ne frappe rien et rend `ok:true` (#115). Une
+préférence énoncée par Julien s'écrit en base **tout de suite**, sinon elle n'existe pas.
 
 ⛔ **`pantry_item` est un JOURNAL D'ENTRÉES, pas un inventaire** : rien ne le décrémente. `ok`
 dit « acheté un jour », jamais « il y en a », et un `out` n'est pas plus fiable. **Faire
 confirmer avant de composer dessus** (#94) — et une confirmation ne se voit nulle part (#120).
 
 ⛔ **`normalize_name` retire découpe et pluriel, jamais un ÉTAT** : « sèches », « surgelés »,
-« fraîche » changent l'identité — donc ne se fusionnent jamais. Et `pantry_item` n'ayant ni
-`food_key` ni `product_id` (#118), `find()` **élit une** ligne parmi les doublons : si elle dit
-`out` quand une autre dit `ok`, la liste fait racheter. Nommage en attendant : aliment pour le
-frais, produit pour l'épicerie et le surgelé.
+« fraîche » changent l'identité, donc ne se fusionnent jamais. `find()` **élit une** ligne parmi
+les doublons : si elle dit `out` quand une autre dit `ok`, la liste fait racheter (#118).
 
 `outcome: inconnu` = présent mais quantité incomparable (lire `reason`). Commande drive non
 retirée → `absent`. Déclarer : `PATCH /api/pantry` par **nom**, 409 sur homonyme (alors
@@ -123,9 +124,8 @@ retirée → `absent`. Déclarer : `PATCH /api/pantry` par **nom**, 409 sur homo
 
 ## Vocabulaire (ontologie)
 
-Cuissons, cuisines, textures, accommodations, axes de retour et natures de produit viennent de
-`data/ontology/cooking-vocabulary.yaml` → `ontology-manager` → artefact épinglé
-`cooking_manager/cooking-vocabulary.json` — **jamais d'une table écrite dans le code**.
+Tout axe fermé vient de `data/ontology/cooking-vocabulary.yaml` → `ontology-manager` →
+artefact épinglé `cooking_manager/cooking-vocabulary.json` — **jamais d'une table dans le code**.
 
 ⚠️ Le générateur a un **jeu de champs fixe** : une valeur ajoutée au seul YAML n'atteint
 **pas** l'artefact, et le consommateur lit du vide sans erreur. Ajouter = deux dépôts **plus un
@@ -137,6 +137,8 @@ codées en dur, hors ontologie (#109) : un terme manquant fait mentir `rotate` e
 
 ⛔ **`food.kind` est un axe FERMÉ** (facette `food_kinds`, clés en anglais) : `POST`/`PUT
 /api/food` rend 422 hors vocabulaire. Une famille absente = PAS INSTRUIT, jamais « aucune ».
+Une famille qui en `dominates` d'autres (`fish`, `grain`) ne se pose **jamais** d'office : elle
+ferait lire zéro au critère plus fin sans le dire.
 
 ## Référentiel aliment & produit
 
@@ -153,12 +155,10 @@ formes, XML ANSES, rattachement : `julien-cooking-donnees` § 2.
 
 ## Macros
 
-`nutrition.py` applique les règles du Coach Nutrition, il n'invente rien.
-
-1. **Pas d'hypothèse** — non résolu ⇒ `unresolved` avec son motif.
-2. **Réconcilier** — `kcal = P×4 + G×4 + L×9` ; au-delà de 5 % d'écart, montrer les deux chiffres.
-3. **Deux sources** — `food` × `food_form` en DB > `shopping_product.nutrition` (drive).
-   `coverage`/`conclusive` priment sur le total.
+`nutrition.py` applique les règles du Coach Nutrition, il n'invente rien. Non résolu ⇒
+`unresolved` **avec son motif**, jamais une hypothèse. `kcal = P×4 + G×4 + L×9` ; au-delà de
+5 % d'écart, montrer les deux chiffres. `food` × `food_form` en DB prime sur
+`shopping_product.nutrition` (drive), et `coverage`/`conclusive` priment sur le total.
 
 ⛔ **Les macros vivent dans `food_form`, jamais dans `food`** : une ligne par forme
 (`lentille` × `crues`/`cuites`). Un aliment **sans forme** n'a pas de macros et ne lève rien —
@@ -174,38 +174,26 @@ critère 9 (eau, thé) n'a aucun aliment, son absence n'est jamais un manque ·
 `/menus/{slug}/nutrition` rend `verdict: null` et nomme ses manques dès qu'un ingrédient du
 jour n'est pas compté. `target_age_days` **se lit, il ne se juge pas** : aucun seuil.
 
-## Commande vocale
+## Commande vocale · gate iOS 12 · design · MCP
 
-MediaRecorder → `POST /api/audio` → Deepgram → Groq (intent JSON) → exécution.
-Intents déclarés dans le prompt de `backend/stt.py` : un intent non câblé échoue en silence.
-Clés en credstore systemd. MediaRecorder exige Safari 14.5+ : micro masqué sur iPad mini 2.
+MediaRecorder → `POST /api/audio` → Deepgram → Groq (intent JSON) → exécution. Intents déclarés
+dans le prompt de `backend/stt.py` : un intent non câblé échoue en silence. Clés en credstore
+systemd. MediaRecorder exige Safari 14.5+ : micro masqué sur iPad mini 2.
 
-## Gate iOS 12
+Cible **Safari 12.5.8** : le catalogue interdit → parade vit dans `julien-audit-ios12-compat`.
+Vérifier `audit_ios12.py web` (score ≥ 90, zéro bloquant) ; `package.json` = devDependencies
+only, **pas de build**. Aucun scanner ne voit zoom auto < 16 px, `100vh`, `:hover` — **iPad
+réel seul valide.** Design : **appétissant · sans friction · maîtrisé**, letter-spacing plutôt
+que graisse. `cooking_mcp.py` : `from fastmcp import FastMCP` (pas `mcp.server.fastmcp`),
+v3.4+ ; derrière nginx `allowed_hosts=[<domaine>]`, sinon Starlette rend 421.
 
-Cible **Safari 12.5.8** : `gap` en flex, `aspect-ratio`, `<dialog>`,
-`prefers-color-scheme`, `:focus-visible`, `?.`/`??`/`||=` et les champs de classe sont
-hors d'atteinte. Le catalogue interdit → parade vit dans `julien-audit-ios12-compat`.
+## Contraintes mesurées (ratchet)
 
-Vérifier : `audit_ios12.py web` (score ≥ 90, zéro bloquant). `package.json` = devDependencies
-only, **pas de build**. Aucun scanner ne voit zoom auto < 16 px, `100vh`, `:hover` — **iPad réel seul valide.**
-
-## Design
-
-**Appétissant** · **Sans friction** · **Maîtrisé**. Letter-spacing, pas graisse.
+Quatre métriques ne doivent **jamais** régresser (rattachement `single`/`composite`, plafond
+`read_energy`, refus d'une `nature` inconnue). Elles ne se recopient pas ici, elles vivent dans
+les tests — `python -m pytest -k "Ratchet or CompositeIsNever or ProductNature or nutrition"`.
 
 ## Skills liées
 `julien-cooking-manager-weekly-prep` (semaine) · `julien-cooking-manager-pantry-update` (stock)
 · `julien-cooking-donnees` (données, référentiel, ontologie) · `julien-audit-cooking-vault`
 (audit avant courses) · `cooking-manager-auchan-drive` (panier Auchan).
-
-## Contraintes mesurées (ratchet)
-
-Quatre métriques ne doivent **jamais** régresser (rattachement `single`/`composite`, plafond
-`read_energy`, refus d'une `nature` inconnue). Elles ne se recopient pas ici : elles vivent dans
-les tests, qui sont leur seule vérité — `python -m pytest -k "Ratchet or CompositeIsNever or
-ProductNature or nutrition"`. Une régression casse `pytest` et bloque le ship.
-
-## MCP · dépendances
-
-`cooking_mcp.py` : `from fastmcp import FastMCP` (pas `mcp.server.fastmcp`), v3.4+.
-Derrière nginx : `allowed_hosts=[<domaine>]`, sinon Starlette rend 421.
