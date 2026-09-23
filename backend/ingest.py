@@ -199,24 +199,29 @@ async def _link_meals(conn) -> tuple[int, int]:
             continue
 
         written: list[str] = []
+        sources: list[tuple[int, str, str]] = []
 
         for position, meal in enumerate(meals, start=1):
             for slot in SLOTS:
                 dish = (meal.get(slot) or "").strip()
                 if not dish:
                     continue
-                if meal.get(slot + "_leftovers"):
+                if meal.get(slot + "_leftovers") or meal.get(slot + "_freestyle"):
+                    kind = "freestyle" if meal.get(slot + "_freestyle") else "leftovers"
                     await conn.execute(
                         """INSERT INTO menu_meal
                              (menu_id, day, day_label, position, slot, dish, match_kind, covers)
-                           VALUES ($1,$2,$3,$4,$5,$6,'leftovers',$7)
+                           VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
                            ON CONFLICT (menu_id, position, slot) DO UPDATE SET
                              dish = EXCLUDED.dish, recipe_id = NULL,
-                             match_kind = 'leftovers', covers = EXCLUDED.covers""",
+                             match_kind = EXCLUDED.match_kind, covers = EXCLUDED.covers""",
                         menu["id"], _as_date(meal.get("date")), meal.get("day"),
-                        position, slot, dish, meal.get("covers"),
+                        position, slot, dish, kind, meal.get("covers"),
                     )
                     written.append(f"{position}:{slot}")
+                    source = (meal.get(slot + "_leftovers_of") or "").strip()
+                    if kind == "leftovers" and source:
+                        sources.append((position, slot, source))
                     continue
 
                 explicit = (meal.get(slot + "_slug") or "").strip()
@@ -251,7 +256,34 @@ async def _link_meals(conn) -> tuple[int, int]:
                  AND (position::text || ':' || slot) <> ALL($2::text[])""",
             menu["id"], written,
         )
+        await _link_leftovers(conn, menu["id"], sources)
     return linked, orphan
+
+
+async def _link_leftovers(conn, menu_id: int,
+                          sources: list[tuple[int, str, str]]) -> None:
+    """Un reste pointe son plat source. Une cible absente ou elle-même reste laisse NULL (#76)."""
+    if not sources:
+        return
+    rows = await conn.fetch(
+        "SELECT id, position, slot, match_kind FROM menu_meal WHERE menu_id = $1", menu_id)
+    by_place = {(r["position"], r["slot"]): r for r in rows}
+    for position, slot, raw in sources:
+        target = _parse_place(raw)
+        source = by_place.get(target) if target else None
+        if source is None or source["match_kind"] in ("leftovers", "freestyle") \
+                or (source["position"], source["slot"]) == (position, slot):
+            log.warning("menu %s : reste %s:%s — source %r inutilisable, non contrôlable",
+                        menu_id, position, slot, raw)
+            continue
+        await conn.execute(
+            "UPDATE menu_meal SET leftovers_of = $1 WHERE menu_id = $2 AND position = $3 AND slot = $4",
+            source["id"], menu_id, position, slot)
+
+
+def _parse_place(raw: str) -> tuple[int, str] | None:
+    position, _, slot = raw.partition(":")
+    return (int(position), slot) if position.strip().isdigit() and slot else None
 
 
 def _resolve_dish(dish: str, by_norm: dict) -> tuple[int | None, str | None]:

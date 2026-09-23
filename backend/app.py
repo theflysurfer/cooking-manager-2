@@ -575,14 +575,14 @@ async def menu_compatibility(slug: str):
         )
         meal_rows = await conn.fetch(
             """SELECT mm.id AS meal_id, mm.day_label, mm.day, mm.slot, mm.dish,
-                      mm.position, mm.match_kind,
+                      mm.position, mm.match_kind, mm.leftovers_of,
                       COALESCE(array_agg(ri.name)
                                FILTER (WHERE ri.name IS NOT NULL), '{}') AS ingredients
                  FROM menu_meal mm
                  LEFT JOIN recipe_ingredient ri ON ri.recipe_id = mm.recipe_id
                 WHERE mm.menu_id = (SELECT id FROM menu WHERE slug = $1)
                 GROUP BY mm.id, mm.day_label, mm.day, mm.slot, mm.dish, mm.position,
-                         mm.match_kind
+                         mm.match_kind, mm.leftovers_of
                 ORDER BY mm.position""",
             slug,
         )
@@ -602,6 +602,19 @@ async def menu_compatibility(slug: str):
         ))
 
     clock_by_meal = {r["meal_id"]: r["total_time_min"] for r in time_rows}
+
+    unsourced: list[dict] = []
+    for meal in meal_rows:
+        if meal["match_kind"] != "leftovers":
+            continue
+        source = meal["leftovers_of"]
+        if source is None:
+            unsourced.append({"day": meal["day_label"], "slot": meal["slot"],
+                              "dish": meal["dish"],
+                              "reason": "reste sans plat source déclaré — rien à confronter"})
+            continue
+        lines_by_meal[meal["meal_id"]] = lines_by_meal.get(source, [])
+        steps_by_meal[meal["meal_id"]] = steps_by_meal.get(source, [])
 
     checked, conflict_count, uncovered_count, repair_count = [], 0, 0, 0
     too_heavy: list[dict] = []
@@ -702,13 +715,17 @@ async def menu_compatibility(slug: str):
     counted_meals = [
         {"day": m["day_label"], "slot": m["slot"], "dish": m["dish"],
          "match_kind": m["match_kind"],
-         "ingredients": list(m["ingredients"] or [])} for m in meal_rows
+         "ingredients": list(m["ingredients"] or []) or
+                        [str(line.get("name") or "")
+                         for line in lines_by_meal.get(m["meal_id"], [])]}
+        for m in meal_rows
     ]
     prefs = check_preferences(counted_meals, load_rules(pref_rows), vocabulary)
     no_protein = meals_without_protein(counted_meals)
 
     return {
         "slug": menu_slug, "title": menu_title,
+        "leftovers_unsourced": unsourced,
         "meals_checked": len(checked), "conflicts": conflict_count,
         "conflicts_uncovered": uncovered_count, "repairs": repair_count,
         "convives_known": len(convives),

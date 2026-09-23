@@ -140,6 +140,7 @@ CREATE TABLE IF NOT EXISTS menu_meal (
     match_kind  TEXT,
     covers      INTEGER,
     served      BOOLEAN,
+    leftovers_of INTEGER REFERENCES menu_meal(id) ON DELETE SET NULL,
     UNIQUE (menu_id, position, slot)
 );
 
@@ -940,6 +941,61 @@ UPDATE food SET category = 'feculents-legumineuses'
  WHERE key IN ('mais', 'pois chiche boite', 'riz complet') AND category IS NULL;
 UPDATE food SET category = 'oeufs-laitages'
  WHERE key = 'poudre lait ecreme' AND category IS NULL;
+
+-- ═══════════════════════════════════════════════════════════════════════
+-- menu_meal.leftovers_of : un reste hérite de son plat source — #76
+-- ═══════════════════════════════════════════════════════════════════════
+-- Un repas de restes n'a pas de fiche PAR CONCEPTION (lui en donner une ferait
+-- racheter les ingrédients). Il échappait donc au contrôle de compatibilité :
+-- « restes des pilons de poulet » posé devant Clémence, pescétarienne, ne levait
+-- rien. La colonne dit DE QUOI le repas est le reste ; le contrôle emprunte les
+-- ingrédients de la source, la liste de courses ne les voit jamais.
+-- ⚠️ Un reste sans source déclarée reste NON CONTRÔLABLE, et doit être NOMMÉ
+-- comme tel : `leftovers_unsourced` se lit avant `conflicts`.
+ALTER TABLE menu_meal ADD COLUMN IF NOT EXISTS leftovers_of INTEGER;
+
+DO $leftovers_fk$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'menu_meal_leftovers_of_fkey') THEN
+    ALTER TABLE menu_meal ADD CONSTRAINT menu_meal_leftovers_of_fkey
+      FOREIGN KEY (leftovers_of) REFERENCES menu_meal(id) ON DELETE SET NULL;
+  END IF;
+END
+$leftovers_fk$;
+
+CREATE INDEX IF NOT EXISTS menu_meal_leftovers_idx ON menu_meal(leftovers_of);
+
+-- Les cinq restes dont la source a été vérifiée le 2026-09-23 : le dîner de la
+-- veille, dans le même menu. `WHERE leftovers_of IS NULL` pour qu'une correction
+-- ultérieure survive au redémarrage suivant.
+UPDATE menu_meal reste SET leftovers_of = source.id
+  FROM menu_meal source, menu m
+ WHERE reste.menu_id = m.id AND source.menu_id = m.id
+   AND source.slot = 'dinner' AND reste.slot = 'lunch'
+   AND reste.match_kind = 'leftovers' AND reste.leftovers_of IS NULL
+   AND (m.slug, reste.position, source.position) IN (
+         ('2026-09-07_semaine-aubagne-enfants', 2, 1),
+         ('2026-09-07_semaine-aubagne-enfants', 4, 3),
+         ('2026-09-07_semaine-aubagne-enfants', 8, 7),
+         ('2026-09-21_semaine-aubagne-enfants', 2, 1),
+         ('2026-09-21_semaine-aubagne-enfants', 5, 4));
+
+-- Les trois repas du 2026-08-03 ne sont PAS des restes d'un plat : ce sont des
+-- assiettes composées sur le moment. `freestyle` le dit ; les appeler `leftovers`
+-- laissait croire qu'une source existait et qu'on avait omis de la déclarer.
+UPDATE menu_meal mm SET match_kind = 'freestyle'
+  FROM menu m
+ WHERE mm.menu_id = m.id AND m.slug = '2026-08-03_semaine-aubagne'
+   AND mm.position = 5 AND mm.match_kind = 'leftovers';
+
+-- Les rayons écrits au fil de l'eau : `feculent` et `feculents` désignent le même
+-- rayon que `feculents-legumineuses`, `oeufs` et `laitage` le même que
+-- `oeufs-laitages`. Deux orthographes du même rayon font deux groupes dans toute
+-- lecture groupée par `category`, sans qu'aucune ne soit fausse.
+UPDATE food SET category = 'feculents-legumineuses'
+ WHERE category IN ('feculent', 'feculents');
+UPDATE food SET category = 'oeufs-laitages'
+ WHERE category IN ('oeufs', 'laitage');
 
 -- ═══════════════════════════════════════════════════════════════════════
 -- recipe.status : quatre valeurs, et plus une de plus — ADR 0034
