@@ -154,12 +154,13 @@ def elect(wanted: Wanted, offers: list[Offer], bans: list[Ban]) -> Election:
 
     chosen = candidates[0]
     size, unit = reference
-    return Election(
-        SUBSTITUTED, chosen, SUBSTITUTED,
-        f"même aliment que « {wanted.label} », contenant équivalent "
-        f"({_pretty(size)} {unit}), gamme non bannie",
-        rejected=rejected,
-    )
+    bounds = (f"même aliment que « {wanted.food_name} », contenant équivalent "
+              f"({_pretty(size)} {unit}), gamme non bannie")
+    if wanted_ref:
+        return Election(SUBSTITUTED, chosen, SUBSTITUTED,
+                        f"« {wanted.label} » indisponible — {bounds}", rejected=rejected)
+    return Election(ELECTED, chosen, MENU,
+                    f"aucun produit nommé par la liste — {bounds}", rejected=rejected)
 
 
 def _pretty(value: float) -> str:

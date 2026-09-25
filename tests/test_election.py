@@ -42,6 +42,14 @@ def test_le_produit_voulu_manquant_se_substitue_a_contenant_egal():
     assert "contenant équivalent" in result.reason
 
 
+def test_sans_produit_nomme_une_election_n_est_pas_une_substitution():
+    result = elect(Wanted("carotte", food="carotte", pack_size=1, pack_unit="kg"),
+                   [Offer(name="Carottes france 1 kg", product_id="p", offer_id="o")], [])
+    assert result.verdict == ELECTED
+    assert result.origin == MENU
+    assert "aucun produit nommé par la liste" in result.reason
+
+
 def test_un_contenant_different_ne_se_substitue_jamais_en_silence():
     result = elect(Wanted("Cabillaud msc 400 g", food="cabillaud", auchan_id="C1"),
                    [CABILLAUD_GROS], [])
