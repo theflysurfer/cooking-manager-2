@@ -1,5 +1,6 @@
 from cooking_manager.bans import Ban
 from cooking_manager.election import (
+    cut_words,
     ASK,
     ELECTED,
     MENU,
@@ -85,3 +86,59 @@ def test_une_rupture_est_un_motif_de_rejet_pas_une_absence():
     result = elect(Wanted("Cabillaud msc 400 g", food="cabillaud", auchan_id="C1"), [rupture], [])
     assert result.verdict == ASK
     assert result.rejected[0]["why"] == "rupture"
+
+
+POULET = [
+    Offer(name="Filets de poulet jaune france 720 g", product_id="a", offer_id="a1"),
+    Offer(name="Cuisses de poulet blanc france 720 g", product_id="b", offer_id="b1"),
+    Offer(name="Hauts de cuisse de poulet blanc 720 g", product_id="c", offer_id="c1"),
+]
+
+
+def test_une_decoupe_de_poulet_reste_du_poulet():
+    """7 produits sur 10 partaient en « autre aliment » le 2026-09-25 — #164."""
+    for offer in POULET:
+        result = elect(Wanted("poulet", food="poulet", pack_size=720, pack_unit="g"),
+                       [offer], [])
+        assert result.verdict == ELECTED, offer.name
+        assert result.offer is offer
+
+
+def test_un_complement_apres_l_aliment_nomme_un_autre_aliment():
+    """« lait de coco » n'est pas du lait : la découpe s'ignore, pas le complément."""
+    coco = Offer(name="Lait de coco 400 ml", product_id="d", offer_id="d1")
+    result = elect(Wanted("lait", food="lait", pack_size=400, pack_unit="ml"), [coco], [])
+    assert result.verdict == ASK
+    assert any(r["why"] == OTHER_FOOD for r in result.rejected)
+
+
+def test_un_plat_qui_cite_l_aliment_n_est_pas_l_aliment():
+    """« bouillon de poulet » cite le poulet sans en être : « bouillon » n'est pas une découpe."""
+    bouillon = Offer(name="Bouillon de poulet 720 g", product_id="e", offer_id="e1")
+    result = elect(Wanted("poulet", food="poulet", pack_size=720, pack_unit="g"),
+                   [bouillon], [])
+    assert result.verdict == ASK
+    assert any(r["why"] == OTHER_FOOD for r in result.rejected)
+
+
+def test_l_aliment_dont_le_nom_porte_sa_decoupe_reste_apparie():
+    """« filet de cabillaud » voulu, « filet de cabillaud » rendu : rien à promouvoir."""
+    filet = Offer(name="Filet de cabillaud 400 g", product_id="f", offer_id="f1")
+    result = elect(Wanted("filet de cabillaud", food="filet de cabillaud",
+                          pack_size=400, pack_unit="g"), [filet], [])
+    assert result.verdict == ELECTED
+
+
+class TestCutsComeFromTheVocabulary:
+    """La découpe est un axe FERMÉ du vocabulaire, jamais une table écrite dans le code."""
+
+    def test_the_facet_feeds_the_cut_words(self):
+        assert {"filet", "cuisse", "haut", "pilon", "aile", "roti"} <= cut_words()
+
+    def test_a_facet_left_unread_would_not_read_as_no_cut(self):
+        """Une facette vide ferait passer toute découpe pour un autre aliment."""
+        assert cut_words(), "food_cuts absente de l'artefact épinglé — régénérer le vocabulaire"
+
+    def test_a_cut_that_would_change_the_food_is_not_listed(self):
+        """« blanc » est écarté : « blancs d'œufs » ne sont pas des œufs."""
+        assert "blanc" not in cut_words()

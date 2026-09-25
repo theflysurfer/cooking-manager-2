@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from functools import lru_cache
 
 from .bans import Ban, find_ban
-from .matching import Signals, compare, PROPOSE
+from .ingredients import normalize_name
+from .matching import facet_concepts
 from .packaging import split_packaging
-from .pantry import _TO_BASE
+from .pantry import STOP_WORDS, _TO_BASE
 
 ELECTED = "elected"
 SUBSTITUTED = "substitution"
@@ -22,6 +24,19 @@ BANNED = "gamme refusée"
 OTHER_FOOD = "autre aliment"
 OTHER_PACK = "contenant différent"
 PACK_UNKNOWN = "contenant voulu inconnu"
+
+COMPLEMENTS = frozenset({"de", "du", "des", "d", "a", "au", "aux"})
+
+
+@lru_cache(maxsize=1)
+def cut_words() -> frozenset[str]:
+    """Les mots de découpe, dérivés de la facette `food_cuts` du vocabulaire épinglé."""
+    words: set[str] = set()
+    for concept in facet_concepts("food_cuts"):
+        for term in (concept.get("label", ""), *(concept.get("synonyms") or [])):
+            words.update(w for w in normalize_name(str(term)).split()
+                         if w not in STOP_WORDS)
+    return frozenset(words)
 
 
 @dataclass(frozen=True)
@@ -91,10 +106,38 @@ def _same_pack(reference: tuple[float, str], offer_name: str) -> bool:
     return abs(measured[0] - reference[0]) / reference[0] <= PACK_TOLERANCE
 
 
+def _drop_cuts(words: list[str]) -> list[str]:
+    """« hauts de cuisse de poulet » → « poulet » : une découpe ne change pas l'aliment."""
+    rest = list(words)
+    cuts = cut_words()
+    while rest and (rest[0] in cuts or rest[0] in STOP_WORDS):
+        rest.pop(0)
+    return rest
+
+
+def _tail_after(words: list[str], food: list[str]) -> list[str] | None:
+    """Ce qui suit l'aliment quand il OUVRE le libellé, sinon None."""
+    rest = list(words)
+    for word in food:
+        while rest and rest[0] in STOP_WORDS:
+            rest.pop(0)
+        if not rest or rest.pop(0) != word:
+            return None
+    return rest
+
+
 def _same_food(wanted: Wanted, offer: Offer) -> bool:
+    """L'aliment ouvre le libellé, ou n'en est séparé que par sa découpe (#164)."""
     offer_name, _ = split_packaging(offer.name)
-    return compare(Signals(name=offer_name),
-                   Signals(name=wanted.food_name)).verdict == PROPOSE
+    food = [w for w in normalize_name(wanted.food_name).split() if w not in STOP_WORDS]
+    if not food:
+        return False
+    words = normalize_name(offer_name).split()
+    for sequence in (words, _drop_cuts(words)):
+        tail = _tail_after(sequence, food)
+        if tail is not None:
+            return not (tail and tail[0] in COMPLEMENTS)
+    return False
 
 
 def _question(wanted: Wanted, rejected: list[dict]) -> str:

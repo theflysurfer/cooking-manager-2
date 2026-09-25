@@ -1,5 +1,5 @@
 {
-  "version": "0.10.0",
+  "version": "0.11.0",
   "slug": "cooking-vocabulary",
   "origin": "Extrait du moteur de substitutions porté de cooking-manager v1 (server/src/services/intelligentSubstitutions.ts) et mesuré en production dans cooking-manager-2 le 2026-09-02. Voir cooking-manager-2 ADR 0001.",
   "cooking_methods": [
@@ -1761,6 +1761,118 @@
       "satisfied_by": []
     }
   ],
+  "food_cuts": [
+    {
+      "key": "fillet",
+      "label": "Filet",
+      "status": "active",
+      "definition": "Muscle levé entier, sans os.",
+      "synonyms": [
+        "filets",
+        "escalope",
+        "escalopes",
+        "aiguillette",
+        "aiguillettes"
+      ],
+      "applicable_when": "",
+      "dominates": [],
+      "observed_in": [],
+      "code": "",
+      "satisfied_by": []
+    },
+    {
+      "key": "thigh",
+      "label": "Cuisse",
+      "status": "active",
+      "definition": "Membre postérieur entier ou sa partie haute.",
+      "synonyms": [
+        "cuisses",
+        "haut de cuisse",
+        "hauts de cuisse"
+      ],
+      "applicable_when": "",
+      "dominates": [],
+      "observed_in": [],
+      "code": "",
+      "satisfied_by": []
+    },
+    {
+      "key": "drumstick",
+      "label": "Pilon",
+      "status": "active",
+      "definition": "Bas de cuisse de volaille, avec son os.",
+      "synonyms": [
+        "pilons"
+      ],
+      "applicable_when": "",
+      "dominates": [],
+      "observed_in": [],
+      "code": "",
+      "satisfied_by": []
+    },
+    {
+      "key": "wing",
+      "label": "Aile",
+      "status": "active",
+      "definition": "Membre antérieur de volaille.",
+      "synonyms": [
+        "ailes",
+        "manchon",
+        "manchons"
+      ],
+      "applicable_when": "",
+      "dominates": [],
+      "observed_in": [],
+      "code": "",
+      "satisfied_by": []
+    },
+    {
+      "key": "roast",
+      "label": "Rôti",
+      "status": "active",
+      "definition": "Pièce ficelée destinée au four.",
+      "synonyms": [
+        "rotis"
+      ],
+      "applicable_when": "",
+      "dominates": [],
+      "observed_in": [],
+      "code": "",
+      "satisfied_by": []
+    },
+    {
+      "key": "diced",
+      "label": "Cube",
+      "status": "active",
+      "definition": "Chair détaillée en dés.",
+      "synonyms": [
+        "cubes",
+        "morceau",
+        "morceaux",
+        "émincé",
+        "émincés"
+      ],
+      "applicable_when": "",
+      "dominates": [],
+      "observed_in": [],
+      "code": "",
+      "satisfied_by": []
+    },
+    {
+      "key": "slice",
+      "label": "Tranche",
+      "status": "active",
+      "definition": "Chair coupée en tranches.",
+      "synonyms": [
+        "tranches"
+      ],
+      "applicable_when": "",
+      "dominates": [],
+      "observed_in": [],
+      "code": "",
+      "satisfied_by": []
+    }
+  ],
   "mediterranean_criteria": [
     {
       "key": "vegetables",
@@ -1889,6 +2001,20 @@
     }
   ],
   "_scope": {
+    "food_cuts": {
+      "applies_to": "Le mot de TÊTE d'un libellé commercial qui nomme une part ou une mise en forme d'un aliment, sans changer son identité — « Cuisses de poulet blanc » reste du poulet.",
+      "does_not_apply_to": [
+        "préparation composée dont l'aliment n'est qu'un ingrédient (« bouillon de poulet », « nuggets », « terrine ») — c'est un autre aliment, jamais une découpe",
+        "qualificatif commercial ou d'élevage (« extra tendre », « fermier », « label rouge ») — il ne dit rien de la part",
+        "état de conservation (« surgelé », « sèches », « fraîche ») — il change l'identité de l'aliment (voir `normalize_name`)",
+        "le libellé où la découpe EST l'aliment du référentiel (`filet de cabillaud`) — la comparaison directe suffit, rien à retirer"
+      ],
+      "absence_means": "PAS INSTRUIT — un libellé dont la tête n'est pas listée reste une QUESTION (`status: asked`), jamais une élection d'office.",
+      "known_tensions": [
+        "« blanc » est écarté volontairement : il est tour à tour découpe (blanc de poulet), robe (poulet blanc) et part d'œuf (blanc d'œuf). L'ajouter ferait passer « blancs d'œufs » pour des œufs.",
+        "`diced` recouvre le dé et l'émincé : deux mises en forme distinctes, indiscernables pour l'identité de l'aliment. À scinder si une quantité en dépend."
+      ]
+    },
     "appreciations": {
       "applies_to": "Un plat cuisiné à la maison et servi à une tablée identifiée.",
       "does_not_apply_to": [
