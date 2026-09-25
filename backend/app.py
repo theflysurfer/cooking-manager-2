@@ -2438,6 +2438,110 @@ async def _push_one(pool, row, offer, ban) -> dict:
             status, error, row["id"])
     return {"id": row["id"], "product": offer.name, "status": status, "error": error}
 
+class CartVerify(BaseModel):
+    menu_slug: str
+
+def _to_base(value: float | None, unit: str | None) -> tuple[float, str] | None:
+    """Une quantité dans son unité de base, ou None si l'unité n'est pas connue."""
+    from cooking_manager.pantry import _TO_BASE
+
+    if value is None:
+        return None
+    canonical = _TO_BASE.get((unit or "").strip().lower())
+    if canonical is None:
+        return None
+    base_unit, factor = canonical
+    return float(value) * factor, base_unit
+
+async def _needs_by_food(slug: str) -> tuple[list, int, int]:
+    """La liste arrêtée, indexée par aliment. Un besoin sans `food_key` n'est pas vérifiable."""
+    from cooking_manager.verification import Need
+
+    shopping = await menu_shopping_list(slug)
+    names = [line["name_normalized"] for line in shopping["lines"] if line["purchase"]]
+    pool = await get_pool(DATABASE_DSN)
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """SELECT DISTINCT name_normalized, food_key FROM recipe_ingredient
+                WHERE name_normalized = ANY($1::text[]) AND food_key IS NOT NULL""",
+            names)
+    keys = {r["name_normalized"]: r["food_key"] for r in rows}
+
+    needs, linked = [], 0
+    for line in shopping["lines"]:
+        buy = line["purchase"]
+        if not buy:
+            continue
+        food = keys.get(line["name_normalized"])
+        if not food:
+            continue
+        linked += 1
+        want = _to_base(buy["qty"], buy["unit"])
+        plan = line["pack_plan"]
+        pack = _to_base(plan["pack_size"], plan["unit"])
+        needs.append(Need(food=food,
+                          qty=want[0] if want else None,
+                          unit=want[1] if want else buy["unit"],
+                          pack_size=pack[0] if pack and want
+                          and pack[1] == want[1] else None))
+    return needs, linked, len(names)
+
+def _cart_line_refs(raw: dict) -> set[str]:
+    return {str(raw.get(key)) for key in
+            ("offer_id", "offerId", "product_id", "productId", "auchan_id")} - {"None", ""}
+
+@app.post("/api/cart/verify")
+async def verify_cart(body: CartVerify):
+    """Relit le panier RÉEL chez Auchan et le juge par aliment — `measured` avant `per_food` (#157)."""
+    from cooking_manager.matching import food_link_counts
+    from cooking_manager.packaging import split_packaging
+    from cooking_manager.verification import CartLine, unreadable, verify
+
+    try:
+        status = await auchan.session_status()
+        if not status.get("authenticated"):
+            return unreadable(
+                "session anonyme — le panier lu n'appartiendrait à personne")
+        cart = await auchan.get_cart()
+    except auchan.DriveUnreachable as exc:
+        return unreadable(str(exc))
+
+    pool = await get_pool(DATABASE_DSN)
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT * FROM cart_item WHERE menu_slug = $1", body.menu_slug)
+    by_ref: dict[str, dict] = {}
+    for row in rows:
+        for ref in {str(row["offer_id"] or ""), str(row["product_id"] or ""),
+                    str(row["auchan_id"] or "")} - {""}:
+            by_ref[ref] = dict(row)
+
+    lines = []
+    for raw in auchan.cart_lines(cart):
+        row = next((by_ref[ref] for ref in _cart_line_refs(raw) if ref in by_ref), None)
+        label = str(raw.get("name") or raw.get("label") or "")
+        count = int(raw.get("quantity") or raw.get("qty") or 0)
+        _, pack = split_packaging(label or (row or {}).get("product_name") or "")
+        size = _to_base(pack.size_value, pack.size_unit)
+        lines.append(CartLine(
+            label=label or (row or {}).get("product_name") or "?",
+            food=(row or {}).get("food_key"),
+            qty=size[0] * count if size else None,
+            unit=size[1] if size else None,
+            origin=str((row or {}).get("origin") or "")))
+
+    needs, linked, total = await _needs_by_food(body.menu_slug)
+    result = verify(needs, lines, datetime.datetime.now().isoformat(timespec="minutes"))
+    result["menu_slug"] = body.menu_slug
+    result["food_link"] = food_link_counts(linked, total)
+    if result["food_link"]["unlinked"]:
+        result["ok"] = False
+        result["reason"] = (
+            f"{result['food_link']['unlinked']} besoin(s) sans aliment rattaché : "
+            "ils ne peuvent pas être confrontés au panier"
+            + (f" ; {result['reason']}" if result["reason"] else ""))
+    return result
+
 @app.get("/api/cart")
 async def read_cart(menu_slug: str = Query(...)):
     """Le panier de l'application — `asked` se lit AVANT `lines` (#156)."""
