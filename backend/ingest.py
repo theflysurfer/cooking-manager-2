@@ -10,6 +10,40 @@ from .db import get_pool, init_schema
 
 log = logging.getLogger(__name__)
 
+
+class UndeclaredParts(Exception):
+    """Une part de convive annoncée en texte, sans la donnée qui la porte — #159."""
+
+    def __init__(self, refused: list[dict]):
+        self.refused = refused
+        super().__init__(f"{len(refused)} part(s) de convive non déclarée(s)")
+
+
+async def write_recipe_ingredients(conn, recipe_id: int, ingredients) -> None:
+    """Réécrit les ingrédients d'une recette — refuse une part écrite en parenthèse (#159)."""
+    from cooking_manager.parts import undeclared_part
+
+    names = {r["name"]: r["id"] for r in await conn.fetch("SELECT id, name FROM person")}
+    refused = [
+        {"position": ing.position, "raw": ing.raw, "reason": motif}
+        for ing in ingredients
+        if (motif := undeclared_part(ing.raw, getattr(ing, "for_person_id", None), names))
+    ]
+    if refused:
+        raise UndeclaredParts(refused)
+
+    await conn.execute("DELETE FROM recipe_ingredient WHERE recipe_id = $1", recipe_id)
+    for ing in ingredients:
+        await conn.execute(
+            """INSERT INTO recipe_ingredient
+               (recipe_id, position, raw, qty_min, qty_max, unit, name,
+                name_normalized, is_optional, parsed, for_person_id, replaces_position)
+               VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)""",
+            recipe_id, ing.position, ing.raw, ing.qty_min, ing.qty_max,
+            ing.unit, ing.name, ing.name_normalized, ing.is_optional, ing.parsed,
+            getattr(ing, "for_person_id", None), getattr(ing, "replaces_position", None),
+        )
+
 UPSERT_RECIPE = """
 INSERT INTO recipe (
     slug, title, status, recipe_type, family, servings,
@@ -129,16 +163,7 @@ async def write_recipe(conn, r: dict) -> tuple[list[str], int, int, int]:
     if recipe_id is None:
         return warnings, 0, 0, 0
 
-    await conn.execute("DELETE FROM recipe_ingredient WHERE recipe_id = $1", recipe_id)
-    for ing in content.ingredients:
-        await conn.execute(
-            """INSERT INTO recipe_ingredient
-               (recipe_id, position, raw, qty_min, qty_max, unit, name,
-                name_normalized, is_optional, parsed)
-               VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)""",
-            recipe_id, ing.position, ing.raw, ing.qty_min, ing.qty_max,
-            ing.unit, ing.name, ing.name_normalized, ing.is_optional, ing.parsed,
-        )
+    await write_recipe_ingredients(conn, recipe_id, content.ingredients)
 
     await conn.execute("DELETE FROM recipe_step WHERE recipe_id = $1", recipe_id)
     for step in content.steps:

@@ -2,11 +2,76 @@
 
 from __future__ import annotations
 
+import re
+import unicodedata
 from collections.abc import Sequence
 from dataclasses import dataclass
 
 from cooking_manager.ingredients import normalize_name
 from cooking_manager.substitutions import IngredientRepair
+
+@dataclass(frozen=True)
+class DeclaredPart:
+    """Une part écrite en DONNÉE : pour qui, et quelle ligne elle remplace — #159."""
+
+    person_id: int
+    position: int
+    replaces_position: int | None
+    raw: str
+
+def _field(line, key):
+    if isinstance(line, dict):
+        return line.get(key)
+    return getattr(line, key, None)
+
+def declared_parts(ingredients: Sequence) -> list[DeclaredPart]:
+    """Les parts de convive d'une recette, lues dans `for_person_id` — jamais dans le texte."""
+    out = []
+    for line in ingredients or []:
+        person_id = _field(line, "for_person_id")
+        if person_id is None:
+            continue
+        out.append(DeclaredPart(
+            person_id=int(person_id),
+            position=int(_field(line, "position") or 0),
+            replaces_position=(int(rp) if (rp := _field(line, "replaces_position")) is not None
+                               else None),
+            raw=str(_field(line, "raw") or _field(line, "name") or ""),
+        ))
+    return out
+
+def lines_for_person(ingredients: Sequence, person_id: int | None) -> list:
+    """Ce que CETTE personne mange : le plat commun, moins ce que sa part remplace — #159."""
+    parts = declared_parts(ingredients)
+    mine = [p for p in parts if p.person_id == person_id] if person_id is not None else []
+    replaced = {p.replaces_position for p in mine if p.replaces_position is not None}
+    my_positions = {p.position for p in mine}
+    others = {p.position for p in parts} - my_positions
+    return [line for line in ingredients or []
+            if int(_field(line, "position") or 0) not in (replaced | others)]
+
+_PART_SEGMENT = re.compile(r"\(([^)]*)\)|—\s*([^—]*)$")
+_PART_WORD = re.compile(r"(?<!\w)parts?(?!\w)", re.IGNORECASE)
+
+def _fold_name(text: str) -> str:
+    stripped = unicodedata.normalize("NFD", text)
+    return "".join(c for c in stripped if unicodedata.category(c) != "Mn").lower()
+
+def undeclared_part(raw: str, for_person_id: int | None, names: dict[str, int]) -> str | None:
+    """Un texte qui annonce la part d'un convive CONNU, sans la donnée qui la porte — #159."""
+    if for_person_id is not None or not raw:
+        return None
+    folded = _fold_name(str(raw))
+    for match in _PART_SEGMENT.finditer(folded):
+        segment = match.group(1) or match.group(2) or ""
+        if not _PART_WORD.search(segment):
+            continue
+        for name in names:
+            if _fold_name(name) in segment:
+                return (f"part de {name} annoncée en texte sans `for_person_id` : "
+                        "une parenthèse ne dit pas pour qui on achète, "
+                        "et ne retire rien du plat commun")
+    return None
 
 @dataclass(frozen=True)
 class Share:
@@ -91,12 +156,27 @@ def shares_for(convives: Sequence, covers: int) -> dict[str, Share]:
 def declared_diets(
     ingredients: Sequence[dict],
     convives: Sequence,
+    person_ids: dict[str, int] | None = None,
 ) -> set[str]:
-    """Les régimes dont la part est DÉJÀ écrite dans la recette — ADR 0025."""
+    """Les régimes dont la part est DÉJÀ écrite dans la recette — ADR 0025, #159.
+
+    Avec `person_ids`, la part se lit dans `for_person_id` : une parenthèse dans le
+    texte ne déclare plus rien, et une fiche non migrée remonte comme non réparée.
+    """
     from cooking_manager.convives import part_for
 
-    texts = [str(i.get("raw") or i.get("name") or "") for i in ingredients]
     covered: set[str] = set()
+    if person_ids is not None:
+        by_person = {p.person_id for p in declared_parts(ingredients)}
+        for convive in convives:
+            diet = getattr(convive, "diet", "") or ""
+            if diet in ("", "standard", "omnivore"):
+                continue
+            if person_ids.get(convive.name) in by_person:
+                covered.add(diet)
+        return covered
+
+    texts = [str(i.get("raw") or i.get("name") or "") for i in ingredients]
     for convive in convives:
         diet = getattr(convive, "diet", "") or ""
         if diet in ("", "standard", "omnivore"):

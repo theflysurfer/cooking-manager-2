@@ -39,7 +39,8 @@ from cooking_manager.matching import food_link_counts
 from . import book_import, images
 from .config import DATABASE_DSN, OLLAMA_URL
 from .db import get_pool, init_schema, close_pool
-from .ingest import relink_meals, write_recipe, _link_meals
+from .ingest import (UndeclaredParts, relink_meals, write_recipe,
+                     write_recipe_ingredients, _link_meals)
 from .url_parser import parse_recipe_html, parse_recipe_url
 from .url_parser.draft import to_draft as url_to_draft
 
@@ -169,7 +170,8 @@ async def get_recipe(slug: str):
             raise HTTPException(404, "Recipe not found")
         ingredients = await conn.fetch(
             """SELECT position, raw, qty_min, qty_max, unit, name,
-                      name_normalized, is_optional, parsed
+                      name_normalized, is_optional, parsed,
+                      for_person_id, replaces_position
                  FROM recipe_ingredient WHERE recipe_id = $1 ORDER BY position""",
             row["id"],
         )
@@ -284,7 +286,14 @@ async def _persist_recipe(payload: dict, slug_override: str | None) -> dict:
             422, f"statut {status!r} inconnu, attendu parmi {list(RECIPE_STATUSES)}")
     pool = await get_pool(DATABASE_DSN)
     async with pool.acquire() as conn:
-        w, pi, ur, ps = await write_recipe(conn, normalized)
+        try:
+            w, pi, ur, ps = await write_recipe(conn, normalized)
+        except UndeclaredParts as e:
+            raise HTTPException(422, {
+                "error": "une part de convive se déclare en donnée, pas en parenthèse",
+                "hint": "poser `for_person_id` (et `replaces_position` si la part remplace "
+                        "une ligne du plat commun) sur l'ingrédient concerné",
+                "refused": e.refused}) from None
     return {
         "slug": normalized.get("slug"),
         "warnings": warns + w,
@@ -343,7 +352,8 @@ async def recipe_macros_endpoint(slug: str):
         if row is None:
             raise HTTPException(404, f"Recette introuvable : {slug}")
         ingredients = [dict(r) for r in await conn.fetch(
-            """SELECT raw, name, name_normalized, qty_min, unit, is_optional
+            """SELECT raw, name, name_normalized, qty_min, unit, is_optional,
+                      position, for_person_id, replaces_position
                  FROM recipe_ingredient WHERE recipe_id = $1 ORDER BY position""",
             row["id"],
         )]
@@ -401,6 +411,11 @@ async def _memberships(conn) -> dict[str, str]:
     )
     return {r["name"]: r["membership"] for r in rows}
 
+async def _person_ids(conn) -> dict[str, int]:
+    """Nom → `person.id`, la clé par laquelle une part de convive se lit (#159)."""
+    rows = await conn.fetch("SELECT id, name FROM person")
+    return {r["name"]: r["id"] for r in rows}
+
 @app.get("/api/recipes/{slug}/compatibility")
 async def recipe_compatibility(
     slug: str,
@@ -410,6 +425,7 @@ async def recipe_compatibility(
 ):
     """Compatibilité d'une recette sur ses INGRÉDIENTS, à une tablée — ADR 0025."""
     from cooking_manager.convives import check_ingredients
+    from cooking_manager.parts import declared_parts, undeclared_part
     from cooking_manager.presence import attendees
     from cooking_manager.substitutions import (
         detect_context,
@@ -436,6 +452,7 @@ async def recipe_compatibility(
         )
         known = await load_convives_from_db(conn)
         memberships = await _memberships(conn)
+        person_ids = await _person_ids(conn)
         if convives:
             wanted = [n.strip() for n in convives.split(",") if n.strip()]
             table_source = "convives nommés"
@@ -451,7 +468,8 @@ async def recipe_compatibility(
         at_table = [known[n] for n in wanted if n in known]
 
     ingredients = [dict(r) for r in rows]
-    conflicts = check_ingredients(ingredients, at_table)
+    conflicts = check_ingredients(ingredients, at_table, person_ids)
+    declared = declared_parts(ingredients)
     context = detect_context(
         recipe["title"] or slug,
         ingredients=tuple(str(r["name"] or r["raw"] or "") for r in rows),
@@ -467,6 +485,16 @@ async def recipe_compatibility(
         "conclusive": bool(ingredients),
         "table": {"source": table_source,
                   "convives": [c.name for c in at_table]},
+        "declared_parts": [
+            {"person_id": d.person_id, "position": d.position,
+             "replaces_position": d.replaces_position, "raw": d.raw}
+            for d in declared],
+        "parts_undeclared": [
+            {"position": line.get("position"), "raw": line.get("raw"),
+             "reason": motif}
+            for line in ingredients
+            if (motif := undeclared_part(str(line.get("raw") or ""),
+                                         line.get("for_person_id"), person_ids))],
         "conflicts": [
             {"convive": c.convive, "reason": c.reason, "matched": c.matched,
              "membership": memberships.get(c.convive, "guest")}
@@ -536,6 +564,7 @@ async def menu_compatibility(slug: str):
         referential = await load_referential_from_db(conn)
         convives = await load_convives_from_db(conn)
         memberships = await _memberships(conn)
+        person_ids = await _person_ids(conn)
         pref_rows = await conn.fetch(
             """SELECT dp.kind, dp.target, dp.value, dp.unit, dp.scope, dp.reason,
                       COALESCE(p.name, '') AS person
@@ -554,7 +583,8 @@ async def menu_compatibility(slug: str):
             slug,
         )
         detail_rows = await conn.fetch(
-            """SELECT mm.id AS meal_id, mm.recipe_id, ri.name, ri.name_normalized, ri.raw
+            """SELECT mm.id AS meal_id, mm.recipe_id, ri.name, ri.name_normalized, ri.raw,
+                      ri.position, ri.for_person_id, ri.replaces_position
                  FROM menu_meal mm
                  JOIN recipe_ingredient ri ON ri.recipe_id = mm.recipe_id
                 WHERE mm.menu_id = (SELECT id FROM menu WHERE slug = $1)
@@ -635,7 +665,7 @@ async def menu_compatibility(slug: str):
         at_table = at_table_now
         repairs, unrepaired, declared_parts, conflicts = [], [], [], []
         if lines and at_table:
-            ingredient_conflicts = check_ingredients(lines, at_table)
+            ingredient_conflicts = check_ingredients(lines, at_table, person_ids)
             conflicts = ingredient_conflicts
             context = detect_context(
                 dish,
@@ -648,7 +678,7 @@ async def menu_compatibility(slug: str):
             repairs = repair_ingredients(
                 texts, diets_at_table(ingredient_conflicts), context)
             repairs += fallback_repairs(ingredient_conflicts, repairs, context)
-            already = declared_diets(lines, at_table)
+            already = declared_diets(lines, at_table, person_ids)
             declared_parts = sorted(already)
             repairs = [r for r in repairs if r.diet not in already]
             repairs, refused = prefer_discovered(
@@ -851,6 +881,7 @@ async def menu_shopping_list(
             "SELECT slug, title, meals FROM menu WHERE slug = $1", slug)
         if not menu:
             raise HTTPException(404, f"Menu introuvable : {slug}")
+        person_ids = await _person_ids(conn)
 
         date_filter = ""
         params: list = [slug]
@@ -901,7 +932,8 @@ async def menu_shopping_list(
         for recipe, _dish in matched:
             rows = await conn.fetch(
                 """SELECT name, name_normalized, qty_min, qty_max, unit,
-                          is_optional, parsed, raw
+                          is_optional, parsed, raw, position,
+                          for_person_id, replaces_position
                      FROM recipe_ingredient WHERE recipe_id = $1 ORDER BY position""",
                 recipe["id"],
             )
@@ -925,7 +957,7 @@ async def menu_shopping_list(
                     "SELECT text FROM recipe_step WHERE recipe_id = $1 ORDER BY position",
                     recipe["id"],
                 )
-                conflicts = check_ingredients(lines, at_table)
+                conflicts = check_ingredients(lines, at_table, person_ids)
                 context = detect_context(
                     recipe["title"] or "",
                     ingredients=tuple(str(r.get("name") or r.get("raw") or "")
@@ -942,7 +974,7 @@ async def menu_shopping_list(
                          FROM substitution_discovery WHERE recipe_id = $1""",
                     recipe["id"],
                 )
-                already = declared_diets(lines, at_table)
+                already = declared_diets(lines, at_table, person_ids)
                 repairs = [r for r in repairs if r.diet not in already]
                 repairs, _refused = prefer_discovered(repairs, [
                     Discovery(original=f["original_ingredient"],
@@ -3738,16 +3770,7 @@ async def commit_import_draft(draft_id: int, overwrite: bool = False):
                 body,
             )
 
-        await conn.execute("DELETE FROM recipe_ingredient WHERE recipe_id = $1", recipe_id)
-        for ing in content.ingredients:
-            await conn.execute(
-                """INSERT INTO recipe_ingredient
-                   (recipe_id, position, raw, qty_min, qty_max, unit, name,
-                    name_normalized, is_optional, parsed)
-                   VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)""",
-                recipe_id, ing.position, ing.raw, ing.qty_min, ing.qty_max,
-                ing.unit, ing.name, ing.name_normalized, ing.is_optional, ing.parsed,
-            )
+        await write_recipe_ingredients(conn, recipe_id, content.ingredients)
 
         await conn.execute("DELETE FROM recipe_step WHERE recipe_id = $1", recipe_id)
         for step in content.steps:

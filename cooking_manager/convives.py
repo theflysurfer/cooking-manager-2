@@ -255,20 +255,34 @@ def check_meal(description: str, convives: list[Convive]) -> list[Conflict]:
 
     return conflicts
 
-def check_ingredients(ingredients: list, convives: list[Convive]) -> list[Conflict]:
-    """Ingrédients PARSÉS + convives présents → conflits, ligne par ligne."""
-    conflicts: list[Conflict] = []
-    if not ingredients:
-        return conflicts
-
+def _folded_rows(ingredients: list) -> list[tuple[str, str]]:
     rows: list[tuple[str, str]] = []
     for ing in ingredients:
         get = ing.get if isinstance(ing, dict) else lambda k, o=ing: getattr(o, k, None)
         folded = _fold(get("name_normalized") or get("name") or get("raw") or "")
         if folded:
             rows.append((folded, str(get("raw") or get("name") or "")))
+    return rows
+
+def check_ingredients(ingredients: list, convives: list[Convive],
+                      person_ids: dict[str, int] | None = None) -> list[Conflict]:
+    """Ingrédients PARSÉS + convives présents → conflits, ligne par ligne.
+
+    `person_ids` fait lire à chacun SA tablée : une part déclarée retire du plat la
+    ligne qu'elle remplace, pour cette personne seulement (#159).
+    """
+    from cooking_manager.parts import lines_for_person
+
+    conflicts: list[Conflict] = []
+    if not ingredients:
+        return conflicts
+
+    all_rows = _folded_rows(ingredients)
 
     for convive in convives:
+        person_id = (person_ids or {}).get(convive.name)
+        rows = (_folded_rows(lines_for_person(ingredients, person_id))
+                if person_ids is not None else all_rows)
         seen: set[str] = set()
         checks = (
             [(t, f"régime {convive.diet}") for t in convive.diet_terms]

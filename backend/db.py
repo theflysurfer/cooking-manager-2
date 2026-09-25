@@ -49,6 +49,8 @@ CREATE TABLE IF NOT EXISTS recipe_ingredient (
     food_key    TEXT,
     is_optional BOOL NOT NULL DEFAULT FALSE,
     parsed      BOOL NOT NULL DEFAULT FALSE,
+    for_person_id     INTEGER,
+    replaces_position INTEGER,
     UNIQUE (recipe_id, position)
 );
 
@@ -657,6 +659,27 @@ $recipe_numeric$;
 -- supprimer un aliment ne doit effacer ni un stock ni un ingredient.
 ALTER TABLE pantry_item       ADD COLUMN IF NOT EXISTS food_key TEXT;
 ALTER TABLE recipe_ingredient ADD COLUMN IF NOT EXISTS food_key TEXT;
+
+-- La part d'un convive est une DONNEE, pas une parenthese dans `raw` (#159).
+-- `replaces_position` dit quelle ligne du plat commun cette part remplace POUR
+-- cette personne : sans elle, la part s'ajoute au plat au lieu de s'y substituer.
+-- ON DELETE SET NULL : retirer une personne du referentiel ne doit pas effacer
+-- la ligne d'ingredient -- elle redeviendrait du plat commun en silence.
+ALTER TABLE recipe_ingredient ADD COLUMN IF NOT EXISTS for_person_id     INTEGER;
+ALTER TABLE recipe_ingredient ADD COLUMN IF NOT EXISTS replaces_position INTEGER;
+
+DO $for_person_fk$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint
+                  WHERE conname = 'recipe_ingredient_for_person_id_fkey') THEN
+    ALTER TABLE recipe_ingredient ADD CONSTRAINT recipe_ingredient_for_person_id_fkey
+      FOREIGN KEY (for_person_id) REFERENCES person(id) ON DELETE SET NULL;
+  END IF;
+END
+$for_person_fk$;
+
+CREATE INDEX IF NOT EXISTS recipe_ingredient_for_person_idx
+    ON recipe_ingredient(for_person_id) WHERE for_person_id IS NOT NULL;
 
 DO $food_key_fk$
 BEGIN
