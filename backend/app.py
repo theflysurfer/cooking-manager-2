@@ -896,6 +896,7 @@ async def menu_shopping_list(
 ):
     """Menu → liste de courses différentielle, groupée par recette."""
     from cooking_manager.pantry import build_needs, check_need
+    from cooking_manager.packing import pack_plan
     from cooking_manager.parts import apply_repairs, declared_diets, shares_for
     from cooking_manager.purchase import purchase_for
     from cooking_manager.substitutions import (
@@ -1020,11 +1021,13 @@ async def menu_shopping_list(
 
     needs = build_needs(payload)
     pantry = await _pantry_from_db()
+    packs_by_food = await _pack_sizes_by_food([n.name_normalized for n in needs])
 
     lines = []
     for need in needs:
         verdict = check_need(need, pantry)
         buy = purchase_for(need, verdict.to_buy)
+        plan = pack_plan(buy, packs_by_food.get(need.name_normalized, []))
         lines.append({
             "name": need.name,
             "name_normalized": need.name_normalized,
@@ -1039,6 +1042,13 @@ async def menu_shopping_list(
             "to_buy": verdict.to_buy,
             "purchase": ({"kind": buy.kind, "qty": buy.qty, "unit": buy.unit,
                           "reason": buy.reason} if buy else None),
+            "pack_plan": {"pack_known": plan.pack_known, "packs": plan.packs,
+                          "buys": plan.buys, "unit": plan.unit,
+                          "pack_size": plan.pack_size, "surplus": plan.surplus,
+                          "surplus_packs": (round(sp, 2)
+                                            if (sp := plan.surplus_packs) is not None
+                                            else None),
+                          "reason": plan.reason},
             "assumed_empty": verdict.assumed_empty,
             "pantry": ({"name": verdict.pantry_item.name,
                         "qty_text": verdict.pantry_item.qty_text,
@@ -1085,6 +1095,26 @@ def _slot_coverage(meal_days, composed, referential, household) -> dict:
     slots = [s for s in uncomposed_slots(grid, composed)
              if lo.isoformat() <= s["date"] <= hi.isoformat()]
     return {"measured": True, "reason": "", "slots": slots}
+
+async def _pack_sizes_by_food(names: list[str]) -> dict[str, list[dict]]:
+    """Les contenants connus, par nom d'ingrédient — via `food_key` (#155)."""
+    wanted = [n for n in names if n]
+    if not wanted:
+        return {}
+    pool = await get_pool(DATABASE_DSN)
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """SELECT ri.name_normalized, p.name, p.pack_count,
+                      p.pack_size_value, p.pack_size_unit, p.last_price
+                 FROM recipe_ingredient ri
+                 JOIN product p ON p.food_key = ri.food_key
+                WHERE ri.name_normalized = ANY($1::text[])
+                  AND p.pack_size_value IS NOT NULL""",
+            wanted)
+    out: dict[str, list[dict]] = {}
+    for row in rows:
+        out.setdefault(row["name_normalized"], []).append(dict(row))
+    return out
 
 async def _confirmation_state(slug: str) -> dict:
     """Ce que le garde-manger de ce menu a vraiment été confronté, ou non (#161)."""

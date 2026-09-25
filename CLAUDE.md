@@ -93,6 +93,9 @@ dans `CONTEXT_REQUIRED` (ADR 0007). Lire, jamais recopier : `/api/preferences`.
 La liste **n'est pas stockée, c'est un calcul** : `GET /api/menus/{slug}/shopping-list` la
 recalcule à chaque appel (menu × tablée × stock). **La DB fait foi du stock.**
 
+⛔ **`pack_plan.pack_known` se lit AVANT `packs`** (ADR 0038) : `null` dit « aucun format
+connu pour cet aliment », jamais « un seul contenant ». Une dose ne se conditionne pas.
+
 ⛔ **Deux champs se lisent AVANT `lines`**, aveugle à eux par construction :
 `slots_uncomposed` (tablée non nulle, aucun repas — lire `measured` avant `slots`) ·
 `recurrent` (achats d'habitude, déjà filtrés du menu ; fréquences figées, #107).

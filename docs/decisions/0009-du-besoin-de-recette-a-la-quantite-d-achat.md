@@ -51,6 +51,8 @@ une ligne en silence.
 
 ### 3. Le calcul s'arrête à « un conditionnement »
 
+> **Superséé le 2026-09-25 par l'[ADR 0038](0038-le-contenant-entre-dans-le-domaine-et-dit-quand-il-l-ignore.md)** : le domaine compte désormais les contenants quand un format lui est fourni, et rend `pack_known: false` quand il ne l'est pas. Mesure qui a renversé la décision : 1150 g de poivrons demandés, 0 sachet acheté le 2026-09-21.
+
 Il dit *qu'il en faut un*, jamais *lequel*. Un pot de moutarde fait 370 g ici et
 200 g ailleurs : le format vendu appartient à l'enseigne, pas au domaine. Cette
 frontière est la raison d'être de #82 (mémoire produit : `ingredient_normalized`
