@@ -24,10 +24,17 @@ def _field(line, key):
         return line.get(key)
     return getattr(line, key, None)
 
+class ColumnNotLoaded(LookupError):
+    """La requête n'a pas chargé `for_person_id` : son absence se lirait « aucune part » (#159)."""
+
 def declared_parts(ingredients: Sequence) -> list[DeclaredPart]:
     """Les parts de convive d'une recette, lues dans `for_person_id` — jamais dans le texte."""
     out = []
     for line in ingredients or []:
+        if isinstance(line, dict) and "for_person_id" not in line:
+            raise ColumnNotLoaded(
+                "`for_person_id` absent des colonnes chargées : une part non lue se "
+                "confondrait avec une part inexistante — élargir le SELECT")
         person_id = _field(line, "for_person_id")
         if person_id is None:
             continue

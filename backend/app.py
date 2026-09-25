@@ -442,7 +442,9 @@ async def recipe_compatibility(
             raise HTTPException(404, f"Recette introuvable : {slug}")
         recipe_id = recipe["id"]
         rows = await conn.fetch(
-            """SELECT raw, name, name_normalized FROM recipe_ingredient
+            """SELECT raw, name, name_normalized, position,
+                      for_person_id, replaces_position
+                 FROM recipe_ingredient
                 WHERE recipe_id = $1 ORDER BY position""",
             recipe_id,
         )

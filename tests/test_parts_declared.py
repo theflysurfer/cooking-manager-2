@@ -38,6 +38,11 @@ class TestDeclaredParts:
         parts = declared_parts([ing(1, "tofu", for_person_id=3)])
         assert parts[0].replaces_position is None
 
+    def test_une_colonne_non_chargee_leve_au_lieu_de_rendre_aucune_part(self):
+        from cooking_manager.parts import ColumnNotLoaded
+        with pytest.raises(ColumnNotLoaded):
+            declared_parts([{"position": 1, "name": "poulet", "raw": "480 g poulet"}])
+
     def test_le_texte_ne_declare_rien_sans_la_donnee(self):
         assert declared_parts([ing(1, "crevettes", raw="150 g crevettes (part de Clémence)")]) == []
 
