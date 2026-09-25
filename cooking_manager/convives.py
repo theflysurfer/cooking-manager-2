@@ -266,11 +266,7 @@ def _folded_rows(ingredients: list) -> list[tuple[str, str]]:
 
 def check_ingredients(ingredients: list, convives: list[Convive],
                       person_ids: dict[str, int] | None = None) -> list[Conflict]:
-    """Ingrédients PARSÉS + convives présents → conflits, ligne par ligne.
-
-    `person_ids` fait lire à chacun SA tablée : une part déclarée retire du plat la
-    ligne qu'elle remplace, pour cette personne seulement (#159).
-    """
+    """Ingrédients PARSÉS + convives → conflits ; `person_ids` fait lire à chacun SA part (#159)."""
     from cooking_manager.parts import lines_for_person
 
     conflicts: list[Conflict] = []

@@ -158,11 +158,7 @@ def declared_diets(
     convives: Sequence,
     person_ids: dict[str, int] | None = None,
 ) -> set[str]:
-    """Les régimes dont la part est DÉJÀ écrite dans la recette — ADR 0025, #159.
-
-    Avec `person_ids`, la part se lit dans `for_person_id` : une parenthèse dans le
-    texte ne déclare plus rien, et une fiche non migrée remonte comme non réparée.
-    """
+    """Les régimes dont la part est DÉJÀ écrite — via `for_person_id` si `person_ids` (#159)."""
     from cooking_manager.convives import part_for
 
     covered: set[str] = set()
