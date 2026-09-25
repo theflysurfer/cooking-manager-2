@@ -110,6 +110,16 @@ lire `counts.pending` **avant** `groups`.
 — un ban dont AUCUN nom ne porte le mot visé ne frappe rien et rend `ok:true` (#115). Une
 préférence énoncée par Julien s'écrit en base **tout de suite**, sinon elle n'existe pas.
 
+⛔ **Le panier est une table, pas une croyance** (ADR 0039, #156) : `POST /api/cart/items`
+élit au drive — le produit nommé, sinon substitution **bornée** (même aliment, gamme
+autorisée, contenant équivalent), sinon `status: asked` qui porte la **question**. Un
+contenant voulu **inconnu** ne vaut pas « quelconque ». `GET /api/cart` : lire
+`counts.asked` **avant** `lines`. `POST /api/cart/push` rejoue **une ligne à la fois** et
+**recompte** chaque ajout — un `ok` du drive ne garantit aucune quantité ; session
+anonyme → **409**, un panier qui n'appartient à personne n'est pas un panier. Transport :
+façade REST loopback `127.0.0.1:3853` de `mcp-vps-auchan` (mcp-vps ADR 0009), jamais le
+MCP (il exige un jeton Google même en local).
+
 ⛔ **`pantry_item` est un JOURNAL D'ENTRÉES, pas un inventaire** : rien ne le décrémente. `ok`
 dit « acheté un jour », jamais « il y en a ». Depuis ADR 0036, un `ok`/`low` sans quantité
 mesurable est **refusé en 422** aux cinq écritures, et le panier ne part pas sans
