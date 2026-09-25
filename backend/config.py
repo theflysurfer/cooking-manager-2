@@ -10,6 +10,9 @@ DATABASE_DSN = os.environ.get(
 HOST = os.environ.get("HOST", "127.0.0.1")
 PORT = int(os.environ.get("PORT", "8795"))
 
+AUCHAN_REST_URL = os.environ.get("AUCHAN_REST_URL", "http://127.0.0.1:3853")
+AUCHAN_TIMEOUT = float(os.environ.get("AUCHAN_TIMEOUT", "60"))
+
 DEEPGRAM_API_KEY = os.environ.get("DEEPGRAM_API_KEY", "")
 DEEPGRAM_MODEL = os.environ.get("DEEPGRAM_MODEL", "nova-2")
 DEEPGRAM_LANGUAGE = os.environ.get("DEEPGRAM_LANGUAGE", "fr")

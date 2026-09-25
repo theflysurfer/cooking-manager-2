@@ -36,7 +36,7 @@ from cooking_manager.substitutions import VOCABULARY_VERSION, load_vocabulary
 from cooking_manager.ingredients import parse_recipe_body
 from cooking_manager.matching import food_link_counts
 
-from . import book_import, images
+from . import auchan, book_import, images
 from .config import DATABASE_DSN, OLLAMA_URL
 from .db import get_pool, init_schema, close_pool
 from .ingest import (UndeclaredParts, relink_meals, write_recipe,
@@ -2274,6 +2274,185 @@ async def _unarbitrated_lines(products: list[str]) -> list[dict]:
              "reason": "jamais confrontée au référentiel aliment"}
             for ref, label in sorted(wanted.items())
             if ref not in settled and ref not in recurrent]
+
+CART_ORIGINS = ("menu", "manual", "recurrent", "substitution")
+
+class CartLineIn(BaseModel):
+    menu_slug: str
+    requested: str
+    food: str = ""
+    food_key: str | None = None
+    quantity: int = 1
+    origin: str = "menu"
+    reason: str = ""
+    product_name: str | None = None
+    auchan_id: str | None = None
+    product_id: str | None = None
+    offer_id: str | None = None
+    seller_id: str | None = None
+    pack_size: float | None = None
+    pack_unit: str | None = None
+
+async def _write_cart_line(conn, body: CartLineIn, *, product_name: str | None,
+                           auchan_id: str | None, product_id: str | None,
+                           offer_id: str | None, seller_id: str | None,
+                           origin: str, reason: str, status: str) -> dict:
+    row = await conn.fetchrow(
+        """INSERT INTO cart_item
+           (menu_slug, requested, food_key, product_name, auchan_id, product_id,
+            offer_id, seller_id, quantity, origin, reason, status)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+           RETURNING id""",
+        body.menu_slug, body.requested, body.food_key, product_name, auchan_id,
+        product_id, offer_id, seller_id, body.quantity, origin, reason, status,
+    )
+    return {"id": row["id"], "origin": origin, "status": status, "reason": reason,
+            "product": product_name, "auchan_id": auchan_id}
+
+@app.post("/api/cart/items")
+async def add_cart_item(body: CartLineIn):
+    """Écrit une ligne du panier. Sans produit nommé, l'application l'élit au drive."""
+    from cooking_manager.election import ASK, ELECTED, Wanted, elect
+
+    if body.origin not in CART_ORIGINS:
+        raise HTTPException(
+            422, f"origin inconnu : {body.origin} (attendu {list(CART_ORIGINS)})")
+
+    pool = await get_pool(DATABASE_DSN)
+
+    if body.product_id and body.offer_id:
+        if not body.reason.strip():
+            raise HTTPException(422, "une ligne posée à la main s'écrit avec son motif")
+        async with pool.acquire() as conn:
+            return await _write_cart_line(
+                conn, body, product_name=body.product_name or body.requested,
+                auchan_id=body.auchan_id, product_id=body.product_id,
+                offer_id=body.offer_id, seller_id=body.seller_id,
+                origin=body.origin, reason=body.reason, status="elected")
+
+    try:
+        offers = await auchan.search(body.food or body.requested)
+    except auchan.DriveUnreachable as exc:
+        raise HTTPException(502, f"drive injoignable : {exc}") from exc
+
+    bans = await _load_bans()
+    verdict = elect(
+        Wanted(label=body.requested, food=body.food, auchan_id=body.auchan_id,
+               pack_size=body.pack_size, pack_unit=body.pack_unit),
+        offers, bans)
+
+    if verdict.verdict == ASK:
+        async with pool.acquire() as conn:
+            line = await _write_cart_line(
+                conn, body, product_name=None, auchan_id=None, product_id=None,
+                offer_id=None, seller_id=None,
+                origin=body.origin if body.origin != "menu" else "menu",
+                reason=verdict.question or verdict.reason, status="asked")
+        return {**line, "verdict": ASK, "question": verdict.question,
+                "rejected": verdict.rejected}
+
+    offer = verdict.offer
+    assert offer is not None
+    origin = body.origin if verdict.verdict == ELECTED else "substitution"
+    async with pool.acquire() as conn:
+        line = await _write_cart_line(
+            conn, body, product_name=offer.name, auchan_id=offer.auchan_id,
+            product_id=offer.product_id, offer_id=offer.offer_id,
+            seller_id=offer.seller_id, origin=origin, reason=verdict.reason,
+            status="elected")
+    return {**line, "verdict": verdict.verdict, "rejected": verdict.rejected}
+
+class CartPush(BaseModel):
+    menu_slug: str
+
+@app.post("/api/cart/push")
+async def push_cart(body: CartPush):
+    """Rejoue les lignes élues vers le drive, une par une, en relisant chaque ajout."""
+    from cooking_manager.bans import find_ban
+    from cooking_manager.election import Offer
+
+    try:
+        status = await auchan.session_status()
+    except auchan.DriveUnreachable as exc:
+        raise HTTPException(502, f"drive injoignable : {exc}") from exc
+    if not status.get("authenticated"):
+        raise HTTPException(
+            409, "session Auchan anonyme : le panier n'appartiendrait à personne — "
+                 "re-seed de la session compte avant de pousser")
+
+    pool = await get_pool(DATABASE_DSN)
+    async with pool.acquire() as conn:
+        asked = await conn.fetchval(
+            "SELECT COUNT(*) FROM cart_item WHERE menu_slug = $1 AND status = 'asked'",
+            body.menu_slug)
+        rows = await conn.fetch(
+            """SELECT * FROM cart_item
+                WHERE menu_slug = $1 AND status = 'elected'
+                ORDER BY id""",
+            body.menu_slug)
+
+    cart = await auchan.get_cart()
+    cart_id = cart.get("cartId") or cart.get("cart_id")
+    if cart_id:
+        await auchan.pin_cart(str(cart_id))
+
+    bans = await _load_bans()
+    pushed, failed = [], []
+    for row in rows:
+        offer = Offer(name=row["product_name"] or row["requested"],
+                      product_id=row["product_id"] or "",
+                      offer_id=row["offer_id"] or "",
+                      auchan_id=row["auchan_id"], seller_id=row["seller_id"])
+        ban = find_ban(offer.name, bans, auchan_id=offer.auchan_id)
+        outcome = await _push_one(pool, row, offer, ban)
+        (pushed if outcome["status"] == "pushed" else failed).append(outcome)
+
+    return {"menu_slug": body.menu_slug, "asked": asked, "cart_id": cart_id,
+            "pushed": pushed, "failed": failed,
+            "counts": {"asked": asked, "pushed": len(pushed), "failed": len(failed)}}
+
+async def _push_one(pool, row, offer, ban) -> dict:
+    """Un ajout, puis sa relecture — un `ok` du drive ne garantit aucune quantité."""
+    before = 0
+    error = None
+    if ban is not None:
+        error = f"gamme refusée : {ban.label}"
+    else:
+        try:
+            cart = await auchan.get_cart()
+            before = auchan.count_for(cart, offer)
+            await auchan.add_to_cart(offer, row["quantity"])
+            after = auchan.count_for(await auchan.get_cart(), offer)
+            if after <= before:
+                error = (f"l'ajout n'a rien changé au panier "
+                         f"({before} exemplaire(s) avant comme après)")
+        except auchan.DriveUnreachable as exc:
+            error = str(exc)
+
+    status = "failed" if error else "pushed"
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """UPDATE cart_item SET status = $1, push_error = $2,
+                      pushed_at = CASE WHEN $1 = 'pushed' THEN NOW() ELSE NULL END
+                WHERE id = $3""",
+            status, error, row["id"])
+    return {"id": row["id"], "product": offer.name, "status": status, "error": error}
+
+@app.get("/api/cart")
+async def read_cart(menu_slug: str = Query(...)):
+    """Le panier de l'application — `asked` se lit AVANT `lines` (#156)."""
+    pool = await get_pool(DATABASE_DSN)
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT * FROM cart_item WHERE menu_slug = $1 ORDER BY id", menu_slug)
+    lines = []
+    for r in rows:
+        d = _round_numeric(dict(r))
+        _serialize_dates(d, ("created_at", "pushed_at"))
+        lines.append(d)
+    counts = {status: sum(1 for line in lines if line["status"] == status)
+              for status in ("asked", "elected", "pushed", "failed", "skipped")}
+    return {"menu_slug": menu_slug, "counts": counts, "lines": lines}
 
 @app.get("/api/shopping/preferences")
 async def list_shopping_preferences():

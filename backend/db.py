@@ -212,8 +212,34 @@ CREATE TABLE IF NOT EXISTS shopping_preference (
     UNIQUE(pref_type, key)
 );
 
+-- cart_item : le panier dont l'application est propriétaire (#156). Une ligne y
+-- entre AVANT de partir vers le drive, avec son origine et son motif ; `pushed`
+-- ne s'écrit qu'après relecture du panier Auchan. `status = 'asked'` porte une
+-- ligne que l'élection a refusé de trancher seule — sa question vit dans `reason`.
+CREATE TABLE IF NOT EXISTS cart_item (
+    id           SERIAL PRIMARY KEY,
+    menu_slug    TEXT NOT NULL,
+    requested    TEXT NOT NULL,
+    food_key     TEXT,
+    product_name TEXT,
+    auchan_id    TEXT,
+    product_id   TEXT,
+    offer_id     TEXT,
+    seller_id    TEXT,
+    quantity     INTEGER NOT NULL DEFAULT 1,
+    origin       TEXT NOT NULL
+                 CHECK (origin IN ('menu', 'manual', 'recurrent', 'substitution')),
+    reason       TEXT NOT NULL,
+    status       TEXT NOT NULL DEFAULT 'elected'
+                 CHECK (status IN ('elected', 'asked', 'pushed', 'failed', 'skipped')),
+    push_error   TEXT,
+    pushed_at    TIMESTAMPTZ,
+    created_at   TIMESTAMPTZ DEFAULT NOW()
+);
+
 CREATE INDEX IF NOT EXISTS idx_shopping_product_session ON shopping_product(session_id);
 CREATE INDEX IF NOT EXISTS idx_shopping_preference_type ON shopping_preference(pref_type);
+CREATE INDEX IF NOT EXISTS idx_cart_item_menu ON cart_item(menu_slug, status);
 
 -- Garde-manger : la DB est la source de vérité (pas le vault Markdown, qui n'est
 -- qu'une source d'ingestion parmi d'autres — Auchan, voix, API).
