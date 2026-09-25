@@ -2490,32 +2490,46 @@ def _cart_line_refs(raw: dict) -> set[str]:
     return {str(raw.get(key)) for key in
             ("offer_id", "offerId", "product_id", "productId", "auchan_id")} - {"None", ""}
 
-@app.post("/api/cart/verify")
-async def verify_cart(body: CartVerify):
-    """Relit le panier RÉEL chez Auchan et le juge par aliment — `measured` avant `per_food` (#157)."""
-    from cooking_manager.matching import food_link_counts
-    from cooking_manager.packaging import split_packaging
-    from cooking_manager.verification import CartLine, unreadable, verify
-
+async def _read_real_cart() -> tuple[dict | None, str]:
+    """Le panier LU chez Auchan, ou le motif qui a empêché de le lire."""
     try:
         status = await auchan.session_status()
         if not status.get("authenticated"):
-            return unreadable(
-                "session anonyme — le panier lu n'appartiendrait à personne")
-        cart = await auchan.get_cart()
+            return None, "session anonyme — le panier lu n'appartiendrait à personne"
+        return await auchan.get_cart(), ""
     except auchan.DriveUnreachable as exc:
-        return unreadable(str(exc))
+        return None, str(exc)
 
+async def _cart_rows_by_ref(menu_slug: str) -> dict[str, dict]:
+    """Les lignes de l'application, indexées par toutes les références qu'elles portent."""
     pool = await get_pool(DATABASE_DSN)
     async with pool.acquire() as conn:
         rows = await conn.fetch(
-            "SELECT * FROM cart_item WHERE menu_slug = $1", body.menu_slug)
+            "SELECT * FROM cart_item WHERE menu_slug = $1", menu_slug)
     by_ref: dict[str, dict] = {}
     for row in rows:
         for ref in {str(row["offer_id"] or ""), str(row["product_id"] or ""),
                     str(row["auchan_id"] or "")} - {""}:
             by_ref[ref] = dict(row)
+    return by_ref
 
+@app.post("/api/cart/verify")
+async def verify_cart(body: CartVerify):
+    """Relit le panier RÉEL chez Auchan et le juge par aliment — `measured` avant `per_food` (#157)."""
+    cart, why = await _read_real_cart()
+    if cart is None:
+        from cooking_manager.verification import unreadable
+
+        return unreadable(why)
+    return await _reconcile(body.menu_slug, cart)
+
+async def _reconcile(menu_slug: str, cart: dict) -> dict:
+    """Le panier lu confronté à la liste arrêtée — il MONTRE, il ne corrige rien (#113)."""
+    from cooking_manager.matching import food_link_counts
+    from cooking_manager.packaging import split_packaging
+    from cooking_manager.verification import CartLine, verify
+
+    by_ref = await _cart_rows_by_ref(menu_slug)
     lines = []
     for raw in auchan.cart_lines(cart):
         row = next((by_ref[ref] for ref in _cart_line_refs(raw) if ref in by_ref), None)
@@ -2530,9 +2544,9 @@ async def verify_cart(body: CartVerify):
             unit=size[1] if size else None,
             origin=str((row or {}).get("origin") or "")))
 
-    needs, linked, total = await _needs_by_food(body.menu_slug)
+    needs, linked, total = await _needs_by_food(menu_slug)
     result = verify(needs, lines, datetime.datetime.now().isoformat(timespec="minutes"))
-    result["menu_slug"] = body.menu_slug
+    result["menu_slug"] = menu_slug
     result["food_link"] = food_link_counts(linked, total)
     if result["food_link"]["unlinked"]:
         result["ok"] = False
@@ -2541,6 +2555,95 @@ async def verify_cart(body: CartVerify):
             "ils ne peuvent pas être confrontés au panier"
             + (f" ; {result['reason']}" if result["reason"] else ""))
     return result
+
+STORE_DRIVE = "auchan-drive"
+
+class CartOrder(BaseModel):
+    menu_slug: str
+    override_reason: str = ""
+
+def _cart_total(cart: dict) -> float | None:
+    for key in ("total", "totalPrice", "amount"):
+        value = cart.get(key)
+        if isinstance(value, (int, float)):
+            return float(value)
+    prices = cart.get("prices")
+    if isinstance(prices, dict):
+        for key in ("total", "totalIncludingTaxes"):
+            value = prices.get(key)
+            if isinstance(value, (int, float)):
+                return float(value)
+    return None
+
+async def _persist_real_cart(menu_slug: str, cart: dict,
+                             by_ref: dict[str, dict]) -> dict:
+    """Écrit lignes et quantités LUES chez le drive. Son échec bloque la commande (ADR 0028)."""
+    lines = auchan.cart_lines(cart)
+    if not lines:
+        raise HTTPException(
+            409, "le panier lu chez Auchan est vide : rien à tracer, donc rien à commander")
+    cart_id = str(cart.get("cartId") or cart.get("cart_id") or "") or None
+    pool = await get_pool(DATABASE_DSN)
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            session_id = await conn.fetchval(
+                """INSERT INTO shopping_session
+                   (date, store, cart_id, total, items_count, notes)
+                   VALUES ($1,$2,$3,$4,$5,$6) RETURNING id""",
+                datetime.date.today(), STORE_DRIVE, cart_id, _cart_total(cart),
+                len(lines), f"menu {menu_slug} — panier relu avant commande (#113)")
+            for raw in lines:
+                row = next((by_ref[ref] for ref in _cart_line_refs(raw)
+                            if ref in by_ref), None)
+                label = str(raw.get("name") or raw.get("label") or "?")
+                await conn.execute(
+                    """INSERT INTO shopping_product
+                       (session_id, item_requested, product_name, product_id,
+                        quantity_bought, status, rationale, auchan_id)
+                       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)""",
+                    session_id, (row or {}).get("requested") or label, label,
+                    (row or {}).get("product_id"),
+                    int(raw.get("quantity") or raw.get("qty") or 0),
+                    "added" if row else "off_app",
+                    (row or {}).get("reason") or "",
+                    (row or {}).get("auchan_id"))
+    return {"session_id": session_id, "items_persisted": len(lines)}
+
+@app.post("/api/cart/order")
+async def order_cart(body: CartOrder):
+    """Persist, puis réconciliation, puis commande — jamais l'inverse, jamais l'un sans l'autre (#113)."""
+    cart, why = await _read_real_cart()
+    if cart is None:
+        raise HTTPException(409, f"panier Auchan illisible : {why} — aucune commande")
+
+    by_ref = await _cart_rows_by_ref(body.menu_slug)
+    persisted = await _persist_real_cart(body.menu_slug, cart, by_ref)
+    reconciliation = await _reconcile(body.menu_slug, cart)
+
+    if not reconciliation["ok"] and not body.override_reason.strip():
+        raise HTTPException(409, {
+            "reason": "la réconciliation bloque la commande : "
+                      + (reconciliation["reason"] or "écart non expliqué"),
+            "persisted": persisted, "reconciliation": reconciliation,
+            "note": "un accord humain s'écrit dans override_reason — "
+                    "la réconciliation montre, elle ne corrige pas"})
+
+    try:
+        order = await auchan.create_order()
+    except auchan.DriveUnreachable as exc:
+        raise HTTPException(502, f"commande refusée par le drive : {exc}") from exc
+
+    if body.override_reason.strip():
+        pool = await get_pool(DATABASE_DSN)
+        async with pool.acquire() as conn:
+            await conn.execute(
+                "UPDATE shopping_session SET notes = notes || $2 WHERE id = $1",
+                persisted["session_id"],
+                f" — écart assumé : {body.override_reason.strip()}")
+
+    return {"menu_slug": body.menu_slug, "persisted": persisted,
+            "reconciliation": reconciliation, "order": order,
+            "override_reason": body.override_reason.strip() or None}
 
 @app.get("/api/cart")
 async def read_cart(menu_slug: str = Query(...)):

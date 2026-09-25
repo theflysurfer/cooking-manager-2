@@ -86,6 +86,8 @@ def _judge(need: Need | None, lines: list[CartLine]) -> Judgement:
                          reason="aucun repas ne réclame cet aliment et aucune ligne "
                                 "ne l'assume")
 
+    if not lines:
+        cart, cart_unit = 0.0, need.unit
     if need.qty is None or not need.unit:
         return Judgement(UNMEASURABLE, need.qty, cart, need.unit, labels=labels,
                          reason="la liste ne chiffre pas ce besoin : rien à confronter")

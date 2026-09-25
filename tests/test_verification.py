@@ -108,3 +108,31 @@ class TestSaisiHorsDeLApplication:
         result = verify([], [CartLine("Saumon 400 g", food="saumon", qty=400, unit="g",
                                       origin="menu")], READ_AT)
         assert judged(result, "saumon")["verdict"] == OFF_APP
+
+
+class TestLesSixPaquetsDeParmesan:
+    """#113 : la ligne ajoutée en 6 exemplaires le 20/09 doit se voir AVANT la commande."""
+
+    def test_six_paquets_pour_un_besoin_d_un_seul_sont_un_surplus(self):
+        result = verify([Need("parmesan", 100, "g", pack_size=100)],
+                        [CartLine("Parmesan râpé 100 g", food="parmesan", qty=600,
+                                  unit="g", origin="menu")], READ_AT)
+        parmesan = judged(result, "parmesan")
+        assert parmesan["verdict"] == SURPLUS
+        assert parmesan["cart"] == 600
+        assert parmesan["need"] == 100
+
+    def test_les_carottes_manquantes_bloquent_la_meme_commande(self):
+        """L'autre retour du 20/09 : « il manque des carottes ? » — la question devient un verdict."""
+        result = verify([Need("carotte", 1000, "g", pack_size=1000)], [], READ_AT)
+        assert judged(result, "carotte")["verdict"] == MISSING
+        assert result["ok"] is False
+
+
+class TestUnZeroEstUneMesure:
+    def test_un_aliment_absent_du_panier_manque_il_n_est_pas_non_mesurable(self):
+        """Zéro ligne chez le drive se compare : 0 g contre 1000 g, c'est un MANQUE."""
+        result = verify([Need("carotte", 1000, "g", pack_size=1000)], [], READ_AT)
+        carotte = judged(result, "carotte")
+        assert carotte["verdict"] == MISSING
+        assert carotte["cart"] == 0

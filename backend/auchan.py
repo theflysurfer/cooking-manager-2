@@ -88,3 +88,8 @@ def count_for(cart: dict, offer: Offer) -> int:
         if refs & wanted:
             return int(line.get("quantity") or line.get("qty") or 0)
     return 0
+
+
+async def create_order() -> dict:
+    """Convertit le panier en commande. Une erreur du checkout lève, elle ne rend rien."""
+    return await _call("POST", "/order")
