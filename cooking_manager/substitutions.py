@@ -418,6 +418,12 @@ RULES_BY_DIET: dict[str, tuple[SubstitutionRule, ...]] = {
     "pescetarian": PESCETARIAN_RULES,
 }
 
+
+def substitution_targets() -> tuple[str, ...]:
+    """Les cibles que `repair_ingredients` injecte, absentes de toute table d'ingrédients."""
+    return tuple(dict.fromkeys(
+        rule.target for rules in RULES_BY_DIET.values() for rule in rules))
+
 CUISINE_KEYWORDS: dict[str, tuple[str, ...]] = _synonyms("cuisines")
 
 COOKING_METHOD_KEYWORDS: dict[str, tuple[str, ...]] = _synonyms("cooking_methods")

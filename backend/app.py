@@ -4473,7 +4473,8 @@ async def _settled_refs(conn, subject: str) -> set[str]:
     return {r["ref"] for r in rows}
 
 
-async def _queue(conn, subject: str, ref: str, label: str, proposal, rows: int) -> None:
+async def _queue(conn, subject: str, ref: str, label: str, proposal, rows: int,
+                 origin: str = "") -> None:
     await conn.execute(
         """INSERT INTO arbitration (subject, scope, ref, label, candidates, reason)
            VALUES ($1, $2, $3, $4, $5::jsonb, $6)
@@ -4483,7 +4484,7 @@ async def _queue(conn, subject: str, ref: str, label: str, proposal, rows: int) 
             WHERE arbitration.status = 'pending'""",
         subject, _arbitration_subject(subject), ref, label,
         json.dumps([c.as_dict() for c in proposal.candidates], ensure_ascii=False),
-        f"{proposal.reason} — {rows} ligne(s)")
+        f"{proposal.reason} — {origin or f'{rows} ligne(s)'}")
 
 
 async def _settle(conn, subject: str, ref: str, label: str, proposal,
@@ -4514,9 +4515,13 @@ def _row_count(tag: str) -> int:
     return int(tag.rsplit(" ", 1)[-1]) if tag else 0
 
 
+SUBSTITUTION_ORIGIN = "cible de substitution de régime, injectée hors table d'ingrédients"
+
+
 async def _refresh_food_key(conn) -> dict:
     from cooking_manager.ingredients import normalize_name
     from cooking_manager.linking import propose_food_key
+    from cooking_manager.substitutions import substitution_targets
 
     foods = {r["key"]: r["name"] or r["key"]
              for r in await conn.fetch("SELECT key, name FROM food")}
@@ -4531,8 +4536,18 @@ async def _refresh_food_key(conn) -> dict:
             WHERE name_normalized <> ''
             GROUP BY name_normalized ORDER BY 3 DESC""")
 
+    queue = [{"ref": r["ref"], "label": r["label"], "rows": r["rows"], "origin": ""}
+             for r in rows]
+    seen = {r["ref"] for r in rows}
+    for target in substitution_targets():
+        ref = normalize_name(target)
+        if ref and ref not in seen:
+            seen.add(ref)
+            queue.append({"ref": ref, "label": target, "rows": 0,
+                          "origin": SUBSTITUTION_ORIGIN})
+
     queued = linked = skipped = 0
-    for row in rows:
+    for row in queue:
         ref = row["ref"]
         if ref in settled or ref in recurrent:
             skipped += 1
@@ -4543,7 +4558,8 @@ async def _refresh_food_key(conn) -> dict:
             await _settle(conn, "food_key", ref, row["label"] or ref, proposal, "exact")
             linked += 1
             continue
-        await _queue(conn, "food_key", ref, row["label"] or ref, proposal, row["rows"])
+        await _queue(conn, "food_key", ref, row["label"] or ref, proposal, row["rows"],
+                     row["origin"])
         queued += 1
     return {"subject": "food_key", "queued": queued, "linked": linked,
             "already_settled_or_recurrent": skipped}

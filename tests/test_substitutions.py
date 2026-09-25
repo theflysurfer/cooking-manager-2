@@ -9,6 +9,7 @@ from cooking_manager.substitutions import (
     FALLBACK_CONFIDENCE,
     CUISINE_KEYWORDS,
     PESCETARIAN_RULES,
+    RULES_BY_DIET,
     VOCABULARY_VERSION,
     RecipeContext,
     accommodations_by_evidence,
@@ -22,6 +23,7 @@ from cooking_manager.substitutions import (
     diets_at_table,
     find_substitution,
     repair_ingredients,
+    substitution_targets,
     unrepaired_conflicts,
 )
 
@@ -443,3 +445,22 @@ def test_le_mafe_ne_deteint_pas_sur_un_poulet_en_cocotte_francais():
     substitution = find_substitution("1 poulet fermier", context)
     assert substitution is not None
     assert "mafé" not in substitution.reason
+
+
+class TestCiblesArbitrables:
+    """Une cible injectee hors table d'ingredients doit rester arbitrable (#165)."""
+
+    def test_chaque_regle_expose_sa_cible(self):
+        declarees = {rule.target for rules in RULES_BY_DIET.values() for rule in rules}
+        assert declarees == set(substitution_targets())
+
+    def test_la_cible_reellement_injectee_est_exposee(self):
+        repairs = repair_ingredients(
+            ["4 cuisses de poulet"],
+            ("pescetarian",),
+            detect_context("Cuisses de poulet au four"),
+        )
+        assert repairs
+        cibles = set(substitution_targets())
+        for repair in repairs:
+            assert repair.substitution.target in cibles
