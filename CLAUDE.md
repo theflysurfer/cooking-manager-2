@@ -81,8 +81,10 @@ ingrédients de `menu_meal.leftovers_of`, **sans source exploitable il n'est pas
 
 ⛔ **Un interdit se lit À UNE TABLÉE** : `/recipes/{slug}/compatibility` résout `?convives=` →
 `?day=&slot=` → **les résidents** (`household_member`). `membership: guest` = contrainte
-d'invité. Une **part séparée** se déclare dans les ingrédients (`150 g pois chiches (part de
-Clémence)`), jamais en `## Notes` — elles ne sont ni parsées ni achetées. Un terme alimentaire
+d'invité. Une **part séparée** est une DONNÉE (ADR 0037) : `recipe_ingredient.for_person_id` +
+`replaces_position`, jamais une parenthèse ni une `## Notes`. Écrire la part en texte rend 422 ;
+`declared_parts` LÈVE si la requête n'a pas chargé `for_person_id` — son absence se lirait
+« aucune part ». Un terme alimentaire
 s'écrit **au singulier** ; un terme ambigu (`roti`, `blanc`, `filet`) se déclare avec son motif
 dans `CONTEXT_REQUIRED` (ADR 0007). Lire, jamais recopier : `/api/preferences`.
 
@@ -157,7 +159,9 @@ formes, XML ANSES, rattachement : `julien-cooking-donnees` § 2.
 
 ## Macros
 
-`nutrition.py` applique les règles du Coach Nutrition, il n'invente rien. Non résolu ⇒
+`POST /api/recipes/{slug}/macros` écrit en base, le `GET` calcule seulement — et le POST
+**refuse d'écrire** sous 0.95 de couverture. `nutrition.py` applique les règles du Coach
+Nutrition, il n'invente rien. Non résolu ⇒
 `unresolved` **avec son motif**, jamais une hypothèse. `kcal = P×4 + G×4 + L×9` ; au-delà de
 5 % d'écart, montrer les deux chiffres. `food` × `food_form` en DB prime sur
 `shopping_product.nutrition` (drive), et `coverage`/`conclusive` priment sur le total.
