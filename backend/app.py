@@ -339,8 +339,7 @@ async def _load_food_base_from_db() -> dict:
     return base_from_form_rows([dict(r) for r in rows])
 
 
-@app.get("/api/recipes/{slug}/macros")
-async def recipe_macros_endpoint(slug: str):
+async def _compute_recipe_macros(slug: str) -> dict:
     """Macros calculées depuis les ingrédients, avec leur provenance."""
     from cooking_manager import nutrition as nut
 
@@ -401,6 +400,37 @@ async def recipe_macros_endpoint(slug: str):
         ],
         "unresolved": [{"name": u.name, "reason": u.reason} for u in result.unresolved],
     }
+
+@app.get("/api/recipes/{slug}/macros")
+async def recipe_macros_endpoint(slug: str):
+    """Macros d'une recette — calcul seul, rien n'est écrit."""
+    return await _compute_recipe_macros(slug)
+
+@app.post("/api/recipes/{slug}/macros")
+async def persist_recipe_macros(slug: str):
+    """Écrit les macros en base — SEULEMENT si le calcul conclut (#159)."""
+    computed = await _compute_recipe_macros(slug)
+    if not computed["conclusive"]:
+        return {**computed, "written": False,
+                "reason": f"couverture {computed['coverage']} : un total partiel écrit en base "
+                          "se lirait comme une mesure — lire `unresolved`"}
+
+    totals = computed["totals"]
+    portion = computed["per_portion"]
+    density = (round(portion["protein"] / portion["kcal"] * 1000, 2)
+               if portion and portion.get("kcal") else None)
+    pool = await get_pool(DATABASE_DSN)
+    async with pool.acquire() as conn:
+        written = await conn.fetchrow(
+            """UPDATE recipe
+                  SET macros_kcal = $2, macros_protein = $3, macros_carbs = $4,
+                      macros_fat = $5, protein_density = $6, updated = CURRENT_DATE
+                WHERE slug = $1
+            RETURNING slug, macros_kcal""",
+            slug, totals["kcal"], totals["protein"], totals["carbs"], totals["fat"], density)
+    if written is None:
+        raise HTTPException(404, f"Recette introuvable : {slug}")
+    return {**computed, "written": True, "protein_density": density}
 
 async def _memberships(conn) -> dict[str, str]:
     """Le rang de chacun : `resident`, `regular_guest`, `guest` — ADR 0025."""
