@@ -3304,20 +3304,20 @@ class CanteenScheduleCreate(BaseModel):
 
 class SchoolPeriodCreate(BaseModel):
     label: str
-    start_date: str
-    end_date: str
+    start_date: datetime.date
+    end_date: datetime.date
 
 class AbsenceCreate(BaseModel):
     person_id: int
-    start_date: str
-    end_date: str
+    start_date: datetime.date
+    end_date: datetime.date
     slot: str | None = None
     reason: str | None = None
 
 class StayCreate(BaseModel):
     label: str
-    start_date: str
-    end_date: str
+    start_date: datetime.date
+    end_date: datetime.date
     location: str | None = None
     cooking: bool = True
     member_ids: list[int] = []

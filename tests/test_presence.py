@@ -250,3 +250,23 @@ class TestUncomposedSlots:
     def test_breakfast_survives_the_canteen(self):
         out = uncomposed_slots(self.grid(), set())
         assert any(s["slot"] == "breakfast" for s in out)
+
+
+class TestDatesDesEcrituresDeReferentiel:
+    """asyncpg refuse une chaine ou il attend une date : les trois POST en mouraient."""
+
+    def test_les_trois_modeles_rendent_des_dates(self):
+        from backend.app import AbsenceCreate, SchoolPeriodCreate, StayCreate
+
+        absence = AbsenceCreate.model_validate(
+            {"person_id": 5, "start_date": "2026-09-28",
+             "end_date": "2026-09-28", "slot": "dinner"})
+        periode = SchoolPeriodCreate.model_validate(
+            {"label": "Toussaint", "start_date": "2026-10-17",
+             "end_date": "2026-11-02"})
+        sejour = StayCreate.model_validate(
+            {"label": "Begles", "start_date": "2026-08-10",
+             "end_date": "2026-08-16"})
+        for modele in (absence, periode, sejour):
+            assert isinstance(modele.start_date, date), type(modele.start_date)
+            assert isinstance(modele.end_date, date), type(modele.end_date)
