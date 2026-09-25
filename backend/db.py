@@ -613,6 +613,22 @@ CREATE TABLE IF NOT EXISTS arbitration (
 );
 
 CREATE INDEX IF NOT EXISTS arbitration_pending_idx ON arbitration(subject, status);
+
+-- Le garde-manger confronté avant qu'un panier parte (#161). Une ligne par menu.
+-- ⚠️ `blind = TRUE` veut dire qu'AUCUNE ligne n'a été regardée : `reason` dit
+-- pourquoi, et la liste de courses doit le porter. Un blind sans motif n'est pas
+-- une confirmation — c'est ce qui distingue une échappatoire d'un contournement.
+CREATE TABLE IF NOT EXISTS pantry_confirmation (
+    id           SERIAL PRIMARY KEY,
+    menu_slug    TEXT NOT NULL UNIQUE,
+    confirmed_at DATE NOT NULL DEFAULT CURRENT_DATE,
+    blind        BOOLEAN NOT NULL DEFAULT FALSE,
+    reason       TEXT,
+    lines_count  INTEGER NOT NULL DEFAULT 0,
+    detail       JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at   TIMESTAMPTZ DEFAULT NOW(),
+    updated_at   TIMESTAMPTZ DEFAULT NOW()
+);
 """
 
 MIGRATIONS_SQL = """

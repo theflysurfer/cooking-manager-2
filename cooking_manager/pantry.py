@@ -166,6 +166,55 @@ def _parse_qty(text: str) -> tuple[float | None, str | None]:
     unit = _UNIT_LOOKUP.get(m.group(3).lower())
     return (first * second if second else first), unit
 
+QUANTIFIED_STATUSES = frozenset({STATUS_OK, STATUS_LOW})
+
+CONFIRMATION_MAX_AGE = timedelta(days=7)
+
+
+def entry_quantity(qty_text: str | None, status: str) -> tuple[float | None, str | None, str | None]:
+    """Quantité d'une entrée au journal, ou le motif pour lequel elle n'en est pas une (#161)."""
+    if status not in QUANTIFIED_STATUSES:
+        return None, None, None
+    value, unit = _parse_qty(qty_text or "")
+    if value is None or unit is None:
+        return None, None, (
+            f"qty_value et unit requis : un '{status}' sans quantité "
+            "ne se compare à aucun besoin")
+    return value, unit, None
+
+
+def confirmation_gate(confirmation: dict | None, menu_slug: str) -> dict:
+    """Le garde-manger a-t-il été confronté avant que ce panier parte ? (#161)"""
+    def refuse(reason: str) -> dict:
+        return {"ok": False, "blind": False, "reason": reason, "note": None}
+
+    if confirmation is None:
+        return refuse(f"garde-manger non confirmé pour le menu {menu_slug}")
+    if confirmation.get("menu_slug") != menu_slug:
+        return refuse(
+            f"la seule confirmation en base porte sur {confirmation.get('menu_slug')!r}, "
+            f"pas sur {menu_slug!r}")
+
+    blind = bool(confirmation.get("blind"))
+    reason = (confirmation.get("reason") or "").strip()
+    if blind and not reason:
+        return refuse("confirmation à l'aveugle sans motif : elle ne dit pas ce qu'on ignore")
+
+    confirmed_at = confirmation.get("confirmed_at")
+    if confirmed_at is None:
+        return refuse("confirmation sans date : son âge ne se juge pas")
+    if date.today() - confirmed_at > CONFIRMATION_MAX_AGE:
+        return refuse(
+            f"confirmation périmée ({confirmed_at.isoformat()}, "
+            f"plus de {CONFIRMATION_MAX_AGE.days} jours)")
+
+    note = None
+    if blind:
+        note = (f"confirmé À L'AVEUGLE le {confirmed_at.isoformat()} — {reason} : "
+                "aucune ligne n'a été regardée")
+    return {"ok": True, "blind": blind, "reason": None, "note": note}
+
+
 _FRONTMATTER_UPDATED = re.compile(
     r"^---\s*$.*?^\s*updated\s*:\s*[\"']?(\d{4}-\d{2}-\d{2})",
     re.MULTILINE | re.DOTALL,

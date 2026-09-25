@@ -106,12 +106,13 @@ database; nothing is read from the Obsidian vault.
 | GET | `/api/menus/{slug}/meals` | Meals for a menu |
 | PATCH | `/api/menus/{slug}/meals/{id}` | Update a meal (recipe, covers) |
 | GET | `/api/menus/{slug}/compatibility` | Dietary check on **ingredients**, per meal — conflicts (each with `membership` and `repaired`), engine `repairs`, `unrepaired`, `preferences`, `meals_without_protein` (chacun avec `secondary` — l'apport protéique hors rotation), `weeknight_too_heavy` |
-| GET | `/api/menus/{slug}/shopping-list` | Generate shopping list (`?covers=N&from_date=YYYY-MM-DD`) — each line carries `outcome`, `merged_from` and `purchase` (measured / countable / dose / unresolved) |
+| GET | `/api/menus/{slug}/shopping-list` | Generate shopping list (`?covers=N&from_date=YYYY-MM-DD`) — each line carries `outcome`, `merged_from` and `purchase` (measured / countable / dose / unresolved) ; read `pantry.confirmation` before `lines` |
+| POST | `/api/menus/{slug}/pantry-confirm` | Confront the pantry before a cart goes out — `lines` (confirmed / corrected / absent) or `blind: true` with its `reason` |
 
 ### Shopping
 | Method | Endpoint | Description |
 |---|---|---|
-| POST | `/api/shopping/validate-cart` | Confront a cart with refused products — `ok:false` blocks checkout |
+| POST | `/api/shopping/validate-cart` | Confront a cart with refused products **and the pantry confirmation** — `menu_slug` is required, `ok:false` blocks checkout (read `pantry` for the reason) |
 | POST | `/api/shopping/import` | Import a shopping session |
 | POST | `/api/shopping/persist-cart` | Persist + enrich cart items (nutrition, nutriscore, allergens) |
 | GET | `/api/shopping/sessions` | List shopping sessions |
@@ -134,7 +135,7 @@ database; nothing is read from the Obsidian vault.
 | PUT | `/api/pantry/items/{id}` | Update item (status, qty, notes) |
 | DELETE | `/api/pantry/items/{id}` | Remove item |
 | GET | `/api/pantry/search?q=` | Search items by name |
-| POST | `/api/pantry/leftover` | Mark a pantry item as leftover |
+| POST | `/api/pantry/leftover` | Mark a pantry item as leftover — `quantity` must carry a value and a unit |
 | PATCH | `/api/pantry` | Update an item **by name** — 409 on homonyms, use `PUT /items/{id}` |
 
 ### Food reference (no frontend — curl, MCP or script)

@@ -61,7 +61,7 @@ async def pantry_add(
     status: str = "ok",
     notes: str = "",
 ) -> str:
-    """Add a new item to the pantry."""
+    """Add a pantry item — `qty_text` must carry a quantity and a unit unless status is `out`."""
     data = await _api("POST", "/api/pantry/items", {
         "name": name,
         "section": section,
@@ -79,7 +79,7 @@ async def pantry_update(
     status: str = "",
     notes: str = "",
 ) -> str:
-    """Update a pantry item's quantity, status, or notes."""
+    """Update a pantry item — a status of `ok` or `low` is refused without a measurable quantity."""
     body: dict = {}
     if qty_text:
         body["qty_text"] = qty_text

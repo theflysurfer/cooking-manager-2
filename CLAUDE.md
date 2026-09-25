@@ -106,8 +106,10 @@ lire `counts.pending` **avant** `groups`.
 préférence énoncée par Julien s'écrit en base **tout de suite**, sinon elle n'existe pas.
 
 ⛔ **`pantry_item` est un JOURNAL D'ENTRÉES, pas un inventaire** : rien ne le décrémente. `ok`
-dit « acheté un jour », jamais « il y en a », et un `out` n'est pas plus fiable. **Faire
-confirmer avant de composer dessus** (#94) — et une confirmation ne se voit nulle part (#120).
+dit « acheté un jour », jamais « il y en a ». Depuis ADR 0036, un `ok`/`low` sans quantité
+mesurable est **refusé en 422** aux cinq écritures, et le panier ne part pas sans
+`POST /api/menus/{slug}/pantry-confirm` — `validate-cart` exige son `menu_slug`. Lire
+`pantry.confirmation` **avant `lines`** : `blind: true` dit qu'aucune ligne n'a été regardée.
 
 ⛔ **`normalize_name` retire découpe et pluriel, jamais un ÉTAT** : « sèches », « surgelés »,
 « fraîche » changent l'identité, donc ne se fusionnent jamais. `find()` **élit une** ligne parmi

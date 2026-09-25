@@ -997,7 +997,8 @@ async def menu_shopping_list(
         "meals_unmatched": unmatched,
         "meals_leftovers": leftovers,
         "pantry": {"updated": pantry.updated.isoformat() if pantry.updated else None,
-                   "age_days": pantry.age_days(), "is_stale": pantry.is_stale()},
+                   "age_days": pantry.age_days(), "is_stale": pantry.is_stale(),
+                   "confirmation": await _confirmation_state(menu["slug"])},
         "counts": counts,
         "purchase_counts": purchase_counts,
         "bans": [ban.as_dict() for ban in await _load_bans()],
@@ -1021,6 +1022,20 @@ def _slot_coverage(meal_days, composed, referential, household) -> dict:
              if lo.isoformat() <= s["date"] <= hi.isoformat()]
     return {"measured": True, "reason": "", "slots": slots}
 
+async def _confirmation_state(slug: str) -> dict:
+    """Ce que le garde-manger de ce menu a vraiment été confronté, ou non (#161)."""
+    from cooking_manager.pantry import confirmation_gate
+
+    pool = await get_pool(DATABASE_DSN)
+    async with pool.acquire() as conn:
+        confirmation = await _load_pantry_confirmation(conn, slug)
+    gate = confirmation_gate(confirmation, slug)
+    return {"ok": gate["ok"], "blind": gate["blind"], "reason": gate["reason"],
+            "note": gate["note"],
+            "confirmed_at": (confirmation["confirmed_at"].isoformat()
+                             if confirmation and confirmation["confirmed_at"] else None),
+            "lines_count": confirmation["lines_count"] if confirmation else None}
+
 async def _recurrent_lines(covered: set[str]) -> list[dict]:
     """Les achats d'habitude qu'aucun repas ne nomme (#89) — marqués `source: recurrent`."""
     from cooking_manager.bans import recurrent_products
@@ -1032,6 +1047,125 @@ async def _recurrent_lines(covered: set[str]) -> list[dict]:
                 WHERE active = TRUE AND pref_type = 'recurrent' ORDER BY key"""
         )
     return recurrent_products(rows, covered)
+
+class PantryConfirmLine(BaseModel):
+    """Une ligne du garde-manger regardée : `absent` et `corrected` réécrivent la base."""
+    name: str
+    verdict: str
+    qty_text: str | None = None
+
+PANTRY_VERDICT_STATUS = {"confirmed": None, "corrected": "ok", "absent": "out"}
+
+class PantryConfirmRequest(BaseModel):
+    lines: list[PantryConfirmLine] = []
+    blind: bool = False
+    reason: str | None = None
+
+async def _load_pantry_confirmation(conn, slug: str) -> dict | None:
+    row = await conn.fetchrow(
+        """SELECT menu_slug, confirmed_at, blind, reason, lines_count
+             FROM pantry_confirmation WHERE menu_slug = $1""", slug)
+    return dict(row) if row else None
+
+@app.post("/api/menus/{slug}/pantry-confirm")
+async def confirm_pantry(slug: str, body: PantryConfirmRequest):
+    """Le garde-manger confronté avant que le panier parte — ou déclaré à l'aveugle (#161)."""
+    from cooking_manager.ingredients import normalize_name
+    from cooking_manager.pantry import entry_quantity
+
+    reason = (body.reason or "").strip()
+    if body.blind and not reason:
+        raise HTTPException(422, {
+            "error": "une confirmation à l'aveugle exige son motif",
+            "hint": "`reason` dit ce qu'on ignore — sans lui, ce n'est pas une échappatoire "
+                    "mais un contournement"})
+    if body.blind and body.lines:
+        raise HTTPException(422, {
+            "error": "`blind: true` avec des lignes : la note dirait qu'aucune ligne n'a été "
+                     "regardée alors que certaines l'ont été",
+            "hint": "confirmer les lignes vues, ou déclarer l'aveugle — pas les deux"})
+    if not body.blind and not body.lines:
+        raise HTTPException(422, {
+            "error": "aucune ligne regardée et `blind` absent",
+            "hint": "confirmer des lignes, ou déclarer `blind: true` avec son motif"})
+
+    unknown = sorted({line.verdict for line in body.lines} - set(PANTRY_VERDICT_STATUS))
+    if unknown:
+        raise HTTPException(422, {
+            "error": f"verdict inconnu : {unknown}",
+            "expected": sorted(PANTRY_VERDICT_STATUS)})
+
+    applied, refused, writes = [], [], []
+    pool = await get_pool(DATABASE_DSN)
+    async with pool.acquire() as conn:
+        for line in body.lines:
+            status = PANTRY_VERDICT_STATUS[line.verdict]
+            if status is None:
+                continue
+            qty_value, unit, refusal = entry_quantity(line.qty_text, status)
+            if refusal:
+                refused.append({"name": line.name, "reason": refusal,
+                                "qty_text": line.qty_text})
+                continue
+            candidates = await conn.fetch(
+                """SELECT id, name, section FROM pantry_item
+                    WHERE lower(name) = lower($1) OR name_normalized = $2
+                    ORDER BY id""",
+                line.name, normalize_name(line.name))
+            exact = [r for r in candidates
+                     if r["name"].strip().lower() == line.name.strip().lower()]
+            elected = exact or list(candidates)
+            if not elected:
+                refused.append({"name": line.name,
+                                "reason": "article introuvable au garde-manger"})
+            elif len(elected) > 1:
+                refused.append({
+                    "name": line.name,
+                    "reason": f"{len(elected)} articles portent ce nom — préciser lequel",
+                    "candidates": [{"id": r["id"], "name": r["name"],
+                                    "section": r["section"]} for r in elected]})
+            else:
+                writes.append((elected[0]["id"], status, line.qty_text, qty_value, unit))
+
+        if refused:
+            raise HTTPException(422, {
+                "error": f"{len(refused)} ligne(s) non déclarables — rien n'a été confirmé",
+                "refused": refused})
+
+        async with conn.transaction():
+            for item_id, status, qty_text, qty_value, unit in writes:
+                written = await conn.fetchrow(
+                    """UPDATE pantry_item
+                          SET status = $2, xstatus = $2, updated_at = NOW(),
+                              qty_text = $3, qty_value = $4, unit = $5
+                        WHERE id = $1
+                    RETURNING id, name, status""",
+                    item_id, status, qty_text or "", qty_value, unit)
+                if written is None:
+                    raise HTTPException(500, f"Écriture perdue sur l'article {item_id}")
+                applied.append({"id": written["id"], "name": written["name"],
+                                "status": written["status"]})
+
+            row = await conn.fetchrow(
+                """INSERT INTO pantry_confirmation
+                       (menu_slug, confirmed_at, blind, reason, lines_count, detail)
+                   VALUES ($1, CURRENT_DATE, $2, $3, $4, $5::jsonb)
+                   ON CONFLICT (menu_slug) DO UPDATE SET
+                       confirmed_at = CURRENT_DATE, blind = EXCLUDED.blind,
+                       reason = EXCLUDED.reason, lines_count = EXCLUDED.lines_count,
+                       detail = EXCLUDED.detail, updated_at = NOW()
+                RETURNING menu_slug, confirmed_at, blind, reason, lines_count""",
+                slug, body.blind, reason or None, len(body.lines),
+                json.dumps({"applied": applied}))
+    if row is None:
+        raise HTTPException(500, f"Confirmation perdue pour le menu {slug}")
+
+    from cooking_manager.pantry import confirmation_gate
+    gate = confirmation_gate(dict(row), slug)
+    return {"menu_slug": slug, "confirmed_at": row["confirmed_at"].isoformat(),
+            "blind": row["blind"], "reason": row["reason"],
+            "lines_count": row["lines_count"], "applied": applied,
+            "note": gate["note"]}
 
 @app.get("/api/menus/{slug}/mediterranean")
 async def menu_mediterranean(slug: str):
@@ -1213,6 +1347,13 @@ async def update_pantry(body: PantryUpdate):
         raise HTTPException(400, "`qty_text` est requis pour l'action `update`")
 
     from cooking_manager.ingredients import normalize_name
+    from cooking_manager.pantry import entry_quantity
+
+    status = PANTRY_ACTION_STATUS[body.action]
+    qty_value, unit, refusal = entry_quantity(body.qty_text, status)
+    if refusal:
+        raise HTTPException(422, {"error": refusal, "item_name": body.item_name,
+                                  "qty_text": body.qty_text})
 
     wanted = body.item_name.strip()
     pool = await get_pool(DATABASE_DSN)
@@ -1244,11 +1385,13 @@ async def update_pantry(body: PantryUpdate):
             """UPDATE pantry_item
                   SET status = $2,
                       xstatus = $2,
-                      qty_text = COALESCE($3, qty_text),
+                      qty_text = $3,
+                      qty_value = $4,
+                      unit = $5,
                       updated_at = NOW()
                 WHERE id = $1
-            RETURNING id, name, qty_text, status, xstatus""",
-            before["id"], PANTRY_ACTION_STATUS[body.action], body.qty_text)
+            RETURNING id, name, qty_text, qty_value, unit, status, xstatus""",
+            before["id"], status, body.qty_text or "", qty_value, unit)
 
     if after is None:
         raise HTTPException(500, f"Écriture perdue sur l'article {before['id']}")
@@ -1259,7 +1402,9 @@ async def update_pantry(body: PantryUpdate):
         "name": after["name"],
         "before": {"status": before["status"], "qty_text": before["qty_text"]},
         "after": {"status": after["status"], "xstatus": after["xstatus"],
-                  "qty_text": after["qty_text"]},
+                  "qty_text": after["qty_text"],
+                  "qty_value": float(after["qty_value"]) if after["qty_value"] is not None else None,
+                  "unit": after["unit"]},
     }
 
 class PantryItemCreate(BaseModel):
@@ -1283,7 +1428,7 @@ class PantryItemUpdate(BaseModel):
 @app.post("/api/pantry/items")
 async def create_pantry_item(body: PantryItemCreate):
     from cooking_manager.ingredients import normalize_name
-    from cooking_manager.pantry import XSTATUS_MAP, is_perishable_section
+    from cooking_manager.pantry import XSTATUS_MAP, entry_quantity, is_perishable_section
 
     name_normalized = normalize_name(body.name)
     if not name_normalized:
@@ -1292,18 +1437,22 @@ async def create_pantry_item(body: PantryItemCreate):
     xstatus = body.status
     status = XSTATUS_MAP.get(xstatus, body.status)
     perishable = is_perishable_section(body.section)
+    qty_value, unit, refusal = entry_quantity(body.qty_text, status)
+    if refusal:
+        raise HTTPException(422, {"error": refusal, "name": body.name,
+                                  "qty_text": body.qty_text})
 
     pool = await get_pool(DATABASE_DSN)
     async with pool.acquire() as conn:
         try:
             row = await conn.fetchrow(
                 """INSERT INTO pantry_item
-                   (name, name_normalized, section, qty_text, status, xstatus,
-                    perishable, entered_at, source, notes)
-                   VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
-                   RETURNING id, name, section, status""",
+                   (name, name_normalized, section, qty_text, qty_value, unit,
+                    status, xstatus, perishable, entered_at, source, notes)
+                   VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+                   RETURNING id, name, section, qty_value, unit, status""",
                 body.name, name_normalized, body.section, body.qty_text,
-                status, xstatus, perishable,
+                qty_value, unit, status, xstatus, perishable,
                 body.entered_at or datetime.date.today(), body.source, body.notes,
             )
         except Exception as e:
@@ -1312,7 +1461,7 @@ async def create_pantry_item(body: PantryItemCreate):
                     409, f"Item déjà existant : {body.name} dans {body.section}"
                 ) from None
             raise
-    return dict(row)
+    return _round_numeric(dict(row))
 
 @app.get("/api/pantry/items/{item_id}")
 async def get_pantry_item(item_id: int):
@@ -1344,8 +1493,18 @@ async def update_pantry_item(item_id: int, body: PantryItemUpdate):
         entered_at = body.entered_at or existing["entered_at"]
         notes = body.notes if body.notes is not None else existing["notes"]
 
-        from cooking_manager.pantry import _parse_qty
-        qty_value, unit = _parse_qty(qty_text)
+        from cooking_manager.pantry import QUANTIFIED_STATUSES, entry_quantity
+
+        declares_quantity = body.qty_text is not None
+        enters_stock = (status in QUANTIFIED_STATUSES
+                        and existing["status"] not in QUANTIFIED_STATUSES)
+        qty_value, unit, refusal = entry_quantity(qty_text, status)
+        if refusal and (declares_quantity or enters_stock):
+            raise HTTPException(422, {"error": refusal, "id": item_id,
+                                      "name": name, "qty_text": qty_text})
+        if refusal:
+            qty_value, unit = (float(existing["qty_value"])
+                               if existing["qty_value"] is not None else None), existing["unit"]
         perishable = is_perishable_section(section)
 
         await conn.execute(
@@ -1383,7 +1542,7 @@ class PantryBulkItem(BaseModel):
 async def bulk_upsert_pantry(items: list[PantryBulkItem]):
     """Upsert a batch of pantry items (vocal bulk inventory)."""
     from cooking_manager.ingredients import normalize_name
-    from cooking_manager.pantry import _parse_qty, is_perishable_section
+    from cooking_manager.pantry import STATUS_OK, entry_quantity, is_perishable_section
 
     if not items:
         raise HTTPException(400, "Liste vide")
@@ -1399,7 +1558,12 @@ async def bulk_upsert_pantry(items: list[PantryBulkItem]):
                 results.append({"name": item.name, "status": "skipped", "reason": "nom vide"})
                 continue
 
-            qty_value, unit = _parse_qty(item.qty_text)
+            qty_value, unit, refusal = entry_quantity(item.qty_text, STATUS_OK)
+            if refusal:
+                results.append({"name": item.name, "section": item.section,
+                                "status": "rejected", "reason": refusal,
+                                "qty_text": item.qty_text})
+                continue
             perishable = is_perishable_section(item.section)
 
             existing = await conn.fetchrow(
@@ -1440,7 +1604,9 @@ async def bulk_upsert_pantry(items: list[PantryBulkItem]):
 
     created = sum(1 for r in results if r.get("status") == "created")
     updated = sum(1 for r in results if r.get("status") == "updated")
-    return {"results": results, "created": created, "updated": updated}
+    rejected = [r for r in results if r.get("status") == "rejected"]
+    return {"results": results, "created": created, "updated": updated,
+            "rejected": len(rejected), "rejected_names": [r["name"] for r in rejected]}
 
 @app.get("/api/pantry/search")
 async def search_pantry(q: str = Query(..., min_length=1)):
@@ -1965,12 +2131,14 @@ class CartItem(BaseModel):
     brand: str | None = None
 
 class CartValidation(BaseModel):
+    menu_slug: str
     items: list[CartItem]
 
 @app.post("/api/shopping/validate-cart")
 async def validate_cart(body: CartValidation):
-    """Confronte un panier aux bans — `ok: false` bloque le report et le paiement."""
+    """Confronte un panier aux bans et au garde-manger — `ok: false` bloque le paiement."""
     from cooking_manager.bans import find_ban
+    from cooking_manager.pantry import confirmation_gate
 
     bans = await _load_bans()
     violations = [
@@ -1981,9 +2149,16 @@ async def validate_cart(body: CartValidation):
                             brand=item.brand)) is not None
     ]
     unarbitrated = await _unarbitrated_lines([item.product for item in body.items])
-    return {"ok": not violations and not unarbitrated, "checked": len(body.items),
+
+    pool = await get_pool(DATABASE_DSN)
+    async with pool.acquire() as conn:
+        confirmation = await _load_pantry_confirmation(conn, body.menu_slug)
+    gate = confirmation_gate(confirmation, body.menu_slug)
+
+    return {"ok": not violations and not unarbitrated and gate["ok"],
+            "checked": len(body.items),
             "violations": violations, "bans_active": len(bans),
-            "unarbitrated": unarbitrated}
+            "unarbitrated": unarbitrated, "pantry": gate}
 
 async def _unarbitrated_lines(products: list[str]) -> list[dict]:
     """L'arbitrage précède l'entrée : une ligne jamais tranchée bloque le panier (ADR 0032)."""
@@ -2472,17 +2647,26 @@ class LeftoverBody(BaseModel):
 @app.post("/api/pantry/leftover")
 async def add_pantry_leftover(body: LeftoverBody):
     from cooking_manager.ingredients import normalize_name
+    from cooking_manager.pantry import STATUS_OK, entry_quantity
+
     normalized = normalize_name(body.ingredient)
+    qty_value, unit, refusal = entry_quantity(body.quantity, STATUS_OK)
+    if refusal:
+        raise HTTPException(422, {"error": refusal, "ingredient": body.ingredient,
+                                  "quantity": body.quantity})
     pool = await get_pool(DATABASE_DSN)
     async with pool.acquire() as conn:
         await conn.execute(
-            """INSERT INTO pantry_item (name, name_normalized, section, qty_text, status, source)
-               VALUES ($1, $2, 'Restes', $3, 'ok', 'voice')
+            """INSERT INTO pantry_item
+                   (name, name_normalized, section, qty_text, qty_value, unit, status, source)
+               VALUES ($1, $2, 'Restes', $3, $4, $5, 'ok', 'voice')
                ON CONFLICT (name_normalized, section) DO UPDATE
-               SET qty_text = EXCLUDED.qty_text, status = 'ok', updated_at = NOW()""",
-            body.ingredient, normalized, body.quantity or "",
+               SET qty_text = EXCLUDED.qty_text, qty_value = EXCLUDED.qty_value,
+                   unit = EXCLUDED.unit, status = 'ok', updated_at = NOW()""",
+            body.ingredient, normalized, body.quantity or "", qty_value, unit,
         )
-    return {"ok": True, "ingredient": body.ingredient}
+    return {"ok": True, "ingredient": body.ingredient,
+            "qty_value": qty_value, "unit": unit}
 
 @app.get("/api/drives/{store}/stores")
 async def drive_stores(store: str, postal_code: str = Query(..., min_length=4)):
