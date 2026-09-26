@@ -33,10 +33,14 @@ python ~/.claude/skills/julien-audit-ios12-compat/scripts/audit_ios12.py web   #
 `cooking_manager/` = domaine pur, **sans I/O réseau** (un module qui en fait est mal rangé).
 `backend/` = FastAPI, schéma, writers DB, `stt.py`, `cooking_mcp.py`. `web/` = statique, zéro
 build. `data/ontology/` = source du vocabulaire.
-`backend/url_parser/`, `images.py`, `book_import.py` = parsing web et import de livre, absorbés
-de recipe-manager (ADR 0031). Déploiement : systemd `cooking-manager` (8795) + `cooking-mcp`
-(3868) sur srv759970 ; CM2 est **propriétaire** des tables recette. Waaker appelle
-`POST /api/recipes/parse-html` sur 8795.
+`backend/url_parser/`, `images.py`, `book_import.py` = parsing web, import de livre et
+**génération d'image**, absorbés de recipe-manager (ADR 0031) : son service 8796 est arrêté et
+**désactivé**, ⛔ ne jamais le relancer — tout passe par 8795. Déploiement : systemd
+`cooking-manager` (8795) + `cooking-mcp` (3868) sur srv759970 ; CM2 est **propriétaire** des
+tables recette. Waaker appelle `POST /api/recipes/parse-html` sur 8795.
+La route photo refuse une fiche qui a déjà un `photo_url` (`generated: false` + `reason`, pas un
+échec) et écrit **dans l'arbre de travail du dépôt déployé** : comparer les md5 avant de purger la
+box, sinon le `git pull` suivant refuse de s'appliquer (#70).
 
 ## DB fait foi (ADR 0010/0022)
 
@@ -82,9 +86,10 @@ ingrédients de `menu_meal.leftovers_of`, **sans source exploitable il n'est pas
 ⛔ **Un interdit se lit À UNE TABLÉE** : `/recipes/{slug}/compatibility` résout `?convives=` →
 `?day=&slot=` → **les résidents** (`household_member`). `membership: guest` = contrainte
 d'invité. Une **part séparée** est une DONNÉE (ADR 0037) : `recipe_ingredient.for_person_id` +
-`replaces_position`, jamais une parenthèse ni une `## Notes`. Écrire la part en texte rend 422 ;
-`declared_parts` LÈVE si la requête n'a pas chargé `for_person_id` — son absence se lirait
-« aucune part ». Un terme alimentaire
+`replaces_position`, jamais une parenthèse ni une `## Notes`. Écrire la part en texte rend 422, et
+**aucune route ne pose `for_person_id`** : passer par SQL, puis ne plus rejouer `POST /api/recipes`
+sur ce slug — il efface la part en silence (#167). `declared_parts` LÈVE si la requête n'a pas
+chargé `for_person_id` — son absence se lirait « aucune part ». Un terme alimentaire
 s'écrit **au singulier** ; un terme ambigu (`roti`, `blanc`, `filet`) se déclare avec son motif
 dans `CONTEXT_REQUIRED` (ADR 0007). Lire, jamais recopier : `/api/preferences`.
 
@@ -102,23 +107,21 @@ connu pour cet aliment », jamais « un seul contenant ». Une dose ne se condit
 
 ⛔ **Une file unique tranche les deux sujets** (`/api/arbitration`, ADR 0032) : `subject` vaut
 `food_key` ou `food_kind`. Seul l'étage **exact** tranche seul. `settled` + `decision: null` =
-**instruit, hors référentiel**, distinct d'un sujet jamais vu (422 sur un refus sans motif) ;
-lire `counts.pending` **avant** `groups`.
+**instruit, hors référentiel**, distinct d'un sujet jamais vu ; lire `counts.pending` **avant**
+`groups`. Sa file se construit depuis `pantry_item` + `recipe_ingredient` **et** les cibles de
+substitution de régime, injectées hors table — sans elles le gate refusait à jamais un nom
+qu'aucun refresh ne pouvait mettre en file.
 
-⛔ **Un panier se confronte aux refus avant de partir** : `POST /api/shopping/validate-cart`,
-`ok:false` bloque sur un ban ou sur une ligne jamais arbitrée. Bans dans `shopping_preference`
-— un ban dont AUCUN nom ne porte le mot visé ne frappe rien et rend `ok:true` (#115). Une
-préférence énoncée par Julien s'écrit en base **tout de suite**, sinon elle n'existe pas.
-
-⛔ **Le panier est une table, pas une croyance** (ADR 0039, #156) : `POST /api/cart/items`
-élit au drive — le produit nommé, sinon substitution **bornée** (même aliment, gamme
-autorisée, contenant équivalent), sinon `status: asked` qui porte la **question**. Un
-contenant voulu **inconnu** ne vaut pas « quelconque ». `GET /api/cart` : lire
-`counts.asked` **avant** `lines`. `POST /api/cart/push` rejoue **une ligne à la fois** et
-**recompte** chaque ajout — un `ok` du drive ne garantit aucune quantité ; session
-anonyme → **409**, un panier qui n'appartient à personne n'est pas un panier. Transport :
-façade REST loopback `127.0.0.1:3853` de `mcp-vps-auchan` (mcp-vps ADR 0009), jamais le
-MCP (il exige un jeton Google même en local).
+⛔ **Le panier se confronte aux refus avant de partir, et c'est une table, pas une croyance**
+(ADR 0032/0039) : `validate-cart` bloque sur un ban ou une ligne jamais arbitrée — un ban dont
+AUCUN nom ne porte le mot visé ne frappe rien et rend `ok:true` (#115). `POST /api/cart/items`
+élit au drive, sinon substitution **bornée**, sinon `status: asked` qui porte la question ; un
+contenant voulu inconnu ne vaut pas « quelconque ». Lire `counts.asked` **avant** `lines`.
+`push` rejoue **une ligne à la fois** et **recompte** — un `ok` du drive ne garantit aucune
+quantité ; session anonyme → **409**. Transport : façade REST loopback `127.0.0.1:3853` de
+`mcp-vps-auchan` (mcp-vps ADR 0009), jamais le MCP. Une préférence énoncée par Julien s'écrit en
+base **tout de suite**, sinon elle n'existe pas. Le déroulé des sept états :
+`julien-cooking-manager-weekly-prep` § 9.
 
 ⛔ **`pantry_item` est un JOURNAL D'ENTRÉES, pas un inventaire** : rien ne le décrémente. `ok`
 dit « acheté un jour », jamais « il y en a ». Depuis ADR 0036, un `ok`/`low` sans quantité
